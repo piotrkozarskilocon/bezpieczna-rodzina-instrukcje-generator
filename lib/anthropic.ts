@@ -30,7 +30,12 @@ export interface AiResponse {
 }
 
 /** Calls Claude with a system prompt + user message, returns plain text.
- *  Throws on empty or non-text content blocks. */
+ *  Throws on empty or non-text content blocks.
+ *
+ *  Używa streamingu (`messages.stream(...).finalMessage()`), bo Anthropic
+ *  od końca 2025 wymusza streaming dla operacji potencjalnie > 10 min
+ *  (large max_tokens + wolniejsze modele jak Sonnet 4.6). API zwraca
+ *  ten sam typ Message co .create(), więc reszta kodu nie wymaga zmian. */
 export async function callClaude(opts: {
   system: string;
   user: string;
@@ -40,12 +45,14 @@ export async function callClaude(opts: {
   const client = getAnthropicClient();
   const model = opts.model ?? INITIAL_MODEL;
   const start = Date.now();
-  const message = await client.messages.create({
-    model,
-    max_tokens: opts.maxTokens ?? 16000,
-    system: opts.system,
-    messages: [{ role: "user", content: opts.user }],
-  });
+  const message = await client.messages
+    .stream({
+      model,
+      max_tokens: opts.maxTokens ?? 16000,
+      system: opts.system,
+      messages: [{ role: "user", content: opts.user }],
+    })
+    .finalMessage();
   const latencyMs = Date.now() - start;
 
   // Concatenate any text blocks from the structured response.

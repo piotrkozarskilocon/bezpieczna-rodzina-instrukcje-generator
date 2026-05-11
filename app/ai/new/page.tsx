@@ -276,7 +276,9 @@ export default function AiNewProjectPage(): React.ReactElement {
             disabled={busy || !name.trim() || !modelCode.trim()}
             className="inline-flex items-center gap-2 rounded-md bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50"
           >
-            {busy ? "Tworzenie..." : "✨ Stwórz projekt + przygotuj prompt"}
+            {busy
+              ? mode === "auto" ? "Generowanie... (~30-60 s)" : "Tworzenie..."
+              : mode === "auto" ? "✨ Stwórz projekt" : "✨ Stwórz projekt + przygotuj prompt"}
           </button>
         </div>
       </form>
