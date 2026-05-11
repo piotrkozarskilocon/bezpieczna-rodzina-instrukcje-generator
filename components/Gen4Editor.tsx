@@ -74,6 +74,17 @@ export default function Gen4Editor({
   // Narzędzie rysowania aktywne — line/rect rysuje się przeciągnięciem myszą
   // po stronie. Po narysowaniu lub kliknięciu prawym przyciskiem tryb gaśnie.
   const [drawingTool, setDrawingTool] = useState<"line" | "rect" | null>(null);
+  // Historia stanów elementów dla undo (Ctrl+Z). Trzyma do 10 ostatnich
+  // snapshotów bieżącej strony. Reset przy zmianie strony.
+  const [history, setHistory] = useState<ElementRow[][]>([]);
+  const MAX_HISTORY = 10;
+  const pushHistory = useCallback((snapshot: ElementRow[]) => {
+    setHistory((prev) => {
+      const next = [...prev, snapshot];
+      if (next.length > MAX_HISTORY) next.shift();
+      return next;
+    });
+  }, []);
 
   const refreshImages = useCallback(async () => {
     try {
@@ -133,7 +144,11 @@ export default function Gen4Editor({
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
       })
-      .then((j: { elements: ElementRow[] }) => { if (active) setElements(j.elements ?? []); })
+      .then((j: { elements: ElementRow[] }) => {
+        if (!active) return;
+        setElements(j.elements ?? []);
+        setHistory([]); // reset undo stack przy zmianie strony
+      })
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : "fetch elements failed"); });
     return () => { active = false; };
   }, [currentPageId]);
@@ -212,8 +227,10 @@ export default function Gen4Editor({
   const insertElement = async (
     type: ElementType,
     coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
+    customProps?: Record<string, unknown>,
   ) => {
     if (!currentPageId) return;
+    pushHistory(elements); // snapshot przed zmianą
     try {
       const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
         method: "POST",
@@ -222,7 +239,7 @@ export default function Gen4Editor({
           type,
           ...coords,
           z_index: elements.length,
-          properties: propsForType(type),
+          properties: customProps ?? propsForType(type),
         }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -251,17 +268,33 @@ export default function Gen4Editor({
     await insertElement(type, defaults);
   };
 
-  /** Wywoływane przez PageCanvas po zakończeniu rysowania myszą. */
+  /** Wywoływane przez PageCanvas po zakończeniu rysowania myszą.
+   *  Dla linii w `direction` przekazane są procentowe pozycje obu końców
+   *  wewnątrz bounding boxa — pozwala na dowolny kierunek (pion/skos/poziom). */
   const handleDrawComplete = async (
     type: "line" | "rect",
     coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
+    direction?: { x1_pct: number; y1_pct: number; x2_pct: number; y2_pct: number },
   ) => {
     setDrawingTool(null);
+    if (type === "line" && direction) {
+      await insertElement(type, coords, {
+        ...propsForType("line"),
+        x1_pct: direction.x1_pct,
+        y1_pct: direction.y1_pct,
+        x2_pct: direction.x2_pct,
+        y2_pct: direction.y2_pct,
+      });
+      return;
+    }
     await insertElement(type, coords);
   };
 
   const updateElement = useCallback(async (id: string, patch: Partial<ElementRow>) => {
-    setElements((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
+    setElements((prev) => {
+      pushHistory(prev); // snapshot przed zmianą
+      return prev.map((e) => (e.id === id ? { ...e, ...patch } : e));
+    });
     try {
       await fetch(`${API}/elements/${id}/`, {
         method: "PATCH",
@@ -269,19 +302,71 @@ export default function Gen4Editor({
         body: JSON.stringify(patch),
       });
     } catch (err) {
-      console.error("[v3 element patch]", err);
+      console.error("[v4 element patch]", err);
     }
-  }, []);
+  }, [pushHistory]);
 
   const deleteElement = async (id: string) => {
+    pushHistory(elements);
     setElements((prev) => prev.filter((e) => e.id !== id));
     if (selectedId === id) setSelectedId(null);
     try {
       await fetch(`${API}/elements/${id}/`, { method: "DELETE" });
     } catch (err) {
-      console.error("[v3 element delete]", err);
+      console.error("[v4 element delete]", err);
     }
   };
+
+  /** Cofnięcie — przywraca ostatni snapshot przez replace-elements (atomic
+   *  wymiana). Bezpieczne nawet gdy historia ma nieaktualne id z bazy. */
+  const undo = useCallback(async () => {
+    if (!currentPageId || history.length === 0) return;
+    const lastSnapshot = history[history.length - 1];
+    setHistory((prev) => prev.slice(0, -1));
+    const payload = JSON.stringify({
+      elements: lastSnapshot.map((el) => ({
+        type: el.type,
+        x_mm: el.x_mm,
+        y_mm: el.y_mm,
+        w_mm: el.w_mm,
+        h_mm: el.h_mm,
+        z_index: el.z_index,
+        rotation_deg: el.rotation_deg,
+        properties: el.properties,
+      })),
+    });
+    try {
+      const res = await fetch(`${API}/pages/${currentPageId}/replace-elements/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ json: payload }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      // Reload elementów żeby dostać nowe id (replace robi delete+insert).
+      const reload = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+      if (reload.ok) {
+        const j = (await reload.json()) as { elements: ElementRow[] };
+        setElements(j.elements ?? []);
+        setSelectedId(null);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "undo failed");
+    }
+  }, [currentPageId, history]);
+
+  // Ctrl+Z (lub Cmd+Z) na całej stronie — ale tylko gdy fokus NIE jest w
+  // textarea/input (żeby nie przeszkadzać natywnemu undo w edycji tekstu).
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
+      const target = e.target as HTMLElement | null;
+      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) return;
+      e.preventDefault();
+      void undo();
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [undo]);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -424,6 +509,19 @@ export default function Gen4Editor({
               </span>
             )}
             <div className="ml-auto flex items-center gap-2">
+              <button
+                type="button"
+                disabled={history.length === 0}
+                onClick={() => void undo()}
+                className="rounded border border-slate-300 bg-white px-2 py-0.5 font-medium text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-30"
+                title={
+                  history.length === 0
+                    ? "Brak zmian do cofnięcia"
+                    : `Cofnij ostatnią zmianę (${history.length}/${MAX_HISTORY}) — Ctrl+Z`
+                }
+              >
+                ↶ Cofnij {history.length > 0 && <span className="text-slate-400">({history.length})</span>}
+              </button>
               <span className="text-slate-500">Zoom:</span>
               <button type="button" onClick={() => setZoom((z) => Math.max(2, z - 1))}
                 className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50">−</button>
@@ -568,6 +666,7 @@ interface PageCanvasProps {
   onDrawComplete: (
     type: "line" | "rect",
     coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
+    direction?: { x1_pct: number; y1_pct: number; x2_pct: number; y2_pct: number },
   ) => void;
 }
 
@@ -602,29 +701,65 @@ function PageCanvas({
       setDrawEnd(null);
       return;
     }
-    // Konwersja px → mm.
+    // Bounding box w px.
     const x1 = Math.min(drawStart.x, drawEnd.x);
     const y1 = Math.min(drawStart.y, drawEnd.y);
     const x2 = Math.max(drawStart.x, drawEnd.x);
     const y2 = Math.max(drawStart.y, drawEnd.y);
-    let w = (x2 - x1) / zoom;
-    let h = (y2 - y1) / zoom;
-    // Minimalne sensowne wymiary — gdy user kliknął bez przeciągnięcia,
-    // domyślny rozmiar żeby element był widoczny.
+    let wPxBox = x2 - x1;
+    let hPxBox = y2 - y1;
+    let wMm = wPxBox / zoom;
+    let hMm = hPxBox / zoom;
+
     if (drawingTool === "line") {
-      if (w < 5) w = 30;          // pozioma linia ~30 mm
-      h = Math.max(h, 0.3);       // płaska
-    } else {
-      if (w < 2) w = 20;
-      if (h < 2) h = 20;
+      // Kierunek linii: który koniec w którym rogu bounding boxa.
+      // Procenty (0/100) tych punktów wewnątrz bounding boxa po normalizacji.
+      // Klik bez przeciągnięcia (mała odległość) → domyślna pozioma 30 mm.
+      const dist = Math.hypot(drawEnd.x - drawStart.x, drawEnd.y - drawStart.y);
+      if (dist < 4) {
+        // Mała linia → pozioma domyślna.
+        const xMm = drawStart.x / zoom;
+        const yMm = drawStart.y / zoom;
+        setDrawStart(null);
+        setDrawEnd(null);
+        onDrawComplete(drawingTool, { x_mm: xMm, y_mm: yMm, w_mm: 30, h_mm: 0.5 }, {
+          x1_pct: 0, y1_pct: 50, x2_pct: 100, y2_pct: 50,
+        });
+        return;
+      }
+      // Minimalne wymiary bounding boxa żeby renderowanie miało sens.
+      if (wPxBox < 1) wPxBox = 1;
+      if (hPxBox < 1) hPxBox = 1;
+      wMm = wPxBox / zoom;
+      hMm = hPxBox / zoom;
+      // Punkty drawStart i drawEnd w lokalnych współrzędnych bounding boxa (px).
+      const startLocalX = drawStart.x - x1;
+      const startLocalY = drawStart.y - y1;
+      const endLocalX = drawEnd.x - x1;
+      const endLocalY = drawEnd.y - y1;
+      const x1_pct = (startLocalX / wPxBox) * 100;
+      const y1_pct = (startLocalY / hPxBox) * 100;
+      const x2_pct = (endLocalX / wPxBox) * 100;
+      const y2_pct = (endLocalY / hPxBox) * 100;
+      setDrawStart(null);
+      setDrawEnd(null);
+      onDrawComplete(
+        drawingTool,
+        { x_mm: x1 / zoom, y_mm: y1 / zoom, w_mm: wMm, h_mm: hMm },
+        { x1_pct, y1_pct, x2_pct, y2_pct },
+      );
+      return;
     }
+    // Prostokąt — sensowne minimum.
+    if (wMm < 2) wMm = 20;
+    if (hMm < 2) hMm = 20;
     setDrawStart(null);
     setDrawEnd(null);
     onDrawComplete(drawingTool, {
       x_mm: x1 / zoom,
       y_mm: y1 / zoom,
-      w_mm: w,
-      h_mm: h,
+      w_mm: wMm,
+      h_mm: hMm,
     });
   };
   const wPx = page.width_mm * zoom;
@@ -697,28 +832,38 @@ function PageCanvas({
   }, [selectedId, onUpdate, zoom]);
 
   // Overlay rysowanego elementu — pokazuje live preview (linia lub prostokąt)
-  // dopóki user nie zwolni przycisku myszy.
+  // dopóki user nie zwolni przycisku myszy. Linia rysowana jako SVG między
+  // dokładnymi punktami startu i końca (dowolny kąt).
   const previewBox = (() => {
     if (!isDrawing || !drawStart || !drawEnd) return null;
+    if (drawingTool === "line") {
+      return (
+        <svg
+          style={{
+            position: "absolute",
+            left: 0,
+            top: 0,
+            width: wPx,
+            height: hPx,
+            pointerEvents: "none",
+          }}
+        >
+          <line
+            x1={drawStart.x}
+            y1={drawStart.y}
+            x2={drawEnd.x}
+            y2={drawEnd.y}
+            stroke="#f59e0b"
+            strokeWidth={2}
+            strokeDasharray="4 4"
+          />
+        </svg>
+      );
+    }
     const x = Math.min(drawStart.x, drawEnd.x);
     const y = Math.min(drawStart.y, drawEnd.y);
     const w = Math.abs(drawEnd.x - drawStart.x);
     const h = Math.abs(drawEnd.y - drawStart.y);
-    if (drawingTool === "line") {
-      return (
-        <div
-          style={{
-            position: "absolute",
-            left: x,
-            top: y,
-            width: Math.max(w, 1),
-            height: 0,
-            borderTop: "1px dashed #f59e0b",
-            pointerEvents: "none",
-          }}
-        />
-      );
-    }
     return (
       <div
         style={{
@@ -960,19 +1105,43 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
   }
 
   if (el.type === "line") {
+    // Procentowe pozycje obu końców wewnątrz bounding boxa. Fallback dla
+    // starych linii (tylko bounding box bez x1/x2): linia pozioma na środku.
+    const x1Pct = typeof props.x1_pct === "number" ? props.x1_pct : 0;
+    const y1Pct = typeof props.y1_pct === "number" ? props.y1_pct : 50;
+    const x2Pct = typeof props.x2_pct === "number" ? props.x2_pct : 100;
+    const y2Pct = typeof props.y2_pct === "number" ? props.y2_pct : 50;
+    const stroke = (props.color as string) ?? "#0f172a";
+    const sw = (typeof props.stroke_width === "number" ? props.stroke_width : 0.5) * zoom;
+    // Bounding box dla SVG musi być przynajmniej 1px wysoki — gdy linia
+    // jest pozioma (h_mm bliskie 0), wymuszamy minimalną wysokość żeby
+    // <svg> w ogóle renderował.
+    const svgW = Math.max(width, 1);
+    const svgH = Math.max(height, sw + 2);
     return (
       <div
         data-el-id={el.id}
         onClick={(e) => { e.stopPropagation(); onClick(); }}
         style={{
           ...baseStyle,
-          borderTop: `${(typeof props.stroke_width === "number" ? props.stroke_width : 0.5) * zoom}px solid ${(props.color as string) ?? "#0f172a"}`,
-          height: 0,
-          outline: selected ? "2px solid #f59e0b" : undefined,
+          height: `${svgH}px`,
+          outline: selected ? "2px solid #f59e0b" : "1px dashed rgba(100,116,139,0.2)",
           cursor: selected ? "move" : "pointer",
           touchAction: "none",
         }}
-      />
+      >
+        <svg width={svgW} height={svgH} style={{ display: "block", pointerEvents: "none" }}>
+          <line
+            x1={(x1Pct / 100) * svgW}
+            y1={(y1Pct / 100) * svgH}
+            x2={(x2Pct / 100) * svgW}
+            y2={(y2Pct / 100) * svgH}
+            stroke={stroke}
+            strokeWidth={sw}
+            strokeLinecap="round"
+          />
+        </svg>
+      </div>
     );
   }
 
