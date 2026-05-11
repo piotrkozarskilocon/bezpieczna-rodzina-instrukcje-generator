@@ -103,8 +103,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "  }",
     "}",
     "",
-    "Format odpowiedzi:",
-    "ZAPISZ jako ARTEFAKT typu `application/json`, WYŁĄCZNIE poprawny JSON:",
+    "Format odpowiedzi — KRYTYCZNE:",
+    "Zwróć WYŁĄCZNIE surowy JSON. Twoja odpowiedź MUSI zacząć się od `{`",
+    "i skończyć `}`. ZAKAZANE: markdown fence ``` lub ```json, prozą wprowadzenie,",
+    "komentarze, dodatkowe pola poza schematem.",
+    "Schemat:",
     '{ "elements": [ { ...el1... }, { ...el2... } ] }',
   ].join("\n");
 

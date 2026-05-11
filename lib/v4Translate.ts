@@ -13,7 +13,11 @@
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { loadGlossaryDoNotTranslate, loadProjectDesignSystem } from "@/lib/v4Generate";
+import {
+  loadGlossaryDoNotTranslate,
+  loadProjectDesignSystem,
+  parseJsonFromAi,
+} from "@/lib/v4Generate";
 
 export const SUPPORTED_LANGS = ["bg", "hr", "ro", "mk", "sq", "en"] as const;
 export type TargetLang = (typeof SUPPORTED_LANGS)[number];
@@ -153,40 +157,10 @@ export async function buildTranslationPrompt(
 }
 
 /** Parses raw JSON pasted by the user, accepting either { translations: {...} }
- *  or a flat { id: text } object. Auto-handles ```json fences (delegates to
- *  parseJsonFromAi). Returns a map element_id → text. */
+ *  or a flat { id: text } object. Deleguje do parseJsonFromAi (4-poziomowy
+ *  fallback fence/control-chars/bracket-extract). */
 export function parseTranslationResponse(raw: string): Map<string, string> {
-  // Reuse the lenient JSON parser from v4Generate (handles fences + raw newlines).
-  // Inline to avoid circular import — same approach.
-  let trimmed = raw.trim();
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  if (fenceMatch) trimmed = fenceMatch[1].trim();
-
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    // Try escaping control chars in strings and retry — same trick as v4Generate.
-    let inString = false;
-    let escapeNext = false;
-    let out = "";
-    for (let i = 0; i < trimmed.length; i++) {
-      const ch = trimmed[i];
-      if (escapeNext) { out += ch; escapeNext = false; continue; }
-      if (inString && ch === "\\") { out += ch; escapeNext = true; continue; }
-      if (ch === '"') { inString = !inString; out += ch; continue; }
-      if (inString) {
-        if (ch === "\n") { out += "\\n"; continue; }
-        if (ch === "\r") { out += "\\r"; continue; }
-        if (ch === "\t") { out += "\\t"; continue; }
-        const code = ch.charCodeAt(0);
-        if (code < 0x20) { out += "\\u" + code.toString(16).padStart(4, "0"); continue; }
-      }
-      out += ch;
-    }
-    parsed = JSON.parse(out);
-  }
-
+  const parsed = parseJsonFromAi<unknown>(raw);
   const dict =
     parsed && typeof parsed === "object" && "translations" in parsed
       ? (parsed as { translations: Record<string, unknown> }).translations

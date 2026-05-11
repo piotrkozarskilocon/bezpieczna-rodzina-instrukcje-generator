@@ -15,7 +15,11 @@
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { loadGlossaryDoNotTranslate, loadProjectDesignSystem } from "@/lib/v4Generate";
+import {
+  loadGlossaryDoNotTranslate,
+  loadProjectDesignSystem,
+  parseJsonFromAi,
+} from "@/lib/v4Generate";
 
 const VALID_TYPES = new Set([
   "text", "image", "line", "rect", "qr", "page_number", "callout",
@@ -217,36 +221,10 @@ interface ParsedElements {
   }>;
 }
 
-/** Lenient JSON parse — same trick as v4Generate (handles fences + raw newlines). */
+/** Lenient JSON parse — deleguje do parseJsonFromAi z v4Generate (4-poziomowy
+ *  fallback: strict → fence-strip → control-char-escape → bracket-extract). */
 export function parsePageEditResponse(raw: string): ParsedElements {
-  let trimmed = raw.trim();
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  if (fenceMatch) trimmed = fenceMatch[1].trim();
-  let parsed: unknown;
-  try {
-    parsed = JSON.parse(trimmed);
-  } catch {
-    // Auto-escape control chars in strings, retry.
-    let inString = false;
-    let escapeNext = false;
-    let out = "";
-    for (let i = 0; i < trimmed.length; i++) {
-      const ch = trimmed[i];
-      if (escapeNext) { out += ch; escapeNext = false; continue; }
-      if (inString && ch === "\\") { out += ch; escapeNext = true; continue; }
-      if (ch === '"') { inString = !inString; out += ch; continue; }
-      if (inString) {
-        if (ch === "\n") { out += "\\n"; continue; }
-        if (ch === "\r") { out += "\\r"; continue; }
-        if (ch === "\t") { out += "\\t"; continue; }
-        const code = ch.charCodeAt(0);
-        if (code < 0x20) { out += "\\u" + code.toString(16).padStart(4, "0"); continue; }
-      }
-      out += ch;
-    }
-    parsed = JSON.parse(out);
-  }
-
+  const parsed = parseJsonFromAi<unknown>(raw);
   if (!parsed || typeof parsed !== "object") {
     throw new Error("response is not an object");
   }

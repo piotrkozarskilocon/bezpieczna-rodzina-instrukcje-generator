@@ -222,15 +222,20 @@ export function buildSkeletonSystemPrompt(
     "",
     renderRequirementsForPrompt(scope.document_type, scope.device_type),
     "",
-    "Format odpowiedzi:",
-    "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",
-    "`szkielet-instrukcji.json` — WYŁĄCZNIE poprawny JSON wg schematu:",
+    "Format odpowiedzi — KRYTYCZNE:",
+    "Zwróć WYŁĄCZNIE surowy JSON. Twoja odpowiedź MUSI zacząć się od znaku `{`",
+    "i skończyć znakiem `}`. ZAKAZANE:",
+    "- otaczanie odpowiedzi markdown fence ``` ani ```json",
+    "- żadne wprowadzenie typu 'Oto JSON:' / 'Here is the structure:'",
+    "- żadne komentarze, podsumowanie ani opisy PRZED ani PO JSON-ie",
+    "- żadne dodatkowe pola w obiekcie strony (TYLKO template, page_number, title)",
+    "",
+    "Schemat (zwróć dokładnie tę strukturę):",
     "{",
     '  "pages": [',
     '    { "template": "cover", "page_number": 1, "title": null },',
     '    { "template": "toc", "page_number": 2, "title": "Spis treści" },',
     '    { "template": "step", "page_number": 3, "title": "Pierwsze uruchomienie" }',
-    "    // ...kolejne strony",
     "  ]",
     "}",
     "Nie generuj `elements` — w tym wywołaniu chcemy tylko szkielet.",
@@ -441,29 +446,66 @@ export async function bulkInsertGeneratedProject(
 /** Strips an optional ```json ... ``` fence and JSON.parse. Tolerates raw
  *  control characters inside string literals (a common artefact when copying
  *  multi-line LLM output through terminals / markdown viewers — they leave
- *  literal newlines inside what should be \\n-escaped). */
+ *  literal newlines inside what should be \\n-escaped).
+ *
+ *  Strategy (4 próby — każda kolejna bardziej tolerancyjna):
+ *    1. Strict parse na trimmie.
+ *    2. Usuń otwierający i zamykający fence ```/```json niezależnie (regex
+ *       non-anchored), parse.
+ *    3. Auto-escape control chars w stringach, parse.
+ *    4. Wytnij od pierwszej `{` do ostatniej `}` (lub `[` ... `]` jeśli
+ *       odpowiedź to tablica), parse. Ostatnia deska ratunku gdy AI okrasił
+ *       JSON dodatkową prozą ("Oto JSON:\n```json {...}```\nMam nadzieję...").
+ */
 export function parseJsonFromAi<T = unknown>(text: string): T {
-  let trimmed = text.trim();
-  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/);
-  if (fenceMatch) trimmed = fenceMatch[1].trim();
+  const raw = text.trim();
 
-  // First attempt: strict parse.
+  // Próba 1: strict parse jak jest.
   try {
-    return JSON.parse(trimmed) as T;
-  } catch (errStrict) {
-    // Second attempt: auto-escape raw control chars inside strings, then retry.
-    const sanitized = escapeControlCharsInStrings(trimmed);
+    return JSON.parse(raw) as T;
+  } catch { /* idziemy dalej */ }
+
+  // Próba 2: zdejmij fence agresywnie (otwierający + zamykający, niezależnie).
+  const noFence = raw
+    .replace(/^```(?:json|JSON)?\s*\n?/, "")
+    .replace(/\n?\s*```\s*$/, "")
+    .trim();
+  try {
+    return JSON.parse(noFence) as T;
+  } catch { /* idziemy dalej */ }
+
+  // Próba 3: escape control chars w stringach.
+  const sanitized = escapeControlCharsInStrings(noFence);
+  try {
+    return JSON.parse(sanitized) as T;
+  } catch { /* idziemy dalej */ }
+
+  // Próba 4: wyrwij pierwszy { ... } z całego tekstu (działa gdy AI dodał
+  // prozę przed/po JSON-ie albo zostawił niesymetryczne fence).
+  const firstObj = raw.indexOf("{");
+  const lastObj = raw.lastIndexOf("}");
+  const firstArr = raw.indexOf("[");
+  const lastArr = raw.lastIndexOf("]");
+  let extracted: string | null = null;
+  if (firstObj !== -1 && lastObj > firstObj) {
+    extracted = raw.slice(firstObj, lastObj + 1);
+  } else if (firstArr !== -1 && lastArr > firstArr) {
+    extracted = raw.slice(firstArr, lastArr + 1);
+  }
+  if (extracted) {
     try {
-      return JSON.parse(sanitized) as T;
-    } catch (errLenient) {
-      const preview = trimmed.slice(0, 400);
-      const msg = errLenient instanceof Error ? errLenient.message : "?";
-      const original = errStrict instanceof Error ? errStrict.message : "?";
-      throw new Error(
-        `failed to parse JSON: ${msg} (original strict error: ${original})\nPreview: ${preview}`,
-      );
+      return JSON.parse(extracted) as T;
+    } catch {
+      try {
+        return JSON.parse(escapeControlCharsInStrings(extracted)) as T;
+      } catch { /* finalne wyrzucenie poniżej */ }
     }
   }
+
+  const preview = raw.slice(0, 400);
+  throw new Error(
+    `failed to parse JSON after 4 attempts (fence-strip + control-char-escape + bracket-extract)\nPreview: ${preview}`,
+  );
 }
 
 /** Walks the input one char at a time, tracking whether we're inside a
