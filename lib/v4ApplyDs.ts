@@ -9,7 +9,11 @@
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { loadGlossaryDoNotTranslate } from "@/lib/v4Generate";
+import {
+  loadGlossaryDoNotTranslate,
+  loadProjectImages,
+  renderImagesForPrompt,
+} from "@/lib/v4Generate";
 
 interface DsRow {
   id: string;
@@ -105,6 +109,7 @@ export async function buildApplyDsToProjectPrompt(
   };
 
   const doNotTranslate = await loadGlossaryDoNotTranslate();
+  const projectImages = await loadProjectImages(projectId);
 
   const system = [
     "Jesteś asystentem AI zastosowującym design system do KOMPLETNEJ instrukcji",
@@ -122,6 +127,8 @@ export async function buildApplyDsToProjectPrompt(
     JSON.stringify(ds.content, null, 2),
     "```",
     ...commonRules(doNotTranslate),
+    "",
+    renderImagesForPrompt(projectImages),
     "",
     "Tytuły stron i spis treści (BEZWZGLĘDNIE):",
     "- Każda strona ma pole `title` (krótki nagłówek). Zachowaj istniejące tytuły",
@@ -197,6 +204,7 @@ export async function buildApplyDsToPagePrompt(
     .order("z_index", { ascending: true });
 
   const doNotTranslate = await loadGlossaryDoNotTranslate();
+  const projectImages = await loadProjectImages(page.project_id);
 
   const system = [
     "Jesteś asystentem AI zastosowującym design system do POJEDYNCZEJ strony",
@@ -211,6 +219,8 @@ export async function buildApplyDsToPagePrompt(
     JSON.stringify(ds.content, null, 2),
     "```",
     ...commonRules(doNotTranslate),
+    "",
+    renderImagesForPrompt(projectImages, page.page_number),
     "",
     "Format odpowiedzi:",
     "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",

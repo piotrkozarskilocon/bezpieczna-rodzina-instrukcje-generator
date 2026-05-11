@@ -68,6 +68,26 @@ export default function Gen4Editor({
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(DEFAULT_DISPLAY_SCALE);
   const [rightTab, setRightTab] = useState<"properties" | "ai">("properties");
+  // Mapa image_id → signed URL (z biblioteki obrazków projektu). Przeładowywana
+  // po każdym uploadzie/usunięciu by canvas pokazywał aktualne dane.
+  const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
+
+  const refreshImages = useCallback(async () => {
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/images/`, { cache: "no-store" });
+      if (!res.ok) return;
+      const j = (await res.json()) as { images: Array<{ id: string; url: string | null }> };
+      const map = new Map<string, string>();
+      for (const img of j.images ?? []) {
+        if (img.url) map.set(img.id, img.url);
+      }
+      setImageUrls(map);
+    } catch {
+      /* ignore — canvas pokaże placeholder */
+    }
+  }, [projectId]);
+
+  useEffect(() => { void refreshImages(); }, [refreshImages]);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const selectedElement = elements.find((e) => e.id === selectedId);
@@ -371,6 +391,7 @@ export default function Gen4Editor({
                 zoom={zoom}
                 defaultLang={defaultLang}
                 totalPages={totalPages}
+                imageUrls={imageUrls}
               />
             )}
           </div>
@@ -427,6 +448,7 @@ export default function Gen4Editor({
                 pageId={currentPageId}
                 pageNumber={currentPage?.page_number ?? 0}
                 projectId={projectId}
+                onImagesChanged={refreshImages}
                 onApplied={async () => {
                   // Reload elements for the page after a successful replace.
                   const res = await fetch(`${API}/pages/${currentPageId}/elements`, { cache: "no-store" });
@@ -435,6 +457,9 @@ export default function Gen4Editor({
                     setElements(j.elements ?? []);
                     setSelectedId(null);
                   }
+                  // Po edycji AI — odśwież też mapę obrazków (AI mógł użyć
+                  // nowo wgranego obrazka i jego url trzeba załadować do mapy).
+                  await refreshImages();
                 }}
               />
             )}
@@ -475,10 +500,11 @@ interface PageCanvasProps {
   zoom: number;
   defaultLang: string;
   totalPages: number;
+  imageUrls: Map<string, string>;
 }
 
 function PageCanvas({
-  page, elements, selectedId, onSelect, onUpdate, zoom, defaultLang, totalPages,
+  page, elements, selectedId, onSelect, onUpdate, zoom, defaultLang, totalPages, imageUrls,
 }: PageCanvasProps): React.ReactElement {
   const wPx = page.width_mm * zoom;
   const hPx = page.height_mm * zoom;
@@ -570,6 +596,7 @@ function PageCanvas({
             defaultLang={defaultLang}
             pageNumber={page.page_number}
             totalPages={totalPages}
+            imageUrls={imageUrls}
           />
         ))}
       </div>
@@ -589,9 +616,10 @@ interface ElementViewProps {
   defaultLang: string;
   pageNumber: number;
   totalPages: number;
+  imageUrls: Map<string, string>;
 }
 
-function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageNumber, totalPages }: ElementViewProps): React.ReactElement {
+function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageNumber, totalPages, imageUrls }: ElementViewProps): React.ReactElement {
   const [editingText, setEditingText] = useState(false);
   const left = el.x_mm * zoom;
   const top = el.y_mm * zoom;
@@ -784,25 +812,48 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
   }
 
   if (el.type === "image") {
+    const imageId = (props.image_id as string | null) ?? null;
+    const url = imageId ? imageUrls.get(imageId) : null;
+    const placeholderDesc = (props.placeholder_description as string | undefined) ?? null;
+    const fitMode = (props.fit_mode as string | undefined) ?? "contain";
     return (
       <div
         data-el-id={el.id}
         onClick={(e) => { e.stopPropagation(); onClick(); }}
         style={{
           ...baseStyle,
-          background: "linear-gradient(45deg,#cbd5e1 25%,#e2e8f0 25%,#e2e8f0 50%,#cbd5e1 50%,#cbd5e1 75%,#e2e8f0 75%,#e2e8f0)",
-          backgroundSize: "12px 12px",
-          color: "#475569",
-          fontSize: "10px",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
+          background: url ? "#fff" : "linear-gradient(45deg,#cbd5e1 25%,#e2e8f0 25%,#e2e8f0 50%,#cbd5e1 50%,#cbd5e1 75%,#e2e8f0 75%,#e2e8f0)",
+          backgroundSize: url ? undefined : "12px 12px",
           outline: selected ? "2px solid #f59e0b" : "1px dashed rgba(100,116,139,0.4)",
           cursor: selected ? "move" : "pointer",
           touchAction: "none",
+          overflow: "hidden",
         }}
       >
-        Obraz
+        {url ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img
+            src={url}
+            alt={placeholderDesc ?? "image"}
+            style={{
+              width: "100%",
+              height: "100%",
+              objectFit: fitMode === "cover" ? "cover" : "contain",
+              display: "block",
+              pointerEvents: "none",
+            }}
+          />
+        ) : (
+          <div
+            className="flex h-full w-full flex-col items-center justify-center px-1 text-center text-[9px] text-slate-600"
+            style={{ lineHeight: 1.1 }}
+          >
+            <span>📷</span>
+            {imageId && <span className="text-amber-700">brak url (image_id={imageId.slice(0, 8)}...)</span>}
+            {placeholderDesc && <span className="mt-0.5 text-slate-500 italic">{placeholderDesc}</span>}
+            {!imageId && !placeholderDesc && <span className="text-slate-500">Obraz</span>}
+          </div>
+        )}
       </div>
     );
   }
@@ -977,9 +1028,10 @@ interface PageAiAssistantProps {
   pageNumber: number;
   projectId: string;
   onApplied: () => Promise<void> | void;
+  onImagesChanged?: () => Promise<void> | void;
 }
 
-function PageAiAssistant({ pageId, pageNumber, projectId, onApplied }: PageAiAssistantProps): React.ReactElement {
+function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesChanged }: PageAiAssistantProps): React.ReactElement {
   const [instruction, setInstruction] = useState("");
   const [prompt, setPrompt] = useState<string | null>(null);
   const [importJson, setImportJson] = useState("");
@@ -1034,6 +1086,8 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied }: PageAiAss
         throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
       }
       setInfo(`Wgrano obrazek "${file.name}" — będzie preferowany przy generowaniu treści tej strony.`);
+      // Odśwież cache obrazków w parent (Gen4Editor) by canvas widział url.
+      if (onImagesChanged) await onImagesChanged();
     } catch (err) {
       setError(err instanceof Error ? err.message : "upload failed");
     } finally {

@@ -18,6 +18,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import {
   loadGlossaryDoNotTranslate,
   loadProjectDesignSystem,
+  loadProjectImages,
+  renderImagesForPrompt,
   parseJsonFromAi,
 } from "@/lib/v4Generate";
 
@@ -97,6 +99,10 @@ export async function buildPageEditPrompt(
   // else the legacy column).
   const designSystem = await loadProjectDesignSystem(page.project_id);
 
+  // Lista obrazków projektu — AI dostaje katalog z opisami i może wstawiać
+  // image elements z prawdziwymi image_id.
+  const projectImages = await loadProjectImages(page.project_id);
+
   const system = [
     "Jesteś asystentem AI do edycji POJEDYNCZEJ strony drukowanej instrukcji obsługi",
     "smartwatcha marki Locon. Strona ma format 76x76 mm, druk w skali szarości,",
@@ -141,9 +147,11 @@ export async function buildPageEditPrompt(
     '    // line/rect:    { stroke_width, color, fill (rect only) }',
     '    // qr:           { url }',
     '    // page_number:  { format: "{LANG} {n}/{N}", font_size_pt }',
-    '    // image:        { image_id, fit_mode }',
+    '    // image:        { image_id, fit_mode } — image_id MUSI pochodzić z listy poniżej',
     "  }",
     "}",
+    "",
+    renderImagesForPrompt(projectImages, page.page_number),
     "",
     "Format odpowiedzi:",
     "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",

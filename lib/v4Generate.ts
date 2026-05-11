@@ -67,6 +67,88 @@ export async function loadGlossaryDoNotTranslate(): Promise<string[]> {
   return (data ?? []).map((g) => g.source_term);
 }
 
+export interface ProjectImageInfo {
+  id: string;
+  description: string | null;
+  preferred_page_id: string | null;
+  preferred_page_number: number | null;
+  mime_type: string | null;
+  width_px: number | null;
+  height_px: number | null;
+}
+
+/** Lista obrazków projektu z opisami i preferowanymi stronami — dorzucana
+ *  do każdego prompta AI by Claude mógł wybrać image_id zamiast wymyślania. */
+export async function loadProjectImages(projectId: string): Promise<ProjectImageInfo[]> {
+  const sb = getSupabaseAdmin();
+  const { data } = await sb
+    .from("gen4_images")
+    .select(`
+      id, description, preferred_page_id, mime_type, width_px, height_px,
+      preferred_page:gen4_pages!preferred_page_id(page_number)
+    `)
+    .eq("project_id", projectId)
+    .order("created_at", { ascending: false });
+  if (!data) return [];
+  return data.map((row) => {
+    const pp = row.preferred_page as { page_number?: number } | { page_number?: number }[] | null;
+    const pageNumber =
+      pp && Array.isArray(pp) ? pp[0]?.page_number ?? null
+        : pp && typeof pp === "object" ? (pp.page_number ?? null)
+        : null;
+    return {
+      id: row.id,
+      description: row.description,
+      preferred_page_id: row.preferred_page_id,
+      preferred_page_number: pageNumber,
+      mime_type: row.mime_type,
+      width_px: row.width_px,
+      height_px: row.height_px,
+    };
+  });
+}
+
+/** Renderuje listę obrazków dla prompta. `currentPageNumber` — jeśli podany,
+ *  podkreślamy które obrazki mają tę stronę jako preferowaną. */
+export function renderImagesForPrompt(
+  images: ProjectImageInfo[],
+  currentPageNumber?: number,
+): string {
+  if (images.length === 0) {
+    return [
+      "DOSTĘPNE OBRAZKI W BIBLIOTECE PROJEKTU:",
+      "(biblioteka jest pusta — nie wstawiaj elementów type='image')",
+    ].join("\n");
+  }
+  const lines: string[] = [
+    "DOSTĘPNE OBRAZKI W BIBLIOTECE PROJEKTU:",
+    "Jeśli któryś z poniższych obrazków pasuje do treści tej strony, wstaw go",
+    "jako element type='image' z properties.image_id wskazującym jego id.",
+    "REGUŁY:",
+    "- Jeśli obraz ma 'preferowana strona' = TA STRONA → WSTAW GO.",
+    "- Jeśli opis obrazka pasuje do tematu strony → WSTAW GO (Twoja decyzja).",
+    "- NIE WYMYŚLAJ image_id, NIE wstawiaj obrazków spoza tej listy.",
+    "- Rozmiar elementu image (w_mm × h_mm): typowo 30x30 do 60x40 mm dla",
+    "  screenshotów aplikacji, 30x40 do 50x50 mm dla zdjęć urządzenia.",
+    "- Zostaw miejsce wokół obrazka na tekst (~3 mm marginesu).",
+    "- Schemat: { type:'image', x_mm, y_mm, w_mm, h_mm, properties:{ image_id, fit_mode:'contain' } }",
+    "",
+    "Lista:",
+  ];
+  for (const img of images) {
+    const prefMark =
+      img.preferred_page_number != null && img.preferred_page_number === currentPageNumber
+        ? "  ⭐ PREFEROWANY DLA TEJ STRONY"
+        : img.preferred_page_number != null
+          ? `  preferowana strona: ${img.preferred_page_number}`
+          : "  preferowana strona: (brak — AI sam decyduje)";
+    lines.push(`- id: "${img.id}"`);
+    lines.push(`  opis: ${img.description ? `"${img.description}"` : "(BRAK OPISU — pomiń jeśli nie pasuje do kontekstu)"}`);
+    lines.push(prefMark);
+  }
+  return lines.join("\n");
+}
+
 /** Returns the project's active design system: default row from
  *  gen4_design_systems if any, otherwise the legacy gen4_projects.design_system
  *  column, otherwise null. */

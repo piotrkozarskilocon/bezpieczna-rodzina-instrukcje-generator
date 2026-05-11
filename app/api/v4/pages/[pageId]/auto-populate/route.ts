@@ -4,6 +4,7 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { ownPage, parsePageEditResponse, replacePageElements } from "@/lib/v4Edit";
+import { loadProjectImages, renderImagesForPrompt } from "@/lib/v4Generate";
 import { getRequiredSections, type DocumentType, type DeviceType } from "@/lib/v4LegalTemplates";
 
 export const runtime = "nodejs";
@@ -71,6 +72,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const modelName = typeof input?.model_name === "string" ? input.model_name : "Locon Watch";
   const modelCode = typeof input?.model_code === "string" ? input.model_code : "GJD.XX";
 
+  // Lista obrazków projektu — AI dostaje katalog z opisami.
+  const projectImages = await loadProjectImages(page.project_id);
+
   const system = [
     "Jesteś asystentem generującym elementy POJEDYNCZEJ strony drukowanej instrukcji",
     "obsługi smartwatcha marki Locon (Bezpieczna Rodzina). Strona ma format 76x76 mm,",
@@ -100,8 +104,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     '    // line/rect:    { stroke_width, color, fill (rect only) }',
     '    // qr:           { url }',
     '    // page_number:  { format: "{LANG} {n}/{N}", font_size_pt }',
+    '    // image:        { image_id, fit_mode } — image_id MUSI pochodzić z listy poniżej',
     "  }",
     "}",
+    "",
+    renderImagesForPrompt(projectImages, page.page_number),
     "",
     "Format odpowiedzi — KRYTYCZNE:",
     "Zwróć WYŁĄCZNIE surowy JSON. Twoja odpowiedź MUSI zacząć się od `{`",
