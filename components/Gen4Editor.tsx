@@ -71,6 +71,9 @@ export default function Gen4Editor({
   // Mapa image_id → signed URL (z biblioteki obrazków projektu). Przeładowywana
   // po każdym uploadzie/usunięciu by canvas pokazywał aktualne dane.
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
+  // Narzędzie rysowania aktywne — line/rect rysuje się przeciągnięciem myszą
+  // po stronie. Po narysowaniu lub kliknięciu prawym przyciskiem tryb gaśnie.
+  const [drawingTool, setDrawingTool] = useState<"line" | "rect" | null>(null);
 
   const refreshImages = useCallback(async () => {
     try {
@@ -88,6 +91,16 @@ export default function Gen4Editor({
   }, [projectId]);
 
   useEffect(() => { void refreshImages(); }, [refreshImages]);
+
+  // Esc anuluje tryb rysowania.
+  useEffect(() => {
+    if (!drawingTool) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setDrawingTool(null);
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [drawingTool]);
 
   const currentPage = pages.find((p) => p.id === currentPageId);
   const selectedElement = elements.find((e) => e.id === selectedId);
@@ -182,32 +195,35 @@ export default function Gen4Editor({
     }
   };
 
-  const addElement = async (type: ElementType) => {
-    if (!currentPageId || !currentPage) return;
-    const properties: Record<string, unknown> = (() => {
-      switch (type) {
-        case "text": return { content: "Nowy tekst", font_size_pt: 9, color: "#0f172a", align: "left" };
-        case "rect": return { stroke_width: 0.3, color: "#0f172a", fill: "transparent" };
-        case "line": return { stroke_width: 0.5, color: "#0f172a" };
-        case "image": return { image_id: null, fit_mode: "contain" };
-        case "qr": return { url: "https://locon.pl/", size_mm: 20 };
-        case "page_number": return { format: "{n} / {N}" };
-        case "callout": return { content: "Etykieta", font_size_pt: 7, color: "#0f172a" };
-      }
-    })();
-    const defaults = type === "qr"
-      ? { x_mm: 5, y_mm: 5, w_mm: 20, h_mm: 20 }
-      : type === "line"
-        ? { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 0.5 }
-        : type === "image"
-          ? { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 30 }
-          : { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 5 };
+  /** Domyślne properties per typ — używane przez addElement i drawElement. */
+  const propsForType = (type: ElementType): Record<string, unknown> => {
+    switch (type) {
+      case "text": return { content: "Nowy tekst", font_size_pt: 9, color: "#0f172a", align: "left" };
+      case "rect": return { stroke_width: 0.3, color: "#0f172a", fill: "transparent" };
+      case "line": return { stroke_width: 0.5, color: "#0f172a" };
+      case "image": return { image_id: null, fit_mode: "contain" };
+      case "qr": return { url: "https://locon.pl/", size_mm: 20 };
+      case "page_number": return { format: "{n} / {N}" };
+      case "callout": return { content: "Etykieta", font_size_pt: 7, color: "#0f172a" };
+    }
+  };
 
+  /** Wywołanie kontraktu: insert nowego elementu w bazie + lokalne state. */
+  const insertElement = async (
+    type: ElementType,
+    coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
+  ) => {
+    if (!currentPageId) return;
     try {
       const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type, ...defaults, z_index: elements.length, properties }),
+        body: JSON.stringify({
+          type,
+          ...coords,
+          z_index: elements.length,
+          properties: propsForType(type),
+        }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = (await res.json()) as { element: ElementRow };
@@ -216,6 +232,32 @@ export default function Gen4Editor({
     } catch (err) {
       setError(err instanceof Error ? err.message : "add element failed");
     }
+  };
+
+  /** Klik w toolbarze:
+   *  - text/image/qr/page_number/callout → wstaw od razu w (5,5) z defaultem,
+   *  - line/rect → włącz tryb rysowania (kursor crosshair na canvas). */
+  const addElement = async (type: ElementType) => {
+    if (!currentPageId || !currentPage) return;
+    if (type === "line" || type === "rect") {
+      setDrawingTool((prev) => (prev === type ? null : type));
+      return;
+    }
+    const defaults = type === "qr"
+      ? { x_mm: 5, y_mm: 5, w_mm: 20, h_mm: 20 }
+      : type === "image"
+        ? { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 30 }
+        : { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 5 };
+    await insertElement(type, defaults);
+  };
+
+  /** Wywoływane przez PageCanvas po zakończeniu rysowania myszą. */
+  const handleDrawComplete = async (
+    type: "line" | "rect",
+    coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
+  ) => {
+    setDrawingTool(null);
+    await insertElement(type, coords);
   };
 
   const updateElement = useCallback(async (id: string, patch: Partial<ElementRow>) => {
@@ -351,17 +393,36 @@ export default function Gen4Editor({
         <main className="flex flex-col bg-slate-100">
           <div className="flex flex-wrap items-center gap-2 border-b border-slate-200 bg-white px-3 py-2 text-xs">
             <span className="font-medium text-slate-600">Dodaj element:</span>
-            {(["text", "image", "line", "rect", "qr", "page_number"] as ElementType[]).map((t) => (
-              <button
-                key={t}
-                type="button"
-                disabled={!currentPageId}
-                onClick={() => void addElement(t)}
-                className="rounded border border-slate-300 bg-white px-2 py-0.5 font-medium text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-30"
-              >
-                {labelForType(t)}
-              </button>
-            ))}
+            {(["text", "image", "line", "rect", "qr", "page_number"] as ElementType[]).map((t) => {
+              const isDrawTool = t === "line" || t === "rect";
+              const isActive = drawingTool === t;
+              return (
+                <button
+                  key={t}
+                  type="button"
+                  disabled={!currentPageId}
+                  onClick={() => void addElement(t)}
+                  className={
+                    "rounded border px-2 py-0.5 font-medium disabled:opacity-30 " +
+                    (isActive
+                      ? "border-amber-500 bg-amber-100 text-amber-900"
+                      : "border-slate-300 bg-white text-slate-700 hover:border-slate-500 hover:bg-slate-50")
+                  }
+                  title={
+                    isDrawTool
+                      ? "Kliknij, potem narysuj na stronie przeciągnięciem myszy"
+                      : "Wstaw element na stronę"
+                  }
+                >
+                  {isActive ? `✏️ ${labelForType(t)}` : labelForType(t)}
+                </button>
+              );
+            })}
+            {drawingTool && (
+              <span className="rounded bg-amber-50 px-2 py-0.5 text-[11px] text-amber-800">
+                Tryb rysowania: <strong>{labelForType(drawingTool)}</strong> — przeciągnij myszą po stronie (Esc anuluje).
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-2">
               <span className="text-slate-500">Zoom:</span>
               <button type="button" onClick={() => setZoom((z) => Math.max(2, z - 1))}
@@ -392,6 +453,8 @@ export default function Gen4Editor({
                 defaultLang={defaultLang}
                 totalPages={totalPages}
                 imageUrls={imageUrls}
+                drawingTool={drawingTool}
+                onDrawComplete={handleDrawComplete}
               />
             )}
           </div>
@@ -501,11 +564,69 @@ interface PageCanvasProps {
   defaultLang: string;
   totalPages: number;
   imageUrls: Map<string, string>;
+  drawingTool: "line" | "rect" | null;
+  onDrawComplete: (
+    type: "line" | "rect",
+    coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
+  ) => void;
 }
 
 function PageCanvas({
   page, elements, selectedId, onSelect, onUpdate, zoom, defaultLang, totalPages, imageUrls,
+  drawingTool, onDrawComplete,
 }: PageCanvasProps): React.ReactElement {
+  // Live preview rysowania — start i bieżący punkt w pikselach względem canvas.
+  const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
+  const [drawEnd, setDrawEnd] = useState<{ x: number; y: number } | null>(null);
+
+  const isDrawing = drawingTool !== null;
+
+  const beginDraw = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    setDrawStart({ x, y });
+    setDrawEnd({ x, y });
+  };
+
+  const updateDraw = (e: React.MouseEvent<HTMLDivElement>) => {
+    if (!isDrawing || !drawStart) return;
+    const rect = e.currentTarget.getBoundingClientRect();
+    setDrawEnd({ x: e.clientX - rect.left, y: e.clientY - rect.top });
+  };
+
+  const finishDraw = () => {
+    if (!isDrawing || !drawStart || !drawEnd || !drawingTool) {
+      setDrawStart(null);
+      setDrawEnd(null);
+      return;
+    }
+    // Konwersja px → mm.
+    const x1 = Math.min(drawStart.x, drawEnd.x);
+    const y1 = Math.min(drawStart.y, drawEnd.y);
+    const x2 = Math.max(drawStart.x, drawEnd.x);
+    const y2 = Math.max(drawStart.y, drawEnd.y);
+    let w = (x2 - x1) / zoom;
+    let h = (y2 - y1) / zoom;
+    // Minimalne sensowne wymiary — gdy user kliknął bez przeciągnięcia,
+    // domyślny rozmiar żeby element był widoczny.
+    if (drawingTool === "line") {
+      if (w < 5) w = 30;          // pozioma linia ~30 mm
+      h = Math.max(h, 0.3);       // płaska
+    } else {
+      if (w < 2) w = 20;
+      if (h < 2) h = 20;
+    }
+    setDrawStart(null);
+    setDrawEnd(null);
+    onDrawComplete(drawingTool, {
+      x_mm: x1 / zoom,
+      y_mm: y1 / zoom,
+      w_mm: w,
+      h_mm: h,
+    });
+  };
   const wPx = page.width_mm * zoom;
   const hPx = page.height_mm * zoom;
   const interactRef = useRef<{ unset: () => void } | null>(null);
@@ -575,12 +696,62 @@ function PageCanvas({
     };
   }, [selectedId, onUpdate, zoom]);
 
+  // Overlay rysowanego elementu — pokazuje live preview (linia lub prostokąt)
+  // dopóki user nie zwolni przycisku myszy.
+  const previewBox = (() => {
+    if (!isDrawing || !drawStart || !drawEnd) return null;
+    const x = Math.min(drawStart.x, drawEnd.x);
+    const y = Math.min(drawStart.y, drawEnd.y);
+    const w = Math.abs(drawEnd.x - drawStart.x);
+    const h = Math.abs(drawEnd.y - drawStart.y);
+    if (drawingTool === "line") {
+      return (
+        <div
+          style={{
+            position: "absolute",
+            left: x,
+            top: y,
+            width: Math.max(w, 1),
+            height: 0,
+            borderTop: "1px dashed #f59e0b",
+            pointerEvents: "none",
+          }}
+        />
+      );
+    }
+    return (
+      <div
+        style={{
+          position: "absolute",
+          left: x,
+          top: y,
+          width: w,
+          height: h,
+          border: "1px dashed #f59e0b",
+          background: "rgba(254,243,199,0.3)",
+          pointerEvents: "none",
+        }}
+      />
+    );
+  })();
+
   return (
     <div className="inline-block">
       <div
         className="relative shadow-md"
-        style={{ width: `${wPx}px`, height: `${hPx}px`, background: PAGE_BG }}
+        style={{
+          width: `${wPx}px`,
+          height: `${hPx}px`,
+          background: PAGE_BG,
+          cursor: isDrawing ? "crosshair" : "default",
+          userSelect: isDrawing ? "none" : undefined,
+        }}
+        onMouseDown={isDrawing ? beginDraw : undefined}
+        onMouseMove={isDrawing && drawStart ? updateDraw : undefined}
+        onMouseUp={isDrawing ? finishDraw : undefined}
+        onMouseLeave={isDrawing && drawStart ? finishDraw : undefined}
         onClick={(e) => {
+          if (isDrawing) return; // klik traktowany jako część rysowania
           // Click on bare canvas → deselect.
           if (e.target === e.currentTarget) onSelect(null);
         }}
@@ -597,8 +768,10 @@ function PageCanvas({
             pageNumber={page.page_number}
             totalPages={totalPages}
             imageUrls={imageUrls}
+            disablePointer={isDrawing}
           />
         ))}
+        {previewBox}
       </div>
       <p className="mt-2 text-center text-[11px] text-slate-400">
         Strona {page.page_number} · {page.width_mm}×{page.height_mm} mm · scale {zoom}×
@@ -617,9 +790,10 @@ interface ElementViewProps {
   pageNumber: number;
   totalPages: number;
   imageUrls: Map<string, string>;
+  disablePointer?: boolean;
 }
 
-function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageNumber, totalPages, imageUrls }: ElementViewProps): React.ReactElement {
+function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageNumber, totalPages, imageUrls, disablePointer }: ElementViewProps): React.ReactElement {
   const [editingText, setEditingText] = useState(false);
   const left = el.x_mm * zoom;
   const top = el.y_mm * zoom;
@@ -684,6 +858,9 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     height: `${height}px`,
     boxSizing: "border-box",
     transform: el.rotation_deg ? `rotate(${el.rotation_deg}deg)` : undefined,
+    // Gdy aktywny tryb rysowania na canvas, istniejące elementy nie łapią
+    // mouse events — żeby user mógł narysować nową linię "przez" nie.
+    pointerEvents: disablePointer ? ("none" as const) : undefined,
   };
 
   if (el.type === "text" || el.type === "callout") {
