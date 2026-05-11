@@ -33,9 +33,18 @@ async function loadDs(dsId: string, projectId: string): Promise<DsRow | null> {
   return data as DsRow;
 }
 
-function commonRules(doNotTranslate: string[]): string[] {
+function commonRules(doNotTranslate: string[], modelName?: string | null, modelCode?: string | null): string[] {
   return [
     "",
+    ...(modelName && modelCode
+      ? [
+          "JEDEN MODEL — RYGOR (BEZWZGLĘDNIE):",
+          `Cały dokument jest dla DOKŁADNIE JEDNEGO modelu: ${modelName} (${modelCode}).`,
+          "Nie mieszaj z innymi modelami/kodami GJD.XX. Jeśli w snapshocie istnieje",
+          "tekst łączący wiele modeli — zostaw tylko ten jeden.",
+          "",
+        ]
+      : []),
     "Zasady językowe:",
     "- Zachowaj polski tekst i polskie znaki diakrytyczne (ą ć ę ł ń ó ś ź ż).",
     "- Surowy UTF-8 w JSON, nie sekwencje \\uXXXX.",
@@ -111,6 +120,16 @@ export async function buildApplyDsToProjectPrompt(
   const doNotTranslate = await loadGlossaryDoNotTranslate();
   const projectImages = await loadProjectImages(projectId);
 
+  // Model docelowy z ai_input projektu.
+  const { data: projectMeta } = await sb
+    .from("gen4_projects")
+    .select("ai_input")
+    .eq("id", projectId)
+    .single();
+  const aiInput = (projectMeta?.ai_input ?? {}) as Record<string, unknown>;
+  const modelName = typeof aiInput.model_name === "string" ? aiInput.model_name : null;
+  const modelCode = typeof aiInput.model_code === "string" ? aiInput.model_code : null;
+
   const system = [
     "Jesteś asystentem AI zastosowującym design system do KOMPLETNEJ instrukcji",
     "obsługi smartwatcha marki Locon. Otrzymujesz aktualny stan całego projektu",
@@ -126,7 +145,7 @@ export async function buildApplyDsToProjectPrompt(
     "```json",
     JSON.stringify(ds.content, null, 2),
     "```",
-    ...commonRules(doNotTranslate),
+    ...commonRules(doNotTranslate, modelName, modelCode),
     "",
     renderImagesForPrompt(projectImages),
     "",
@@ -206,6 +225,16 @@ export async function buildApplyDsToPagePrompt(
   const doNotTranslate = await loadGlossaryDoNotTranslate();
   const projectImages = await loadProjectImages(page.project_id);
 
+  // Model docelowy z ai_input projektu.
+  const { data: projectMeta } = await sb
+    .from("gen4_projects")
+    .select("ai_input")
+    .eq("id", page.project_id)
+    .single();
+  const aiInput = (projectMeta?.ai_input ?? {}) as Record<string, unknown>;
+  const modelName = typeof aiInput.model_name === "string" ? aiInput.model_name : null;
+  const modelCode = typeof aiInput.model_code === "string" ? aiInput.model_code : null;
+
   const system = [
     "Jesteś asystentem AI zastosowującym design system do POJEDYNCZEJ strony",
     "drukowanej instrukcji obsługi smartwatcha marki Locon.",
@@ -218,7 +247,7 @@ export async function buildApplyDsToPagePrompt(
     "```json",
     JSON.stringify(ds.content, null, 2),
     "```",
-    ...commonRules(doNotTranslate),
+    ...commonRules(doNotTranslate, modelName, modelCode),
     "",
     renderImagesForPrompt(projectImages, page.page_number),
     "",

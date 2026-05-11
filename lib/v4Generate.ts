@@ -331,10 +331,11 @@ export function buildSkeletonUserPrompt(input: GenerationInput): string {
     `Wygeneruj szkielet dokumentu ${DOCUMENT_TYPE_LABELS[input.document_type]}`,
     `dla urządzenia: ${DEVICE_TYPE_LABELS[input.device_type]}.`,
     "",
-    `Model: ${input.model_name} (${input.model_code}).`,
+    `Model (DOKŁADNIE JEDEN — nie mieszaj z innymi): ${input.model_name} (${input.model_code}).`,
     `Liczba kroków pierwszego uruchomienia (orientacyjnie): ${input.step_count}.`,
     "",
     "Zwróć kompletną listę stron zgodną z wymaganiami prawnymi (Cover → TOC → reszta).",
+    "Tytuły stron pisz w kontekście tego konkretnego modelu, bez wymieniania innych kodów GJD.XX.",
   ].join("\n");
 }
 

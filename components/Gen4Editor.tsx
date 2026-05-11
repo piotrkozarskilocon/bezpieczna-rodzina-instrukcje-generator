@@ -96,7 +96,7 @@ export default function Gen4Editor({
   // Load pages once.
   const refreshPages = useCallback(async () => {
     try {
-      const res = await fetch(`${API}/projects/${projectId}/pages`, { cache: "no-store" });
+      const res = await fetch(`${API}/projects/${projectId}/pages/`, { cache: "no-store" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const j = (await res.json()) as { pages: PageRow[] };
       setPages(j.pages);
@@ -115,7 +115,7 @@ export default function Gen4Editor({
       return;
     }
     let active = true;
-    fetch(`${API}/pages/${currentPageId}/elements`, { cache: "no-store" })
+    fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" })
       .then(async (r) => {
         if (!r.ok) throw new Error(`HTTP ${r.status}`);
         return r.json();
@@ -128,7 +128,7 @@ export default function Gen4Editor({
   const addPage = async (template: string) => {
     setShowAddPage(false);
     try {
-      const res = await fetch(`${API}/projects/${projectId}/pages`, {
+      const res = await fetch(`${API}/projects/${projectId}/pages/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ template }),
@@ -147,7 +147,7 @@ export default function Gen4Editor({
   const deletePage = async (pageId: string) => {
     if (!confirm("Usunąć stronę z wszystkimi elementami?")) return;
     try {
-      const res = await fetch(`${API}/pages/${pageId}`, { method: "DELETE" });
+      const res = await fetch(`${API}/pages/${pageId}/`, { method: "DELETE" });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       setPages((prev) => prev.filter((p) => p.id !== pageId));
       if (currentPageId === pageId) {
@@ -168,7 +168,7 @@ export default function Gen4Editor({
     const trimmed = next.trim();
     if (trimmed === (page.title ?? "")) return;
     try {
-      const res = await fetch(`${API}/pages/${page.id}`, {
+      const res = await fetch(`${API}/pages/${page.id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ title: trimmed || null }),
@@ -204,7 +204,7 @@ export default function Gen4Editor({
           : { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 5 };
 
     try {
-      const res = await fetch(`${API}/pages/${currentPageId}/elements`, {
+      const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, ...defaults, z_index: elements.length, properties }),
@@ -221,7 +221,7 @@ export default function Gen4Editor({
   const updateElement = useCallback(async (id: string, patch: Partial<ElementRow>) => {
     setElements((prev) => prev.map((e) => (e.id === id ? { ...e, ...patch } : e)));
     try {
-      await fetch(`${API}/elements/${id}`, {
+      await fetch(`${API}/elements/${id}/`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(patch),
@@ -235,7 +235,7 @@ export default function Gen4Editor({
     setElements((prev) => prev.filter((e) => e.id !== id));
     if (selectedId === id) setSelectedId(null);
     try {
-      await fetch(`${API}/elements/${id}`, { method: "DELETE" });
+      await fetch(`${API}/elements/${id}/`, { method: "DELETE" });
     } catch (err) {
       console.error("[v3 element delete]", err);
     }
@@ -451,7 +451,7 @@ export default function Gen4Editor({
                 onImagesChanged={refreshImages}
                 onApplied={async () => {
                   // Reload elements for the page after a successful replace.
-                  const res = await fetch(`${API}/pages/${currentPageId}/elements`, { cache: "no-store" });
+                  const res = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
                   if (res.ok) {
                     const j = (await res.json()) as { elements: ElementRow[] };
                     setElements(j.elements ?? []);

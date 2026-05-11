@@ -103,6 +103,18 @@ export async function buildPageEditPrompt(
   // image elements z prawdziwymi image_id.
   const projectImages = await loadProjectImages(page.project_id);
 
+  // Model docelowy — wyciągany z ai_input projektu, żeby AI nie mieszał
+  // wcześniejszych modeli z biblioteki promptów.
+  const sb = getSupabaseAdmin();
+  const { data: project } = await sb
+    .from("gen4_projects")
+    .select("ai_input")
+    .eq("id", page.project_id)
+    .single();
+  const aiInput = (project?.ai_input ?? {}) as Record<string, unknown>;
+  const modelName = typeof aiInput.model_name === "string" ? aiInput.model_name : null;
+  const modelCode = typeof aiInput.model_code === "string" ? aiInput.model_code : null;
+
   const system = [
     "Jesteś asystentem AI do edycji POJEDYNCZEJ strony drukowanej instrukcji obsługi",
     "smartwatcha marki Locon. Strona ma format 76x76 mm, druk w skali szarości,",
@@ -122,6 +134,16 @@ export async function buildPageEditPrompt(
     "Zwróć: KOMPLETNĄ nową listę elementów dla tej strony - cały bieżący stan zostanie",
     "zastąpiony Twoją odpowiedzią. Możesz dodawać, usuwać, zmieniać dowolne elementy,",
     "byle wynik realizował polecenie użytkownika i mieścił się na stronie.",
+    "",
+    ...(modelName && modelCode
+      ? [
+          "JEDEN MODEL — RYGOR (BEZWZGLĘDNIE):",
+          `Cały dokument jest dla DOKŁADNIE JEDNEGO modelu: ${modelName} (${modelCode}).`,
+          "NIE wymieniaj w treści innych modeli, kodów ani wariantów (np. nie pisz",
+          "'GJD.15 / GJD.16'). Jeśli usuwasz/poprawiasz istniejący element, w którym",
+          "wcześniej AI wpisał wiele modeli — zostaw TYLKO ten jeden.",
+        ]
+      : []),
     "",
     "Zasady językowe (gdy generujesz teksty po polsku):",
     "- BEZWZGLĘDNIE używaj polskich znaków diakrytycznych (ą ć ę ł ń ó ś ź ż).",
