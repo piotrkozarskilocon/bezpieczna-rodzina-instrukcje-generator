@@ -5,13 +5,20 @@ import Anthropic from "@anthropic-ai/sdk";
  * never import this file from a "use client" component.
  *
  * Model selection:
- * - INITIAL_MODEL — used for the one-shot full-project generation (large output,
- *   benefits from stronger reasoning). Sonnet 4.6 is a good balance.
- * - EDIT_MODEL    — used for iterative edits and per-element actions. Haiku 4.5
- *   is plenty for "shorten/lengthen/translate this" type tasks.
+ * - INITIAL_MODEL — used for the one-shot full-project generation. Domyślnie
+ *   Haiku 4.5 — szybsze (3x), tańsze (3x), wystarcza dla generacji struktury
+ *   wg sztywnego szablonu. Sonnet 4.6 zostawiony jako opcja override gdy
+ *   potrzebujemy lepszej jakości tekstowej (np. wymyślania marketingu).
+ *   Vercel Hobby plan ma 60s hard cap — Sonnet 4.6 z max_tokens 32000 nie
+ *   mieści się dla ~14-stronnych projektów.
+ * - EDIT_MODEL    — used for iterative edits and per-element actions. Haiku
+ *   jest plenty dla "shorten/lengthen/translate this" type tasks.
+ * - PREMIUM_MODEL — explicit override (Sonnet 4.6) dla wywołań które są dłuższe
+ *   ale wymagają lepszej jakości; używać tylko gdy działamy w trybie tła.
  */
-export const INITIAL_MODEL = "claude-sonnet-4-6";
+export const INITIAL_MODEL = "claude-haiku-4-5-20251001";
 export const EDIT_MODEL = "claude-haiku-4-5-20251001";
+export const PREMIUM_MODEL = "claude-sonnet-4-6";
 
 export function getAnthropicClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;

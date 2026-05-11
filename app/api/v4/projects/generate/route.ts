@@ -19,7 +19,9 @@ import {
 } from "@/lib/v4LegalTemplates";
 
 export const runtime = "nodejs";
-export const maxDuration = 120;
+// Vercel Hobby = hard cap 60s; Pro = 300s. Zostawiamy 60 by działało na Hobby
+// i jednocześnie nie blokowało dłużej niż faktyczny limit platformy.
+export const maxDuration = 60;
 
 /**
  * Creates a draft v4 project. Behaviour depends on env:
@@ -110,7 +112,9 @@ export async function POST(request: NextRequest) {
       }),
       user: buildUserPrompt(input),
       model: INITIAL_MODEL,
-      maxTokens: 32000,
+      // 16k tokenów wystarcza dla ~15-stronnego dokumentu; redukuje czas generacji
+      // żeby mieścić się w Vercel Hobby 60s cap.
+      maxTokens: 16000,
     });
     aiLog = {
       step: "initial_generation",

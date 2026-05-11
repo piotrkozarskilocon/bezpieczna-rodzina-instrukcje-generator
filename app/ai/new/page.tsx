@@ -124,9 +124,9 @@ export default function AiNewProjectPage(): React.ReactElement {
       {mode === "auto" && (
         <div className="mb-8 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
           <strong>Tryb auto (Claude API) aktywny:</strong> projekt zostanie wygenerowany
-          automatycznie po kliknięciu przycisku. Koszt ~0,20 USD per projekt (Sonnet 4.6),
-          czas generacji ~30–60 s. Jeśli API padnie, przygotujemy też prompt do
-          ręcznego skopiowania jako fallback.
+          automatycznie po kliknięciu przycisku. Model: Haiku 4.5, koszt ~0,07 USD per
+          projekt, czas generacji ~20–40 s. Jeśli API padnie, przygotujemy też prompt
+          do ręcznego skopiowania jako fallback.
         </div>
       )}
       {mode === "manual" && (
@@ -277,7 +277,7 @@ export default function AiNewProjectPage(): React.ReactElement {
             className="inline-flex items-center gap-2 rounded-md bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50"
           >
             {busy
-              ? mode === "auto" ? "Generowanie... (~30-60 s)" : "Tworzenie..."
+              ? mode === "auto" ? "Generowanie... (~20-40 s)" : "Tworzenie..."
               : mode === "auto" ? "✨ Stwórz projekt" : "✨ Stwórz projekt + przygotuj prompt"}
           </button>
         </div>
@@ -285,7 +285,7 @@ export default function AiNewProjectPage(): React.ReactElement {
 
       <p className="mt-6 text-xs text-slate-500">
         {mode === "auto"
-          ? "Klucz API podpięty — koszt ~0,20 USD per projekt (Claude Sonnet 4.6). Budżet i zużycie sprawdzisz w Anthropic Console."
+          ? "Klucz API podpięty — koszt ~0,07 USD per projekt (Claude Haiku 4.5). Budżet i zużycie sprawdzisz w Anthropic Console."
           : mode === "manual"
             ? "Tryb manualny — bez kosztów API (używasz subskrypcji Claude.ai)."
             : "Sprawdzanie trybu pracy..."}
