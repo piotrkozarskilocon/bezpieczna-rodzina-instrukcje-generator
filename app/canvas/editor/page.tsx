@@ -4,8 +4,8 @@ export default function EditorPage(): React.ReactElement {
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
       <div className="mb-6 text-sm text-slate-500">
-        <Link href="/" className="hover:text-slate-900">
-          Projekty
+        <Link href="/canvas" className="hover:text-slate-900">
+          Projekty (Edytor wizualny)
         </Link>
         <span className="mx-2">/</span>
         <span className="text-slate-700">Edytor</span>

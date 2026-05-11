@@ -28,10 +28,7 @@ export default function RootLayout({
             </Link>
             <nav className="flex items-center gap-6 text-sm font-medium text-slate-600">
               <Link href="/" className="hover:text-slate-900">
-                Projekty
-              </Link>
-              <Link href="/editor" className="hover:text-slate-900">
-                Edytor
+                Generator
               </Link>
               <a
                 href="https://bezpieczna-rodzina-prototypy.vercel.app/"
@@ -54,7 +51,7 @@ export default function RootLayout({
         <footer className="border-t border-slate-200 bg-white">
           <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 text-xs text-slate-500">
             <span>Locon · materiały wewnętrzne</span>
-            <span>Phase 0 · skeleton deploy</span>
+            <span>Phase 1 · import PDF</span>
           </div>
         </footer>
       </body>

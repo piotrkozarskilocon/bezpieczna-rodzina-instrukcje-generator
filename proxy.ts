@@ -15,6 +15,7 @@ import type { NextRequest } from "next/server";
 import { NextResponse } from "next/server";
 
 const HUB_LOGIN_URL = "https://bezpieczna-rodzina-prototypy.vercel.app/login";
+const PROXY_SECRET_HEADER = "x-locon-proxy-secret";
 
 export const config = {
   matcher: [
@@ -29,6 +30,18 @@ export const config = {
 };
 
 export default async function proxy(request: NextRequest): Promise<Response | undefined> {
+  // When the hub proxies a request server-side, Vercel Edge `fetch()` strips
+  // the Cookie header, which would cause a redirect loop here. The hub sets
+  // a shared-secret header before forwarding (see hub middleware.js
+  // `proxyToOrigin`); trust that signal — hub already verified the JWT.
+  // Standard `x-forwarded-*` headers can't be used because Vercel rewrites
+  // them at the edge, so we use a custom header name + shared secret.
+  const proxySecret = request.headers.get(PROXY_SECRET_HEADER);
+  const expectedSecret = process.env.INTERNAL_PROXY_SECRET;
+  if (expectedSecret && proxySecret === expectedSecret) {
+    return undefined;
+  }
+
   const sessionToken = request.cookies.get("session_token")?.value;
 
   if (!sessionToken) {
