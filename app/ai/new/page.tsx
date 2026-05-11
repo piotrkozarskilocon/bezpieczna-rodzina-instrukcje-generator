@@ -73,7 +73,7 @@ export default function AiNewProjectPage(): React.ReactElement {
     if (!name.trim() || !modelCode.trim() || !modelName.trim()) return;
     setBusy(true);
     setError(null);
-    setStage("Tworzenie projektu...");
+    setStage("Tworzenie projektu i generowanie szkieletu stron...");
     try {
       const res = await fetch(`${API_BASE}/projects/generate`, {
         method: "POST",
@@ -92,14 +92,51 @@ export default function AiNewProjectPage(): React.ReactElement {
           },
         }),
       });
-      const json = await res.json();
+      const json = (await res.json()) as {
+        id?: string;
+        mode?: "auto" | "manual";
+        skeleton?: boolean;
+        page_list?: Array<{ id: string; page_number: number; template: string | null; title: string | null }>;
+        error?: string;
+      };
       if (!res.ok && json.mode !== "manual") {
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
-      // Redirect to the project — the page itself decides whether to show
-      // the editor (mode='auto', already populated) or the manual prompt
-      // export UI (mode='manual', status='draft').
-      window.location.href = `/generator-instrukcji/ai/projects/${json.id}`;
+
+      // Manual mode → redirect na projekt, user kopiuje prompt ręcznie.
+      if (json.mode === "manual" || !json.skeleton || !json.id || !json.page_list) {
+        window.location.href = `/generator-instrukcji/ai/projects/${json.id}`;
+        return;
+      }
+
+      // Auto mode (chunked) → pętla per-strona z progress UI.
+      // Strony tytułowe + spis treści generujemy też przez AI dla spójności
+      // (cover ma logo+model+wersja, toc ma listę pozostałych stron).
+      const pages = json.page_list;
+      let ok = 0;
+      let failed = 0;
+      for (let i = 0; i < pages.length; i++) {
+        const p = pages[i];
+        setStage(
+          `Generuję treść strony ${i + 1}/${pages.length}: ${p.title ?? p.template ?? "strona"}...`,
+        );
+        try {
+          const r = await fetch(`${API_BASE}/pages/${p.id}/auto-populate/`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({}),
+          });
+          if (r.ok) ok++;
+          else failed++;
+        } catch {
+          failed++;
+        }
+      }
+      setStage(`Gotowe — ${ok}/${pages.length} stron z treścią${failed > 0 ? ` (${failed} do retry)` : ""}.`);
+      // Krótka pauza by user zobaczył komunikat końcowy, potem redirect.
+      setTimeout(() => {
+        window.location.href = `/generator-instrukcji/ai/projects/${json.id}`;
+      }, 1200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "generation failed");
       setBusy(false);
@@ -123,10 +160,10 @@ export default function AiNewProjectPage(): React.ReactElement {
       </p>
       {mode === "auto" && (
         <div className="mb-8 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
-          <strong>Tryb auto (Claude API) aktywny:</strong> projekt zostanie wygenerowany
-          automatycznie po kliknięciu przycisku. Model: Haiku 4.5, koszt ~0,07 USD per
-          projekt, czas generacji ~20–40 s. Jeśli API padnie, przygotujemy też prompt
-          do ręcznego skopiowania jako fallback.
+          <strong>Tryb auto (Claude API) aktywny:</strong> najpierw wygenerujemy szkielet
+          stron (~10 s), potem treść każdej strony osobno (~5-10 s na stronę). Łącznie
+          ~2-4 min dla 14-stronnego dokumentu. Model: Haiku 4.5, koszt ~0,15 USD per
+          projekt. Postęp widoczny pod przyciskiem.
         </div>
       )}
       {mode === "manual" && (
@@ -277,7 +314,7 @@ export default function AiNewProjectPage(): React.ReactElement {
             className="inline-flex items-center gap-2 rounded-md bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50"
           >
             {busy
-              ? mode === "auto" ? "Generowanie... (~20-40 s)" : "Tworzenie..."
+              ? mode === "auto" ? "Generowanie..." : "Tworzenie..."
               : mode === "auto" ? "✨ Stwórz projekt" : "✨ Stwórz projekt + przygotuj prompt"}
           </button>
         </div>
@@ -285,7 +322,7 @@ export default function AiNewProjectPage(): React.ReactElement {
 
       <p className="mt-6 text-xs text-slate-500">
         {mode === "auto"
-          ? "Klucz API podpięty — koszt ~0,07 USD per projekt (Claude Haiku 4.5). Budżet i zużycie sprawdzisz w Anthropic Console."
+          ? "Klucz API podpięty — koszt ~0,15 USD per projekt (Claude Haiku 4.5, chunked: szkielet + treść per strona). Budżet i zużycie sprawdzisz w Anthropic Console."
           : mode === "manual"
             ? "Tryb manualny — bez kosztów API (używasz subskrypcji Claude.ai)."
             : "Sprawdzanie trybu pracy..."}

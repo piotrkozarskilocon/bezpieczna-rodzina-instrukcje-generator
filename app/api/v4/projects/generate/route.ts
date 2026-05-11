@@ -5,12 +5,10 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, INITIAL_MODEL } from "@/lib/anthropic";
 import {
   type GenerationInput,
-  loadGlossaryDoNotTranslate,
-  loadProjectDesignSystem,
-  buildSystemPrompt,
-  buildUserPrompt,
-  validateGenerated,
-  bulkInsertGeneratedProject,
+  buildSkeletonSystemPrompt,
+  buildSkeletonUserPrompt,
+  validateSkeletonGenerated,
+  bulkInsertSkeletonPages,
   parseJsonFromAi,
 } from "@/lib/v4Generate";
 import {
@@ -100,41 +98,48 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  // ─── Auto mode: call Claude, parse, persist. ──────────────────────────
+  // ─── Auto mode (chunked): generuj TYLKO szkielet stron. Elements dorabiamy ─
+  // osobnymi krótkimi wywołaniami per strona (frontend wywołuje /auto-populate
+  // w pętli z UI progress bar). Tutaj robimy małe szybkie wywołanie ~5-15s,
+  // które zawsze zmieści się w 60s Hobby cap.
   let aiLog: Record<string, unknown>;
   try {
-    const doNotTranslate = await loadGlossaryDoNotTranslate();
-    const designSystem = await loadProjectDesignSystem(project.id);
     const ai = await callClaude({
-      system: buildSystemPrompt(doNotTranslate, designSystem, {
+      system: buildSkeletonSystemPrompt({
         document_type: input.document_type,
         device_type: input.device_type,
       }),
-      user: buildUserPrompt(input),
+      user: buildSkeletonUserPrompt(input),
       model: INITIAL_MODEL,
-      // 16k tokenów wystarcza dla ~15-stronnego dokumentu; redukuje czas generacji
-      // żeby mieścić się w Vercel Hobby 60s cap.
-      maxTokens: 16000,
+      maxTokens: 4000, // szkielet ~14 stron = ~1500-2500 tokenów output
     });
     aiLog = {
-      step: "initial_generation",
+      step: "skeleton_generation",
       model: ai.model,
       input_tokens: ai.inputTokens,
       output_tokens: ai.outputTokens,
       latency_ms: ai.latencyMs,
       timestamp: new Date().toISOString(),
     };
-    const parsed = validateGenerated(parseJsonFromAi(ai.text));
-    const counts = await bulkInsertGeneratedProject(project.id, parsed);
+    const pages = validateSkeletonGenerated(parseJsonFromAi(ai.text));
+    const counts = await bulkInsertSkeletonPages(project.id, pages);
     await sb
       .from("gen4_projects")
       .update({ status: "ready", ai_log: [aiLog] })
       .eq("id", project.id);
+    // Zwracamy też listę stron (id+page_number+title+template) by frontend mógł
+    // wywołać /auto-populate dla każdej strony bez dodatkowego GET.
+    const { data: insertedPages } = await sb
+      .from("gen4_pages")
+      .select("id, page_number, template, title")
+      .eq("project_id", project.id)
+      .order("page_number", { ascending: true });
     return NextResponse.json({
       id: project.id,
       mode: "auto",
+      skeleton: true,
       pages: counts.pages,
-      elements: counts.elements,
+      page_list: insertedPages ?? [],
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
@@ -142,7 +147,7 @@ export async function POST(request: NextRequest) {
       .from("gen4_projects")
       .update({
         status: "error",
-        ai_log: [{ step: "initial_generation", error: msg, timestamp: new Date().toISOString() }],
+        ai_log: [{ step: "skeleton_generation", error: msg, timestamp: new Date().toISOString() }],
       })
       .eq("id", project.id);
     return NextResponse.json({ id: project.id, error: msg }, { status: 502 });

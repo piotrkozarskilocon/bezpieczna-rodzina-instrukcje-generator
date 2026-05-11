@@ -206,6 +206,103 @@ export function buildSystemPrompt(
   ].join("\n");
 }
 
+/**
+ * Krótki prompt który prosi AI o zwrócenie TYLKO szkieletu stron — bez elements.
+ * Wynik: lista { template, page_number, title } gotowa do bulkInsertSkeletonPages.
+ * Używamy w wizardzie generate, by zmieścić się w 60s Hobby cap. Elements
+ * dorabiamy osobnymi krótkimi wywołaniami per strona.
+ */
+export function buildSkeletonSystemPrompt(
+  scope: DocumentScope,
+): string {
+  return [
+    "Jesteś asystentem generującym SZKIELET drukowanego dokumentu (lista stron, bez elementów).",
+    "Każdy dokument ma sztywną strukturę wynikającą z wymagań prawnych — Twoja praca:",
+    "wygenerować listę stron z tytułami i template'ami zgodną z listą wymagań poniżej.",
+    "",
+    renderRequirementsForPrompt(scope.document_type, scope.device_type),
+    "",
+    "Format odpowiedzi:",
+    "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",
+    "`szkielet-instrukcji.json` — WYŁĄCZNIE poprawny JSON wg schematu:",
+    "{",
+    '  "pages": [',
+    '    { "template": "cover", "page_number": 1, "title": null },',
+    '    { "template": "toc", "page_number": 2, "title": "Spis treści" },',
+    '    { "template": "step", "page_number": 3, "title": "Pierwsze uruchomienie" }',
+    "    // ...kolejne strony",
+    "  ]",
+    "}",
+    "Nie generuj `elements` — w tym wywołaniu chcemy tylko szkielet.",
+    "Tytuły muszą być w POLSKIM z pełnymi znakami diakrytycznymi (ą ć ę ł ń ó ś ź ż).",
+    "Surowy UTF-8 w JSON, nie sekwencje \\uXXXX.",
+  ].join("\n");
+}
+
+export function buildSkeletonUserPrompt(input: GenerationInput): string {
+  return [
+    `Wygeneruj szkielet dokumentu ${DOCUMENT_TYPE_LABELS[input.document_type]}`,
+    `dla urządzenia: ${DEVICE_TYPE_LABELS[input.device_type]}.`,
+    "",
+    `Model: ${input.model_name} (${input.model_code}).`,
+    `Liczba kroków pierwszego uruchomienia (orientacyjnie): ${input.step_count}.`,
+    "",
+    "Zwróć kompletną listę stron zgodną z wymaganiami prawnymi (Cover → TOC → reszta).",
+  ].join("\n");
+}
+
+export interface SkeletonPage {
+  template: string;
+  page_number: number;
+  title: string | null;
+}
+
+export function validateSkeletonGenerated(data: unknown): SkeletonPage[] {
+  if (!data || typeof data !== "object" || !("pages" in data)) {
+    throw new Error("response missing 'pages' field");
+  }
+  const pages = (data as { pages: unknown }).pages;
+  if (!Array.isArray(pages) || pages.length === 0) {
+    throw new Error("'pages' must be a non-empty array");
+  }
+  const out: SkeletonPage[] = [];
+  for (let i = 0; i < pages.length; i++) {
+    const p = pages[i] as Record<string, unknown>;
+    const template =
+      typeof p.template === "string" && VALID_TEMPLATES.has(p.template) ? p.template : "blank";
+    let title: string | null = null;
+    if (template !== "cover" && typeof p.title === "string" && p.title.trim()) {
+      title = p.title.trim();
+    }
+    out.push({
+      template,
+      page_number: typeof p.page_number === "number" ? p.page_number : i + 1,
+      title,
+    });
+  }
+  return out;
+}
+
+/** Bulk-insert szkielet stron (bez elementów). Idempotentne — robić po
+ *  wcześniejszym wipie gen4_pages dla projektu. */
+export async function bulkInsertSkeletonPages(
+  projectId: string,
+  pages: SkeletonPage[],
+): Promise<{ pages: number }> {
+  const sb = getSupabaseAdmin();
+  const rows = pages.map((p) => ({
+    project_id: projectId,
+    page_number: p.page_number,
+    width_mm: 76,
+    height_mm: 76,
+    template: p.template,
+    title: p.title,
+  }));
+  const { error } = await sb.from("gen4_pages").insert(rows);
+  if (error) throw new Error(error.message);
+  return { pages: rows.length };
+}
+
 export function buildUserPrompt(input: GenerationInput): string {
   const features = input.features.filter((f) => f.enabled).map((f) => `- ${f.label}`).join("\n");
   const lines: string[] = [];
