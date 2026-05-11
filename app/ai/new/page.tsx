@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   DOCUMENT_TYPES,
   DOCUMENT_TYPE_LABELS,
@@ -51,6 +51,18 @@ export default function AiNewProjectPage(): React.ReactElement {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<string | null>(null);
+  const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/status`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { mode?: "auto" | "manual" } | null) => {
+        if (!cancelled && j?.mode) setMode(j.mode);
+      })
+      .catch(() => { /* zostawiamy "unknown" — frontend pokaże neutralny komunikat */ });
+    return () => { cancelled = true; };
+  }, []);
 
   const toggleFeature = (key: string) => {
     setFeatures((prev) => prev.map((f) => (f.key === key ? { ...f, enabled: !f.enabled } : f)));
@@ -109,11 +121,21 @@ export default function AiNewProjectPage(): React.ReactElement {
       <p className="mb-3 text-sm text-slate-500">
         Opisz model i jego funkcje — AI wygeneruje pełen szkielet instrukcji w PL.
       </p>
-      <div className="mb-8 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
-        <strong>Tryb manualny aktywny:</strong> brak ANTHROPIC_API_KEY w środowisku.
-        Po stworzeniu projektu pokażemy gotowy prompt do skopiowania — wkleisz go
-        w nowej rozmowie z Claude.ai, dostaniesz JSON, który zaimportujesz tutaj.
-      </div>
+      {mode === "auto" && (
+        <div className="mb-8 rounded-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs text-emerald-900">
+          <strong>Tryb auto (Claude API) aktywny:</strong> projekt zostanie wygenerowany
+          automatycznie po kliknięciu przycisku. Koszt ~0,20 USD per projekt (Sonnet 4.6),
+          czas generacji ~30–60 s. Jeśli API padnie, przygotujemy też prompt do
+          ręcznego skopiowania jako fallback.
+        </div>
+      )}
+      {mode === "manual" && (
+        <div className="mb-8 rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-900">
+          <strong>Tryb manualny aktywny:</strong> brak ANTHROPIC_API_KEY w środowisku.
+          Po stworzeniu projektu pokażemy gotowy prompt do skopiowania — wkleisz go
+          w nowej rozmowie z Claude.ai, dostaniesz JSON, który zaimportujesz tutaj.
+        </div>
+      )}
 
       <form onSubmit={submit} className="space-y-6 rounded-xl border border-slate-200 bg-white p-6">
         <div>
@@ -260,8 +282,11 @@ export default function AiNewProjectPage(): React.ReactElement {
       </form>
 
       <p className="mt-6 text-xs text-slate-500">
-        Po podpięciu klucza API: koszt ~$2 za projekt (Claude Sonnet 4.6).
-        Aktualnie tryb manualny — bez kosztów (używasz subskrypcji Claude.ai).
+        {mode === "auto"
+          ? "Klucz API podpięty — koszt ~0,20 USD per projekt (Claude Sonnet 4.6). Budżet i zużycie sprawdzisz w Anthropic Console."
+          : mode === "manual"
+            ? "Tryb manualny — bez kosztów API (używasz subskrypcji Claude.ai)."
+            : "Sprawdzanie trybu pracy..."}
       </p>
     </div>
   );
