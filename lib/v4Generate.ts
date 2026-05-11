@@ -178,6 +178,7 @@ export async function loadProjectDesignSystem(
 export interface DocumentScope {
   document_type: DocumentType;
   device_type: DeviceType;
+  step_count?: number;
 }
 
 export function buildSystemPrompt(
@@ -186,7 +187,7 @@ export function buildSystemPrompt(
   scope?: DocumentScope | null,
 ): string {
   const requirements = scope
-    ? renderRequirementsForPrompt(scope.document_type, scope.device_type)
+    ? renderRequirementsForPrompt(scope.document_type, scope.device_type, scope.step_count ?? 1)
     : null;
   return [
     "Jesteś asystentem generującym strukturalne instrukcje obsługi (QSG + Karta Gwarancyjna)",
@@ -302,7 +303,7 @@ export function buildSkeletonSystemPrompt(
     "Każdy dokument ma sztywną strukturę wynikającą z wymagań prawnych — Twoja praca:",
     "wygenerować listę stron z tytułami i template'ami zgodną z listą wymagań poniżej.",
     "",
-    renderRequirementsForPrompt(scope.document_type, scope.device_type),
+    renderRequirementsForPrompt(scope.document_type, scope.device_type, scope.step_count ?? 1),
     "",
     "Format odpowiedzi — KRYTYCZNE:",
     "Zwróć WYŁĄCZNIE surowy JSON. Twoja odpowiedź MUSI zacząć się od znaku `{`",

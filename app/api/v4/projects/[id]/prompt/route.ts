@@ -50,7 +50,11 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   const designSystem = await loadProjectDesignSystem(id);
   const scope =
     input.document_type && input.device_type
-      ? { document_type: input.document_type, device_type: input.device_type }
+      ? {
+          document_type: input.document_type,
+          device_type: input.device_type,
+          step_count: input.step_count,
+        }
       : null;
   const system = buildSystemPrompt(doNotTranslate, designSystem, scope);
   const user = buildUserPrompt(input);

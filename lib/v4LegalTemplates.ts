@@ -57,6 +57,14 @@ export interface SectionRequirement {
   legal_basis?: string;
   /** Pola które AI ma wypełnić jako placeholder, jeśli brak danych referencyjnych. */
   placeholders?: string[];
+  /** Sekcja multi-krokowa — rozbija się na N osobnych stron przy generowaniu
+   *  szkieletu. Każdy krok otrzymuje swój placeholder obrazka (screen z aplikacji
+   *  / zdjęcie urządzenia). N pochodzi z input.step_count. */
+  multi_step?: boolean;
+  /** Czy strona MUSI mieć dedykowany obrazek (placeholder + AI matchuje image_id
+   *  z biblioteki). Ustawiane też automatycznie dla wszystkich expanded stron
+   *  multi_step. */
+  needs_image?: boolean;
 }
 
 /* ─────────────────────────────────────────────────────────────────────────
@@ -103,6 +111,7 @@ const QSG_DEVICE_OVERVIEW: SectionRequirement = {
     "Schemat urządzenia z opisanymi elementami: przyciski, port ładowania, slot SIM " +
     "(jeśli dotyczy), czujniki, dioda statusu. Placeholder na grafikę poglądową.",
   placeholders: ["grafika z numeracją elementów", "lista przycisków i ich funkcji"],
+  needs_image: true,
 };
 
 const QSG_FIRST_USE: SectionRequirement = {
@@ -110,9 +119,11 @@ const QSG_FIRST_USE: SectionRequirement = {
   title: "Pierwsze uruchomienie",
   template: "step",
   description:
-    "Kolejne kroki: 1) ładowanie do pełna, 2) instalacja karty SIM (jeśli urządzenie " +
-    "obsługuje), 3) włączenie urządzenia, 4) pobranie aplikacji Bezpieczna Rodzina, " +
-    "5) parowanie urządzenia z kontem. Każdy krok = osobna podsekcja z numerem.",
+    "Sekcja wprowadzająca proces uruchomienia. Typowe kroki to: ładowanie do pełna, " +
+    "instalacja karty SIM (jeśli urządzenie obsługuje), włączenie urządzenia, pobranie " +
+    "aplikacji Bezpieczna Rodzina, parowanie urządzenia z kontem.",
+  multi_step: true,  // rozbija się na N osobnych stron (krok per strona)
+  needs_image: true,
 };
 
 const QSG_BASIC_USE: SectionRequirement = {
@@ -498,17 +509,44 @@ function deviceSpecificSection(dev: DeviceType): SectionRequirement | null {
   }
 }
 
+/** Rozbija sekcję multi_step na N osobnych pozycji (krok per strona).
+ *  Każda strona dostaje: tytuł "Krok N: ...", needs_image=true (każdy krok
+ *  ma własny screen/zdjęcie), placeholder na obrazek. AI sam wymyśla
+ *  konkretne tytuły kroków na bazie opisu sekcji-rodzica. */
+function expandMultiStep(section: SectionRequirement, stepCount: number): SectionRequirement[] {
+  if (!section.multi_step || stepCount <= 1) return [section];
+  return Array.from({ length: stepCount }, (_, i) => ({
+    id: `${section.id}_step_${i + 1}`,
+    title: `Krok ${i + 1}`,
+    template: "step" as const,
+    description:
+      `Krok ${i + 1} z ${stepCount} sekcji "${section.title}". Wymyśl konkretny ` +
+      `tytuł (np. "Krok ${i + 1}: Naładuj zegarek", "Krok ${i + 1}: Włóż kartę SIM", ` +
+      `"Krok ${i + 1}: Sparuj z aplikacją"). Strona powinna zawierać: numer + nazwę kroku ` +
+      `jako nagłówek, krótki opis czynności (1-3 zdania), oraz miejsce na obrazek ` +
+      `(screen aplikacji lub zdjęcie urządzenia w trakcie tego kroku). ` +
+      `Kontekst całej sekcji: ${section.description}`,
+    placeholders: ["screen aplikacji / zdjęcie urządzenia dla tego kroku"],
+    needs_image: true,
+  }));
+}
+
 /**
  * Zwraca pełną listę wymaganych sekcji w kolejności w jakiej powinny pojawić się
  * w dokumencie. Sekcja device-specific wstawiana jest tuż przed sekcjami prawnymi
  * (przed manufacturer_data) — jest częścią opisu produktu, nie załącznikiem.
+ *
+ * stepCount — gdy podany i większy od 1, sekcje multi_step rozbijają się na
+ * N osobnych stron (krok per strona). Pochodzi z gen4_projects.ai_input.step_count.
  */
 export function getRequiredSections(
   documentType: DocumentType,
   deviceType: DeviceType,
+  stepCount: number = 1,
 ): SectionRequirement[] {
   const out: SectionRequirement[] = [SECTION_COVER, SECTION_TOC];
-  const doc = sectionsForDocumentType(documentType);
+  const rawDoc = sectionsForDocumentType(documentType);
+  const doc = rawDoc.flatMap((s) => expandMultiStep(s, stepCount));
   const devSection = deviceSpecificSection(deviceType);
 
   if (devSection) {
@@ -536,8 +574,9 @@ export function getRequiredSections(
 export function renderRequirementsForPrompt(
   documentType: DocumentType,
   deviceType: DeviceType,
+  stepCount: number = 1,
 ): string {
-  const sections = getRequiredSections(documentType, deviceType);
+  const sections = getRequiredSections(documentType, deviceType, stepCount);
   const lines: string[] = [
     `WYMAGANE SEKCJE DOKUMENTU (typ: ${DOCUMENT_TYPE_LABELS[documentType]}; urządzenie: ${DEVICE_TYPE_LABELS[deviceType]}):`,
     `Wygeneruj DOKŁADNIE ${sections.length} stron w tej kolejności i z tymi tytułami.`,
@@ -556,6 +595,9 @@ export function renderRequirementsForPrompt(
     if (s.legal_basis) lines.push(`   Podstawa prawna: ${s.legal_basis}`);
     if (s.placeholders && s.placeholders.length > 0) {
       lines.push(`   Wstaw placeholdery dla: ${s.placeholders.join(", ")}`);
+    }
+    if (s.needs_image) {
+      lines.push(`   ⚙️ ZAWSZE pozostaw miejsce na obrazek (image element, ~30-50 mm szer.)`);
     }
     lines.push("");
   });

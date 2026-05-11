@@ -53,19 +53,30 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   let sectionDescription = "";
   let sectionPlaceholders: string[] = [];
   let sectionLegalBasis = "";
+  let sectionNeedsImage = false;
   if (docType && devType) {
-    const sections = getRequiredSections(docType, devType);
+    const stepCount =
+      typeof input?.step_count === "number" && input.step_count > 0 ? input.step_count : 1;
+    const sections = getRequiredSections(docType, devType, stepCount);
     // Mapujemy stronę → sekcja po position (cover=0, toc=1, reszta od 2).
-    // Title match jako tie-breaker — gdy AI w szkielecie zmienił kolejność.
+    // Title match jako tie-breaker — gdy AI w szkielecie zmienił kolejność lub
+    // wymyślił bardziej konkretne tytuły niż "Krok N" (np. "Krok 1: Naładuj").
     const idx = page.page_number - 1;
-    const match =
-      sections[idx] && (page.title === null || sections[idx].title === page.title)
-        ? sections[idx]
-        : sections.find((s) => s.title === page.title);
+    let match = sections[idx];
+    if (!match || (page.title && match.title !== page.title)) {
+      // Tytuły kroków AI zazwyczaj zaczynają od "Krok N:" — dopasuj po prefiksie.
+      const titleLower = (page.title ?? "").toLowerCase();
+      match =
+        sections.find((s) => s.title === page.title) ??
+        sections.find((s) => titleLower.startsWith(s.title.toLowerCase())) ??
+        sections[idx] ??
+        match;
+    }
     if (match) {
       sectionDescription = match.description;
       sectionPlaceholders = match.placeholders ?? [];
       sectionLegalBasis = match.legal_basis ?? "";
+      sectionNeedsImage = match.needs_image ?? false;
     }
   }
 
@@ -139,6 +150,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     if (sectionLegalBasis) userLines.push(`Podstawa prawna: ${sectionLegalBasis}`);
     if (sectionPlaceholders.length > 0) {
       userLines.push(`Wstaw placeholdery dla: ${sectionPlaceholders.join(", ")}`);
+    }
+    if (sectionNeedsImage) {
+      userLines.push(
+        "⚙️ TA STRONA WYMAGA OBRAZKA: zostaw miejsce ~30-50 mm szerokości na image element. " +
+          "Jeśli w bibliotece projektu jest obrazek pasujący do tematu strony (porównaj jego " +
+          "opis z tytułem) — WSTAW GO. W przeciwnym razie wstaw image element z image_id=null " +
+          "i properties.placeholder_description='krótki opis czego brakuje' aby user mógł później " +
+          "dograć obrazek do biblioteki.",
+      );
     }
   } else {
     userLines.push("Treść strony: wypełnij zgodnie z template i tytułem.");

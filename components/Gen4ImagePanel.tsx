@@ -40,12 +40,27 @@ interface Props {
   pages: PageOption[];
 }
 
+interface MappingSuggestion {
+  image_id: string;
+  image_name: string;
+  image_description: string | null;
+  suggested_page_id: string | null;
+  suggested_page_number: number | null;
+  suggested_page_title: string | null;
+  confidence: "high" | "medium" | "low" | "none";
+  reason: string;
+}
+
 export default function Gen4ImagePanel({ projectId, pages }: Props): React.ReactElement {
   const [images, setImages] = useState<Gen4Image[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [drag, setDrag] = useState(false);
+  const [mappingOpen, setMappingOpen] = useState(false);
+  const [mappingBusy, setMappingBusy] = useState(false);
+  const [suggestions, setSuggestions] = useState<MappingSuggestion[]>([]);
+  const [accepted, setAccepted] = useState<Set<string>>(new Set());
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -106,6 +121,75 @@ export default function Gen4ImagePanel({ projectId, pages }: Props): React.React
     }
   };
 
+  const fetchMapping = async () => {
+    setMappingBusy(true);
+    setError(null);
+    setSuggestions([]);
+    setAccepted(new Set());
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/image-mapping/preview/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      const j = JSON.parse(text) as { mappings: MappingSuggestion[]; message?: string };
+      setSuggestions(j.mappings ?? []);
+      // Pre-zaznacz propozycje z confidence high/medium.
+      const preset = new Set<string>();
+      for (const s of j.mappings ?? []) {
+        if (s.suggested_page_id && (s.confidence === "high" || s.confidence === "medium")) {
+          preset.add(s.image_id);
+        }
+      }
+      setAccepted(preset);
+      setMappingOpen(true);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "mapping preview failed");
+    } finally {
+      setMappingBusy(false);
+    }
+  };
+
+  const applyMapping = async () => {
+    const toApply = suggestions.filter((s) => accepted.has(s.image_id) && s.suggested_page_id);
+    if (toApply.length === 0) {
+      setMappingOpen(false);
+      return;
+    }
+    setMappingBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/image-mapping/apply/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          mappings: toApply.map((s) => ({
+            image_id: s.image_id,
+            preferred_page_id: s.suggested_page_id,
+          })),
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      await refresh();
+      setMappingOpen(false);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "apply mapping failed");
+    } finally {
+      setMappingBusy(false);
+    }
+  };
+
   const remove = async (id: string) => {
     if (!confirm("Usunąć obrazek?")) return;
     try {
@@ -134,17 +218,34 @@ export default function Gen4ImagePanel({ projectId, pages }: Props): React.React
             opis pozwala AI dopasować obrazek do właściwej strony instrukcji.
           </p>
         </div>
-        <label className="cursor-pointer rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
-          {busy ? "Wgrywam..." : "+ Wgraj obrazki"}
-          <input
-            type="file"
-            multiple
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            className="hidden"
-            disabled={busy}
-            onChange={(e) => void upload(Array.from(e.target.files ?? []))}
-          />
-        </label>
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            disabled={mappingBusy || images.length === 0 || pages.length === 0}
+            onClick={() => void fetchMapping()}
+            className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+            title={
+              images.length === 0
+                ? "Wgraj najpierw obrazki"
+                : pages.length === 0
+                  ? "Projekt nie ma stron"
+                  : "AI zaproponuje na której stronie umieścić każdy obrazek"
+            }
+          >
+            {mappingBusy ? "AI analizuje..." : "🔮 Zaproponuj rozmieszczenie przez AI"}
+          </button>
+          <label className="cursor-pointer rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
+            {busy ? "Wgrywam..." : "+ Wgraj obrazki"}
+            <input
+              type="file"
+              multiple
+              accept="image/png,image/jpeg,image/webp,image/gif"
+              className="hidden"
+              disabled={busy}
+              onChange={(e) => void upload(Array.from(e.target.files ?? []))}
+            />
+          </label>
+        </div>
       </div>
 
       {error && (
@@ -183,6 +284,142 @@ export default function Gen4ImagePanel({ projectId, pages }: Props): React.React
             ))}
           </div>
         )}
+      </div>
+
+      {mappingOpen && (
+        <MappingModal
+          suggestions={suggestions}
+          accepted={accepted}
+          setAccepted={setAccepted}
+          busy={mappingBusy}
+          onClose={() => setMappingOpen(false)}
+          onApply={() => void applyMapping()}
+        />
+      )}
+    </div>
+  );
+}
+
+interface MappingModalProps {
+  suggestions: MappingSuggestion[];
+  accepted: Set<string>;
+  setAccepted: (s: Set<string>) => void;
+  busy: boolean;
+  onClose: () => void;
+  onApply: () => void;
+}
+
+function MappingModal({ suggestions, accepted, setAccepted, busy, onClose, onApply }: MappingModalProps): React.ReactElement {
+  const toggle = (id: string) => {
+    const next = new Set(accepted);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setAccepted(next);
+  };
+  const confColor = (c: MappingSuggestion["confidence"]) =>
+    c === "high" ? "bg-emerald-100 text-emerald-800"
+    : c === "medium" ? "bg-amber-100 text-amber-800"
+    : c === "low" ? "bg-slate-100 text-slate-700"
+    : "bg-red-50 text-red-700";
+
+  const acceptedCount = suggestions.filter((s) => accepted.has(s.image_id) && s.suggested_page_id).length;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6">
+      <div className="my-8 w-full max-w-4xl rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <h3 className="text-base font-semibold text-slate-900">
+            🔮 Propozycja rozmieszczenia obrazków
+          </h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+
+        <div className="p-5">
+          <p className="mb-3 text-xs text-slate-600">
+            AI przeanalizował opisy obrazków i tytuły stron. Zaznacz te, które chcesz
+            zatwierdzić — propozycje z wysoką pewnością są wstępnie zaznaczone.
+            Po kliknięciu „Zastosuj" w każdym zaznaczonym obrazku ustawi się <em>preferowana strona</em>,
+            a kolejne uruchomienie auto-populate wstawi obrazek na właściwej stronie.
+          </p>
+
+          <table className="w-full border-collapse text-xs">
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50 text-left text-slate-600">
+                <th className="p-2 w-8"></th>
+                <th className="p-2">Obrazek</th>
+                <th className="p-2">Propozycja</th>
+                <th className="p-2 w-20">Pewność</th>
+                <th className="p-2">Powód</th>
+              </tr>
+            </thead>
+            <tbody>
+              {suggestions.map((s) => {
+                const checkable = !!s.suggested_page_id;
+                return (
+                  <tr key={s.image_id} className="border-b border-slate-100 align-top">
+                    <td className="p-2">
+                      <input
+                        type="checkbox"
+                        disabled={!checkable || busy}
+                        checked={accepted.has(s.image_id)}
+                        onChange={() => toggle(s.image_id)}
+                      />
+                    </td>
+                    <td className="p-2">
+                      <div className="font-medium text-slate-800">{s.image_name}</div>
+                      <div className="text-[10px] text-slate-500">
+                        {s.image_description ?? <span className="italic text-amber-700">(brak opisu)</span>}
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      {s.suggested_page_id ? (
+                        <span className="font-medium text-slate-800">
+                          #{s.suggested_page_number} {s.suggested_page_title}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 italic">— bez przypisania —</span>
+                      )}
+                    </td>
+                    <td className="p-2">
+                      <span className={`inline-block rounded px-1.5 py-0.5 text-[10px] font-semibold uppercase ${confColor(s.confidence)}`}>
+                        {s.confidence}
+                      </span>
+                    </td>
+                    <td className="p-2 text-slate-600">{s.reason}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+
+          {suggestions.length === 0 && (
+            <p className="py-6 text-center text-xs text-slate-500">Brak propozycji.</p>
+          )}
+
+          <div className="mt-4 flex items-center justify-between border-t border-slate-200 pt-3">
+            <span className="text-xs text-slate-500">
+              Wybrano: <strong>{acceptedCount}</strong> z {suggestions.length}
+            </span>
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                disabled={busy}
+                className="rounded border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                disabled={busy || acceptedCount === 0}
+                onClick={onApply}
+                className="rounded bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              >
+                {busy ? "Zapisuję..." : `Zastosuj zaznaczone (${acceptedCount})`}
+              </button>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );

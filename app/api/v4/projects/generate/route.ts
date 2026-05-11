@@ -108,10 +108,11 @@ export async function POST(request: NextRequest) {
       system: buildSkeletonSystemPrompt({
         document_type: input.document_type,
         device_type: input.device_type,
+        step_count: input.step_count,
       }),
       user: buildSkeletonUserPrompt(input),
       model: INITIAL_MODEL,
-      maxTokens: 4000, // szkielet ~14 stron = ~1500-2500 tokenów output
+      maxTokens: 6000, // szkielet ~14-20 stron (multi-step = krok per strona)
     });
     aiLog = {
       step: "skeleton_generation",
