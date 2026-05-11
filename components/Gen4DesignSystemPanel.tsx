@@ -207,6 +207,7 @@ export default function Gen4DesignSystemPanel({ projectId, pages: pagesProp }: P
         <ApplyDsModal
           state={applyState}
           projectId={projectId}
+          pages={pages}
           onClose={() => setApplyState(null)}
         />
       )}
@@ -342,10 +343,11 @@ type ApplyState =
 interface ApplyDsModalProps {
   state: ApplyState;
   projectId: string;
+  pages: PageRow[];
   onClose: () => void;
 }
 
-function ApplyDsModal({ state, projectId, onClose }: ApplyDsModalProps): React.ReactElement {
+function ApplyDsModal({ state, projectId, pages, onClose }: ApplyDsModalProps): React.ReactElement {
   const [instruction, setInstruction] = useState("");
   const [prompt, setPrompt] = useState<string | null>(null);
   const [importJson, setImportJson] = useState("");
@@ -353,8 +355,85 @@ function ApplyDsModal({ state, projectId, onClose }: ApplyDsModalProps): React.R
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
+  const [autoProgress, setAutoProgress] = useState<string | null>(null);
 
   const isProjectScope = state.scope === "project";
+
+  // Tryb API/manual.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/status`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { mode?: "auto" | "manual" } | null) => {
+        if (!cancelled && j?.mode) setMode(j.mode);
+      })
+      .catch(() => { /* zostaje 'unknown' */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  // Auto-tryb: chunked per-page apply DS.
+  const runAutoApply = async () => {
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    setAutoProgress(null);
+    try {
+      if (isProjectScope) {
+        // Pętla po wszystkich stronach projektu, jedna apply DS naraz.
+        let ok = 0;
+        let failed = 0;
+        for (let i = 0; i < pages.length; i++) {
+          const p = pages[i];
+          setAutoProgress(
+            `Strona ${i + 1}/${pages.length}: ${p.title ?? p.template ?? "strona"}...`,
+          );
+          try {
+            const r = await fetch(`${API}/pages/${p.id}/apply-design/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                ds_id: state.ds.id,
+                instruction: instruction.trim() || undefined,
+              }),
+            });
+            if (r.ok) ok++;
+            else failed++;
+          } catch {
+            failed++;
+          }
+        }
+        setAutoProgress(null);
+        setInfo(
+          `Zastosowano DS „${state.ds.name}" do ${ok}/${pages.length} stron${failed > 0 ? ` (${failed} do retry)` : ""}. Strona przeładuje się za 2 s.`,
+        );
+        setTimeout(() => window.location.reload(), 2000);
+      } else {
+        // Pojedyncza strona — 1 wywołanie.
+        const r = await fetch(`${API}/pages/${state.pageId}/apply-design/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ds_id: state.ds.id,
+            instruction: instruction.trim() || undefined,
+          }),
+        });
+        const text = await r.text();
+        if (!r.ok) {
+          let parsed: { error?: string } = {};
+          try { parsed = JSON.parse(text); } catch { /* ignore */ }
+          throw new Error(parsed.error ?? `HTTP ${r.status}: ${text.slice(0, 200)}`);
+        }
+        const j = JSON.parse(text) as { elements: number };
+        setInfo(`Zastosowano DS „${state.ds.name}" — ${j.elements} elementów. Strona przeładuje się za 2 s.`);
+        setTimeout(() => window.location.reload(), 2000);
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "auto-apply failed");
+      setBusy(false);
+      setAutoProgress(null);
+    }
+  };
 
   const buildPrompt = async () => {
     setBusy(true); setError(null); setInfo(null);
@@ -454,14 +533,32 @@ function ApplyDsModal({ state, projectId, onClose }: ApplyDsModalProps): React.R
               placeholder='np. "tylko kolory, zachowaj layout" lub "skróć teksty o 20%"'
               className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-xs"
             />
-            <div className="mt-2 flex justify-end">
+            <div className="mt-2 flex flex-wrap justify-end gap-2">
+              {mode === "auto" && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void runAutoApply()}
+                  className="rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                  title={isProjectScope
+                    ? `Wywołaj API per strona w pętli (Haiku 4.5, ~${pages.length * 8}s łącznie)`
+                    : "Wywołaj API od razu (Haiku 4.5, ~5-10 s)"}
+                >
+                  {busy
+                    ? autoProgress ?? "Aplikuję..."
+                    : isProjectScope
+                      ? `✨ Zastosuj przez AI (${pages.length} stron)`
+                      : "✨ Zastosuj przez AI"}
+                </button>
+              )}
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => void buildPrompt()}
                 className="rounded-md bg-purple-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-purple-800 disabled:opacity-50"
+                title="Przygotuj prompt do skopiowania ręcznego w claude.ai"
               >
-                {busy ? "..." : prompt ? "Wygeneruj ponownie" : "Wygeneruj prompt"}
+                {busy ? "..." : prompt ? "Wygeneruj ponownie" : "📋 Tylko prompt"}
               </button>
             </div>
           </div>

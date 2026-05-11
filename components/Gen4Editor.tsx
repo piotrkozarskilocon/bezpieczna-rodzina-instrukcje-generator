@@ -985,6 +985,19 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
+
+  // Wykryj tryb API/manual przy mount.
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API}/status`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { mode?: "auto" | "manual" } | null) => {
+        if (!cancelled && j?.mode) setMode(j.mode);
+      })
+      .catch(() => { /* zostaje 'unknown' */ });
+    return () => { cancelled = true; };
+  }, []);
 
   // Reset prompt/import state on page switch so we don't accidentally apply
   // someone else's response to the new page.
@@ -994,6 +1007,38 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
     setError(null);
     setInfo(null);
   }, [pageId]);
+
+  // Auto-tryb: jedno wywołanie API, bez krok-po-kroku copy/paste.
+  const runAutoEdit = async () => {
+    if (!instruction.trim()) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(`${API}/pages/${pageId}/ai-edit/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: instruction.trim() }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        if (text.startsWith("<")) throw new Error(`HTTP ${res.status}: serwer zwrócił HTML`);
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
+      }
+      const j = JSON.parse(text) as { elements: number };
+      setInfo(`Zastąpiono ${j.elements} elementów (Haiku 4.5).`);
+      setInstruction("");
+      setPrompt(null);
+      setImportJson("");
+      await onApplied();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "ai-edit failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const buildPrompt = async () => {
     if (!instruction.trim()) return;
@@ -1100,14 +1145,26 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
             </button>
           ))}
         </div>
-        <div className="mt-2 flex justify-end">
+        <div className="mt-2 flex flex-wrap justify-end gap-1.5">
+          {mode === "auto" && (
+            <button
+              type="button"
+              disabled={busy || !instruction.trim()}
+              onClick={() => void runAutoEdit()}
+              className="rounded-md bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+              title="Wywołaj Claude API i od razu zastosuj wynik (Haiku 4.5, ~5-10 s)"
+            >
+              {busy ? "..." : "✨ Zastosuj przez AI"}
+            </button>
+          )}
           <button
             type="button"
             disabled={busy || !instruction.trim()}
             onClick={() => void buildPrompt()}
             className="rounded-md bg-purple-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-purple-800 disabled:opacity-50"
+            title="Przygotuj prompt do skopiowania ręcznego w claude.ai (fallback)"
           >
-            {busy ? "..." : "Wygeneruj prompt"}
+            {busy ? "..." : "📋 Tylko prompt"}
           </button>
         </div>
       </div>
