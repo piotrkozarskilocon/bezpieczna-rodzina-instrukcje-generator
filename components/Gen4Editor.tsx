@@ -426,6 +426,7 @@ export default function Gen4Editor({
               <PageAiAssistant
                 pageId={currentPageId}
                 pageNumber={currentPage?.page_number ?? 0}
+                projectId={projectId}
                 onApplied={async () => {
                   // Reload elements for the page after a successful replace.
                   const res = await fetch(`${API}/pages/${currentPageId}/elements`, { cache: "no-store" });
@@ -974,10 +975,11 @@ function ElementProperties({ element, onUpdate, onDelete }: ElementPropertiesPro
 interface PageAiAssistantProps {
   pageId: string;
   pageNumber: number;
+  projectId: string;
   onApplied: () => Promise<void> | void;
 }
 
-function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps): React.ReactElement {
+function PageAiAssistant({ pageId, pageNumber, projectId, onApplied }: PageAiAssistantProps): React.ReactElement {
   const [instruction, setInstruction] = useState("");
   const [prompt, setPrompt] = useState<string | null>(null);
   const [importJson, setImportJson] = useState("");
@@ -986,6 +988,7 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
   const [info, setInfo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
+  const [imageBusy, setImageBusy] = useState(false);
 
   // Wykryj tryb API/manual przy mount.
   useEffect(() => {
@@ -1007,6 +1010,36 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
     setError(null);
     setInfo(null);
   }, [pageId]);
+
+  // Upload obrazka dla tej konkretnej strony — preferred_page_id ustawiamy
+  // od razu, dzięki czemu AI w późniejszym apply/edit będzie wiedział, że
+  // ten obrazek pasuje właśnie tutaj.
+  const uploadImageForPage = async (file: File, description: string) => {
+    setImageBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const form = new FormData();
+      form.append("file", file);
+      if (description.trim()) form.append("description", description.trim());
+      form.append("preferred_page_id", pageId);
+      const res = await fetch(`${API}/projects/${projectId}/images/`, {
+        method: "POST",
+        body: form,
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
+      }
+      setInfo(`Wgrano obrazek "${file.name}" — będzie preferowany przy generowaniu treści tej strony.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "upload failed");
+    } finally {
+      setImageBusy(false);
+    }
+  };
 
   // Auto-tryb: jedno wywołanie API, bez krok-po-kroku copy/paste.
   const runAutoEdit = async () => {
@@ -1169,6 +1202,13 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
         </div>
       </div>
 
+      {/* ─── Upload obrazka przypisanego do tej strony ─────────────────── */}
+      <PageImageUpload
+        pageNumber={pageNumber}
+        busy={imageBusy}
+        onUpload={(file, desc) => void uploadImageForPage(file, desc)}
+      />
+
       {error && (
         <p className="rounded-md bg-red-50 px-2 py-1 text-[11px] text-red-800">{error}</p>
       )}
@@ -1230,6 +1270,75 @@ function PageAiAssistant({ pageId, pageNumber, onApplied }: PageAiAssistantProps
           <p className="mt-1 text-[9px] text-slate-500">
             Operacja zastąpi <strong>wszystkie</strong> obecne elementy strony nową listą.
           </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+interface PageImageUploadProps {
+  pageNumber: number;
+  busy: boolean;
+  onUpload: (file: File, description: string) => void;
+}
+
+function PageImageUpload({ pageNumber, busy, onUpload }: PageImageUploadProps): React.ReactElement {
+  const [file, setFile] = useState<File | null>(null);
+  const [description, setDescription] = useState("");
+
+  const reset = () => {
+    setFile(null);
+    setDescription("");
+  };
+
+  return (
+    <div className="rounded border border-sky-200 bg-sky-50 p-2">
+      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-sky-800">
+        📷 Obrazek dla strony {pageNumber}
+      </p>
+      <p className="mb-2 text-[10px] text-slate-600">
+        Wgraj grafikę (screen z aplikacji, zdjęcie urządzenia) — AI użyje jej
+        przy generowaniu treści tej strony, jeśli opis pasuje.
+      </p>
+
+      <input
+        type="file"
+        accept="image/png,image/jpeg,image/webp,image/gif"
+        disabled={busy}
+        onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        className="block w-full text-[10px]"
+      />
+
+      {file && (
+        <div className="mt-2 space-y-1.5">
+          <p className="truncate text-[10px] text-slate-700" title={file.name}>
+            📎 {file.name} <span className="text-slate-400">({Math.round(file.size / 1024)} KB)</span>
+          </p>
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder='np. "ekran logowania w aplikacji BR" / "front zegarka — przycisk Power"'
+            className="w-full rounded border border-slate-300 bg-white px-1.5 py-1 text-[10px]"
+          />
+          <div className="flex justify-end gap-1.5">
+            <button
+              type="button"
+              onClick={reset}
+              disabled={busy}
+              className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] text-slate-700 hover:bg-slate-100"
+            >
+              Anuluj
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => { onUpload(file, description); reset(); }}
+              className="rounded bg-sky-700 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-sky-800 disabled:opacity-50"
+            >
+              {busy ? "Wgrywam..." : "Wgraj"}
+            </button>
+          </div>
         </div>
       )}
     </div>
