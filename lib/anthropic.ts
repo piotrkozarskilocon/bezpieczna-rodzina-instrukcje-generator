@@ -104,12 +104,21 @@ export async function callClaude(opts: {
   if (opts.attachments?.length) {
     streamParams.betas = ["files-api-2025-04-14"];
   }
-  const message = await client.messages.stream(streamParams).finalMessage();
+  // Gdy są attachments (Files API beta), trzeba uderzać w dedicated beta endpoint
+  // żeby API zaakceptowało source.type='file'. SDK ignoruje `betas` na non-beta
+  // messages.stream — beta endpoint sam dorzuca header `anthropic-beta`.
+  const stream = opts.attachments?.length
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? (client as any).beta.messages.stream(streamParams)
+    : client.messages.stream(streamParams);
+  const message = await stream.finalMessage();
   const latencyMs = Date.now() - start;
 
   // Concatenate any text blocks from the structured response.
-  const text = message.content
-    .map((b) => (b.type === "text" ? b.text : ""))
+  // (BetaMessage/Message content shapes are runtime-compatible but TS unions
+  //  the parameter to `any` when stream is dynamic — explicit cast keeps lint happy.)
+  const text = (message.content as Array<{ type: string; text?: string }>)
+    .map((b) => (b.type === "text" ? b.text ?? "" : ""))
     .join("");
   if (!text) throw new Error("anthropic returned no text content");
 
@@ -173,14 +182,20 @@ export async function callClaudeStream(
   if (typeof opts.temperature === "number") streamParams.temperature = opts.temperature;
   if (opts.attachments?.length) streamParams.betas = ["files-api-2025-04-14"];
 
-  const stream = client.messages.stream(streamParams);
+  // Beta endpoint dla Files API attachments (patrz komentarz w callClaude wyzej).
+  const stream = opts.attachments?.length
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ? (client as any).beta.messages.stream(streamParams)
+    : client.messages.stream(streamParams);
   // Emit text fragments na bieżąco — Anthropic SDK ma event 'text' z deltą.
   stream.on("text", (delta: string) => {
     onChunk(delta);
   });
   const message = await stream.finalMessage();
   const latencyMs = Date.now() - start;
-  const text = message.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+  const text = (message.content as Array<{ type: string; text?: string }>)
+    .map((b) => (b.type === "text" ? b.text ?? "" : ""))
+    .join("");
 
   const usage = message.usage as unknown as Record<string, unknown>;
   return {
