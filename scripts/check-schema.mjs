@@ -106,6 +106,8 @@ const expectations = [
   ["gen4_post_edit_log", "owner_email"],
   ["gen4_post_edit_log", "source"],
   ["gen4_post_edit_log", "description"],
+  // 0016 — template flag
+  ["gen4_projects", "is_template"],
 ];
 
 async function checkColumn(table, column) {

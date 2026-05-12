@@ -16,6 +16,7 @@ import { loadReferenceDocs, renderReferenceDocsForPrompt, getAttachmentFileIds }
 import {
   isValidDocumentType,
   isValidDeviceType,
+  getRequiredSections,
 } from "@/lib/v4LegalTemplates";
 
 export const runtime = "nodejs";
@@ -40,11 +41,12 @@ export async function POST(request: NextRequest) {
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
   const body = (await request.json().catch(() => null)) as
-    | { name?: string; input?: Partial<GenerationInput> }
+    | { name?: string; input?: Partial<GenerationInput>; use_preset?: boolean }
     | null;
   if (!body || !body.name?.trim() || !body.input) {
     return NextResponse.json({ error: "missing name or input" }, { status: 400 });
   }
+  const usePreset = body.use_preset === true;
   if (!isValidDocumentType(body.input.document_type)) {
     return NextResponse.json(
       { error: "missing or invalid document_type — wybierz typ dokumentu w wizardzie" },
@@ -89,6 +91,39 @@ export async function POST(request: NextRequest) {
     .single();
   if (insertErr || !project) {
     return NextResponse.json({ error: insertErr?.message ?? "insert failed" }, { status: 500 });
+  }
+
+  // ─── Preset mode: bez AI, używamy getRequiredSections jako szkielet. ──
+  if (usePreset) {
+    try {
+      const sections = getRequiredSections(input.document_type, input.device_type, input.step_count);
+      const pages = sections.map((s, idx) => ({
+        template: s.template,
+        page_number: idx + 1,
+        title: s.template === "cover" ? null : s.title,
+      }));
+      const counts = await bulkInsertSkeletonPages(project.id, pages);
+      await sb
+        .from("gen4_projects")
+        .update({ status: "ready", ai_log: [{ step: "preset", timestamp: new Date().toISOString(), pages: counts.pages }] })
+        .eq("id", project.id);
+      const { data: insertedPages } = await sb
+        .from("gen4_pages")
+        .select("id, page_number, template, title")
+        .eq("project_id", project.id)
+        .order("page_number", { ascending: true });
+      return NextResponse.json({
+        id: project.id,
+        mode: "preset",
+        skeleton: true,
+        pages: counts.pages,
+        page_list: insertedPages ?? [],
+      });
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : "preset failed";
+      await sb.from("gen4_projects").update({ status: "error" }).eq("id", project.id);
+      return NextResponse.json({ id: project.id, error: msg }, { status: 500 });
+    }
   }
 
   // ─── Manual mode: no API key → user will paste-import the JSON later. ──

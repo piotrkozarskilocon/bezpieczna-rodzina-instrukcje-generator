@@ -24,6 +24,7 @@ interface ProjectDetail {
   design_system: Record<string, unknown> | null;
   document_type?: string | null;
   device_type?: string | null;
+  is_template?: boolean;
   text_element_count?: number;
   created_at: string;
   updated_at: string;
@@ -62,6 +63,22 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
       .catch((err) => { if (active) setError(err instanceof Error ? err.message : "fetch failed"); });
     return () => { active = false; };
   }, [id]);
+
+  const handleToggleTemplate = async () => {
+    setBusy(true);
+    try {
+      const res = await fetch(`${PAGE_API_BASE}/projects/${id}/toggle-template/`, {
+        method: "POST",
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = (await res.json()) as { is_template: boolean };
+      setProject((prev) => prev ? { ...prev, is_template: j.is_template } : prev);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "toggle failed");
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const handleClone = async () => {
     const currentModelName = (project?.ai_input?.model_name as string | undefined) ?? "";
@@ -170,6 +187,20 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
               </dl>
             </div>
             <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleToggleTemplate}
+                disabled={busy}
+                className={
+                  "rounded-md border px-3 py-1.5 text-xs font-semibold disabled:opacity-50 " +
+                  (project.is_template
+                    ? "border-amber-400 bg-amber-100 text-amber-900 hover:bg-amber-200"
+                    : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50")
+                }
+                title="Oznacz jako template — będzie widoczny w wizardzie 'Nowy projekt' jako baza do klonowania"
+              >
+                {project.is_template ? "⭐ Template (kliknij by cofnąć)" : "☆ Oznacz jako template"}
+              </button>
               <button
                 type="button"
                 onClick={handleClone}

@@ -115,6 +115,29 @@ export default function Gen4Editor({
   // Modal pełnoekranowego podglądu + modal listy skrótów klawiszowych.
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  // Side-by-side language preview — gdy != null, obok głównego canvasa
+  // pokazujemy ten sam page ze swapem tekstów na wybrany język.
+  const [compareLang, setCompareLang] = useState<string | null>(null);
+  const [compareTranslations, setCompareTranslations] = useState<Map<string, string>>(new Map());
+
+  // Załaduj tłumaczenia gdy włączone porównanie.
+  useEffect(() => {
+    if (!compareLang || !currentPageId) {
+      setCompareTranslations(new Map());
+      return;
+    }
+    let active = true;
+    fetch(`${API}/projects/${projectId}/translations/?lang=${compareLang}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { translations?: Array<{ element_id: string; text: string }> } | null) => {
+        if (!active || !j?.translations) return;
+        const m = new Map<string, string>();
+        for (const t of j.translations) m.set(t.element_id, t.text);
+        setCompareTranslations(m);
+      })
+      .catch(() => { /* silent — empty map = fall back to PL */ });
+    return () => { active = false; };
+  }, [compareLang, currentPageId, projectId]);
   // Historia stanów elementów dla undo (Ctrl+Z). Trzyma do 10 ostatnich
   // snapshotów bieżącej strony. Reset przy zmianie strony.
   const [history, setHistory] = useState<ElementRow[][]>([]);
@@ -862,6 +885,20 @@ export default function Gen4Editor({
               >
                 ⌨️
               </button>
+              <select
+                value={compareLang ?? ""}
+                onChange={(e) => setCompareLang(e.target.value || null)}
+                className="rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px]"
+                title="Porównaj side-by-side z innym językiem (sprawdź czy tłumaczenia się mieszczą)"
+              >
+                <option value="">🌍 Porównaj…</option>
+                <option value="bg">+ BG</option>
+                <option value="hr">+ HR</option>
+                <option value="ro">+ RO</option>
+                <option value="mk">+ MK</option>
+                <option value="sq">+ SQ</option>
+                <option value="en">+ EN</option>
+              </select>
               <span className="ml-2 text-slate-400">
                 {currentPage ? `${currentPage.width_mm}×${currentPage.height_mm} mm` : "—"}
               </span>
@@ -885,21 +922,58 @@ export default function Gen4Editor({
               </div>
             )}
             {currentPage && (
-              <PageCanvas
-                page={currentPage}
-                elements={elements}
-                selectedIds={selectedIds}
-                onSelect={setSelectedId}
-                onToggleSelect={toggleSelected}
-                onUpdate={updateElement}
-                zoom={zoom}
-                defaultLang={defaultLang}
-                totalPages={totalPages}
-                imageUrls={imageUrls}
-                drawingTool={drawingTool}
-                onDrawComplete={handleDrawComplete}
-                snapEnabled={snapEnabled}
-              />
+              <div className="flex gap-4">
+                <div>
+                  <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                    {defaultLang.toUpperCase()} (edycja)
+                  </p>
+                  <PageCanvas
+                    page={currentPage}
+                    elements={elements}
+                    selectedIds={selectedIds}
+                    onSelect={setSelectedId}
+                    onToggleSelect={toggleSelected}
+                    onUpdate={updateElement}
+                    zoom={zoom}
+                    defaultLang={defaultLang}
+                    totalPages={totalPages}
+                    imageUrls={imageUrls}
+                    drawingTool={drawingTool}
+                    onDrawComplete={handleDrawComplete}
+                    snapEnabled={snapEnabled}
+                  />
+                </div>
+                {compareLang && (
+                  <div>
+                    <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+                      {compareLang.toUpperCase()} (podgląd, read-only)
+                    </p>
+                    <PageCanvas
+                      page={currentPage}
+                      elements={elements.map((el) => {
+                        if (el.type !== "text" && el.type !== "callout") return el;
+                        const translated = compareTranslations.get(el.id);
+                        if (!translated) return el;
+                        return {
+                          ...el,
+                          properties: { ...el.properties, content: translated },
+                        };
+                      })}
+                      selectedIds={new Set()}
+                      onSelect={() => { /* read-only */ }}
+                      onToggleSelect={() => { /* read-only */ }}
+                      onUpdate={() => { /* read-only */ }}
+                      zoom={zoom}
+                      defaultLang={compareLang}
+                      totalPages={totalPages}
+                      imageUrls={imageUrls}
+                      drawingTool={null}
+                      onDrawComplete={() => { /* noop */ }}
+                      snapEnabled={false}
+                    />
+                  </div>
+                )}
+              </div>
             )}
           </div>
         </main>

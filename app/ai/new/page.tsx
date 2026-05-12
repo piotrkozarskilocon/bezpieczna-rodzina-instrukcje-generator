@@ -53,6 +53,48 @@ export default function AiNewProjectPage(): React.ReactElement {
   const [stage, setStage] = useState<string | null>(null);
   const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
   const [refFiles, setRefFiles] = useState<Array<{ file: File; kind: string; lang: string }>>([]);
+  const [templates, setTemplates] = useState<Array<{
+    id: string; name: string; document_type: string | null; device_type: string | null;
+    pages_count: number; ai_input: Record<string, unknown> | null;
+  }>>([]);
+
+  useEffect(() => {
+    let cancelled = false;
+    fetch(`${API_BASE}/templates/`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { templates: typeof templates } | null) => {
+        if (!cancelled && j) setTemplates(j.templates ?? []);
+      })
+      .catch(() => { /* templates są opcjonalne */ });
+    return () => { cancelled = true; };
+  }, []);
+
+  const cloneFromTemplate = async (templateId: string, templateName: string) => {
+    const newName = window.prompt("Nazwa nowego projektu:", `${templateName} (kopia)`);
+    if (!newName?.trim()) return;
+    setBusy(true);
+    setError(null);
+    setStage("Klonuję z templatu...");
+    try {
+      const res = await fetch(`${API_BASE}/projects/${templateId}/clone/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: newName.trim() }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      const j = (await res.json()) as { id: string };
+      window.location.href = `/generator-instrukcji/ai/projects/${j.id}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "clone failed");
+      setBusy(false);
+      setStage(null);
+    }
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -69,18 +111,21 @@ export default function AiNewProjectPage(): React.ReactElement {
     setFeatures((prev) => prev.map((f) => (f.key === key ? { ...f, enabled: !f.enabled } : f)));
   };
 
-  const submit = async (e: React.FormEvent) => {
+  const submit = async (e: React.FormEvent, usePreset = false) => {
     e.preventDefault();
     if (!name.trim() || !modelCode.trim() || !modelName.trim()) return;
     setBusy(true);
     setError(null);
-    setStage("Tworzenie projektu i generowanie szkieletu stron...");
+    setStage(usePreset
+      ? "Tworzenie projektu z gotowego szablonu (bez AI)..."
+      : "Tworzenie projektu i generowanie szkieletu stron...");
     try {
       const res = await fetch(`${API_BASE}/projects/generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: name.trim(),
+          use_preset: usePreset,
           input: {
             model_code: modelCode.trim(),
             model_name: modelName.trim(),
@@ -95,7 +140,7 @@ export default function AiNewProjectPage(): React.ReactElement {
       });
       const json = (await res.json()) as {
         id?: string;
-        mode?: "auto" | "manual";
+        mode?: "auto" | "manual" | "preset";
         skeleton?: boolean;
         page_list?: Array<{ id: string; page_number: number; template: string | null; title: string | null }>;
         error?: string;
@@ -104,8 +149,8 @@ export default function AiNewProjectPage(): React.ReactElement {
         throw new Error(json.error ?? `HTTP ${res.status}`);
       }
 
-      // Manual mode → redirect na projekt, user kopiuje prompt ręcznie.
-      if (json.mode === "manual" || !json.skeleton || !json.id || !json.page_list) {
+      // Manual mode lub preset bez AI → redirect od razu (preset nie używa populate).
+      if (json.mode === "manual" || json.mode === "preset" || !json.skeleton || !json.id || !json.page_list) {
         window.location.href = `/generator-instrukcji/ai/projects/${json.id}`;
         return;
       }
@@ -193,6 +238,37 @@ export default function AiNewProjectPage(): React.ReactElement {
           <strong>Tryb manualny aktywny:</strong> brak ANTHROPIC_API_KEY w środowisku.
           Po stworzeniu projektu pokażemy gotowy prompt do skopiowania — wkleisz go
           w nowej rozmowie z Claude.ai, dostaniesz JSON, który zaimportujesz tutaj.
+        </div>
+      )}
+
+      {templates.length > 0 && (
+        <div className="mb-8 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-amber-900">
+            ⭐ Albo skopiuj z templatu ({templates.length})
+          </h3>
+          <p className="mb-3 text-xs text-amber-800">
+            Skopiuj gotowy projekt zamiast generować od zera. Klon zachowuje strony,
+            elementy, design system, notatki project-scoped i pliki referencyjne.
+            Modyfikujesz tylko model po klonowaniu (przycisk „Klonuj" w widoku projektu).
+          </p>
+          <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {templates.map((t) => (
+              <li key={t.id}>
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void cloneFromTemplate(t.id, t.name)}
+                  className="block w-full rounded-md border border-amber-300 bg-white p-3 text-left text-xs transition hover:border-amber-500 disabled:opacity-50"
+                >
+                  <p className="font-semibold text-slate-800">{t.name}</p>
+                  <p className="mt-0.5 text-[11px] text-slate-500">
+                    {t.pages_count} stron · {t.document_type ?? "?"} · {t.device_type ?? "?"}
+                    {t.ai_input?.model_code ? ` · ${t.ai_input.model_code as string}` : ""}
+                  </p>
+                </button>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
 
@@ -400,7 +476,7 @@ export default function AiNewProjectPage(): React.ReactElement {
           </p>
         )}
 
-        <div className="flex justify-end gap-3">
+        <div className="flex flex-wrap justify-end gap-3">
           <Link
             href="/ai"
             className="rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
@@ -408,13 +484,22 @@ export default function AiNewProjectPage(): React.ReactElement {
             Anuluj
           </Link>
           <button
+            type="button"
+            disabled={busy || !name.trim() || !modelCode.trim()}
+            onClick={(e) => void submit(e as unknown as React.FormEvent, true)}
+            className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            title="Bez AI — tylko gotowy szkielet stron z legal templates (instant). AI dorobisz później per-page."
+          >
+            ⚡ Szybki start (bez AI)
+          </button>
+          <button
             type="submit"
             disabled={busy || !name.trim() || !modelCode.trim()}
             className="inline-flex items-center gap-2 rounded-md bg-purple-700 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-800 disabled:opacity-50"
           >
             {busy
               ? mode === "auto" ? "Generowanie..." : "Tworzenie..."
-              : mode === "auto" ? "✨ Stwórz projekt" : "✨ Stwórz projekt + przygotuj prompt"}
+              : mode === "auto" ? "✨ Stwórz projekt (AI)" : "✨ Stwórz projekt + przygotuj prompt"}
           </button>
         </div>
       </form>
