@@ -71,7 +71,21 @@ export default function Gen4Editor({
   const [pages, setPages] = useState<PageRow[]>([]);
   const [currentPageId, setCurrentPageId] = useState<string | null>(null);
   const [elements, setElements] = useState<ElementRow[]>([]);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
+  // Multi-select. Single = jedno id, multi = wiele (Shift/Ctrl+click).
+  // Większość operacji pojedynczych nadal używa selectedId (= pierwszy z set).
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const selectedId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
+  const setSelectedId = useCallback((id: string | null) => {
+    setSelectedIds(id ? new Set([id]) : new Set());
+  }, []);
+  const toggleSelected = useCallback((id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }, []);
   const [showAddPage, setShowAddPage] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(DEFAULT_DISPLAY_SCALE);
@@ -96,6 +110,11 @@ export default function Gen4Editor({
   // Narzędzie rysowania aktywne — line/rect rysuje się przeciągnięciem myszą
   // po stronie. Po narysowaniu lub kliknięciu prawym przyciskiem tryb gaśnie.
   const [drawingTool, setDrawingTool] = useState<"line" | "rect" | null>(null);
+  // Snap-to-grid: zaokrągla x/y/w/h do najbliższego 1 mm przy drag/resize.
+  const [snapEnabled, setSnapEnabled] = useState<boolean>(true);
+  // Modal pełnoekranowego podglądu + modal listy skrótów klawiszowych.
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [shortcutsOpen, setShortcutsOpen] = useState(false);
   // Historia stanów elementów dla undo (Ctrl+Z). Trzyma do 10 ostatnich
   // snapshotów bieżącej strony. Reset przy zmianie strony.
   const [history, setHistory] = useState<ElementRow[][]>([]);
@@ -154,15 +173,16 @@ export default function Gen4Editor({
     return () => clearTimeout(timer);
   }, [refreshIssues, elements]);
 
-  // Esc anuluje tryb rysowania.
+  // Esc anuluje tryb rysowania ALBO odznacza zaznaczone elementy.
   useEffect(() => {
-    if (!drawingTool) return;
     const handler = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setDrawingTool(null);
+      if (e.key !== "Escape") return;
+      if (drawingTool) setDrawingTool(null);
+      else if (selectedIds.size > 0) setSelectedIds(new Set());
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [drawingTool]);
+  }, [drawingTool, selectedIds.size]);
 
   /** Sprawdza czy fokus jest w polu edytowalnym — wtedy ignorujemy globalne
    *  skróty (Del/Backspace usuwałyby tekst zamiast elementu). */
@@ -412,6 +432,57 @@ export default function Gen4Editor({
     }
   }, [pushHistory]);
 
+  /** Usuwa WSZYSTKIE zaznaczone elementy. Snapshot do history przed pierwszym
+   *  delete, pętla DELETE per element (idempotent). */
+  const deleteSelected = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    pushHistory(elements);
+    const ids = Array.from(selectedIds);
+    setElements((prev) => prev.filter((e) => !selectedIds.has(e.id)));
+    setSelectedIds(new Set());
+    for (const id of ids) {
+      try {
+        await fetch(`${API}/elements/${id}/`, { method: "DELETE" });
+      } catch (err) {
+        console.error("[v4 element delete]", err);
+      }
+    }
+  }, [elements, selectedIds, pushHistory]);
+
+  /** Duplikuje wszystkie zaznaczone. Każda kopia +2mm. */
+  const duplicateSelected = useCallback(async () => {
+    if (selectedIds.size === 0 || !currentPageId) return;
+    pushHistory(elements);
+    const sources = elements.filter((e) => selectedIds.has(e.id));
+    const newIds: string[] = [];
+    let nextZ = elements.length;
+    for (const src of sources) {
+      try {
+        const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: src.type,
+            x_mm: src.x_mm + 2,
+            y_mm: src.y_mm + 2,
+            w_mm: src.w_mm,
+            h_mm: src.h_mm,
+            z_index: nextZ++,
+            rotation_deg: src.rotation_deg,
+            properties: src.properties,
+          }),
+        });
+        if (!res.ok) continue;
+        const j = (await res.json()) as { element: ElementRow };
+        setElements((prev) => [...prev, j.element]);
+        newIds.push(j.element.id);
+      } catch {
+        /* per-element fail nie blokuje */
+      }
+    }
+    if (newIds.length > 0) setSelectedIds(new Set(newIds));
+  }, [elements, selectedIds, currentPageId, pushHistory]);
+
   /** Duplikuje zaznaczony element — POST nowego ze starym properties + offset 2mm
    *  żeby kopia nie nakrywała się idealnie z oryginałem. */
   const duplicateElement = useCallback(async (id: string) => {
@@ -505,11 +576,31 @@ export default function Gen4Editor({
         void undo();
         return;
       }
-      // Ctrl+D / Cmd+D — duplicate
+      // Ctrl+D / Cmd+D — duplicate (multi-select aware)
       if (mod && key === "d") {
-        if (!selectedId) return;
+        if (selectedIds.size === 0) return;
         e.preventDefault();
-        void duplicateElement(selectedId);
+        if (selectedIds.size > 1) void duplicateSelected();
+        else if (selectedId) void duplicateElement(selectedId);
+        return;
+      }
+      // Cmd+P / Ctrl+P — fullscreen preview
+      if (mod && key === "p") {
+        e.preventDefault();
+        setPreviewOpen(true);
+        return;
+      }
+      // Cmd+/ — modal skrótów
+      if (mod && (key === "/" || e.code === "Slash")) {
+        e.preventDefault();
+        setShortcutsOpen(true);
+        return;
+      }
+      // Ctrl+A / Cmd+A — select all elements on current page
+      if (mod && key === "a") {
+        if (elements.length === 0) return;
+        e.preventDefault();
+        setSelectedIds(new Set(elements.map((el) => el.id)));
         return;
       }
       // Ctrl+S / Cmd+S — auto-save info (wszystko już jest na bieżąco zapisywane)
@@ -519,17 +610,18 @@ export default function Gen4Editor({
         setTimeout(() => setError(null), 2500);
         return;
       }
-      // Del / Backspace — usuń zaznaczony element
-      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+      // Del / Backspace — usuń wszystkie zaznaczone elementy
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedIds.size > 0) {
         e.preventDefault();
-        void deleteElement(selectedId);
+        if (selectedIds.size > 1) void deleteSelected();
+        else if (selectedId) void deleteElement(selectedId);
         return;
       }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [undo, duplicateElement, selectedId]);
+  }, [undo, duplicateElement, duplicateSelected, deleteSelected, selectedId, selectedIds, elements]);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -671,7 +763,45 @@ export default function Gen4Editor({
                 Tryb rysowania: <strong>{labelForType(drawingTool)}</strong> — przeciągnij myszą po stronie (Esc anuluje).
               </span>
             )}
+            {selectedIds.size > 1 && (
+              <span className="flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">
+                <strong>{selectedIds.size}</strong> zaznaczonych
+                <button
+                  type="button"
+                  onClick={() => void duplicateSelected()}
+                  className="ml-1 rounded bg-blue-700 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-800"
+                  title="Ctrl+D"
+                >
+                  Duplikuj
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void deleteSelected()}
+                  className="rounded bg-red-700 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-red-800"
+                  title="Del"
+                >
+                  Usuń
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedIds(new Set())}
+                  className="rounded border border-blue-300 bg-white px-1.5 py-0.5 text-[10px] text-blue-700 hover:bg-blue-100"
+                  title="Esc"
+                >
+                  Odznacz
+                </button>
+              </span>
+            )}
             <div className="ml-auto flex items-center gap-2">
+              <label className="flex cursor-pointer items-center gap-1 text-[11px] text-slate-700" title="Zaokrąglaj pozycje i rozmiary do 1 mm">
+                <input
+                  type="checkbox"
+                  checked={snapEnabled}
+                  onChange={(e) => setSnapEnabled(e.target.checked)}
+                  className="h-3 w-3"
+                />
+                <span>Snap 1mm</span>
+              </label>
               <button
                 type="button"
                 disabled={history.length === 0}
@@ -688,9 +818,50 @@ export default function Gen4Editor({
               <span className="text-slate-500">Zoom:</span>
               <button type="button" onClick={() => setZoom((z) => Math.max(2, z - 1))}
                 className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50">−</button>
-              <span className="font-mono text-slate-600">{zoom}×</span>
+              <input
+                type="number"
+                value={zoom}
+                onChange={(e) => {
+                  const v = parseInt(e.target.value, 10);
+                  if (Number.isFinite(v)) setZoom(Math.min(16, Math.max(2, v)));
+                }}
+                min={2}
+                max={16}
+                className="w-10 rounded border border-slate-300 px-1 py-0.5 text-center font-mono"
+              />
+              <span className="text-slate-500">×</span>
               <button type="button" onClick={() => setZoom((z) => Math.min(16, z + 1))}
                 className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50">+</button>
+              <button
+                type="button"
+                onClick={() => {
+                  // Fit: rozmiar canvas (76mm) ma się zmieścić w ~700px szer.
+                  if (!currentPage) return;
+                  const targetPx = 700;
+                  const fitZoom = Math.round(targetPx / Math.max(currentPage.width_mm, currentPage.height_mm));
+                  setZoom(Math.min(16, Math.max(2, fitZoom)));
+                }}
+                className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50"
+                title="Zoom-to-fit (dopasuj do widoku)"
+              >
+                Fit
+              </button>
+              <button
+                type="button"
+                onClick={() => setPreviewOpen(true)}
+                className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50"
+                title="Pełnoekranowy podgląd (Cmd+P)"
+              >
+                👁️
+              </button>
+              <button
+                type="button"
+                onClick={() => setShortcutsOpen(true)}
+                className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50"
+                title="Skróty klawiszowe (Cmd+/)"
+              >
+                ⌨️
+              </button>
               <span className="ml-2 text-slate-400">
                 {currentPage ? `${currentPage.width_mm}×${currentPage.height_mm} mm` : "—"}
               </span>
@@ -717,8 +888,9 @@ export default function Gen4Editor({
               <PageCanvas
                 page={currentPage}
                 elements={elements}
-                selectedId={selectedId}
+                selectedIds={selectedIds}
                 onSelect={setSelectedId}
+                onToggleSelect={toggleSelected}
                 onUpdate={updateElement}
                 zoom={zoom}
                 defaultLang={defaultLang}
@@ -726,6 +898,7 @@ export default function Gen4Editor({
                 imageUrls={imageUrls}
                 drawingTool={drawingTool}
                 onDrawComplete={handleDrawComplete}
+                snapEnabled={snapEnabled}
               />
             )}
           </div>
@@ -805,6 +978,18 @@ export default function Gen4Editor({
           </div>
         </aside>
       </div>
+
+      {previewOpen && currentPage && (
+        <FullscreenPreview
+          page={currentPage}
+          elements={elements}
+          imageUrls={imageUrls}
+          defaultLang={defaultLang}
+          totalPages={totalPages}
+          onClose={() => setPreviewOpen(false)}
+        />
+      )}
+      {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
     </div>
   );
 }
@@ -828,8 +1013,9 @@ function labelForType(t: ElementType): string {
 interface PageCanvasProps {
   page: PageRow;
   elements: ElementRow[];
-  selectedId: string | null;
+  selectedIds: Set<string>;
   onSelect: (id: string | null) => void;
+  onToggleSelect: (id: string) => void;
   onUpdate: (id: string, patch: Partial<ElementRow>) => void;
   zoom: number;
   defaultLang: string;
@@ -841,15 +1027,25 @@ interface PageCanvasProps {
     coords: { x_mm: number; y_mm: number; w_mm: number; h_mm: number },
     direction?: { x1_pct: number; y1_pct: number; x2_pct: number; y2_pct: number },
   ) => void;
+  snapEnabled: boolean;
 }
 
+/** Zaokrągla mm do 1mm gdy snap włączony. */
+const snap = (val: number, enabled: boolean): number =>
+  enabled ? Math.round(val) : Math.round(val * 10) / 10;
+
 function PageCanvas({
-  page, elements, selectedId, onSelect, onUpdate, zoom, defaultLang, totalPages, imageUrls,
-  drawingTool, onDrawComplete,
+  page, elements, selectedIds, onSelect, onToggleSelect, onUpdate, zoom, defaultLang, totalPages, imageUrls,
+  drawingTool, onDrawComplete, snapEnabled,
 }: PageCanvasProps): React.ReactElement {
+  // Wygodny pojedynczy selected dla interactjs (działa na pojedynczym elemencie).
+  const selectedId = selectedIds.size === 1 ? Array.from(selectedIds)[0] : null;
   // Live preview rysowania — start i bieżący punkt w pikselach względem canvas.
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
   const [drawEnd, setDrawEnd] = useState<{ x: number; y: number } | null>(null);
+  // Smart guides — wyrównanie do innych elementów podczas drag. Lista współrzędnych
+  // (w mm) gdzie element się wyrównuje. Pokazujemy pionowe/poziome linie pomocnicze.
+  const [guides, setGuides] = useState<{ vertical: number[]; horizontal: number[] }>({ vertical: [], horizontal: [] });
 
   const isDrawing = drawingTool !== null;
 
@@ -950,20 +1146,96 @@ function PageCanvas({
       const interact = interactMod.default;
       const el = document.querySelector<HTMLElement>(`[data-el-id="${selectedId}"]`);
       if (!el) return;
+      // Smart guides — sąsiednie elementy do których możemy się wyrównać.
+      // Lista (x_mm krawędzi lewej, x_mm krawędzi prawej, x_mm środka, ...
+      // analogicznie dla y_mm). Obliczamy raz przy starcie drag (nie zmienia
+      // się podczas drag bo to inne elementy).
+      const others = elements.filter((e) => e.id !== selectedId);
+      const xCandidates: number[] = [];
+      const yCandidates: number[] = [];
+      for (const o of others) {
+        xCandidates.push(o.x_mm, o.x_mm + o.w_mm, o.x_mm + o.w_mm / 2);
+        yCandidates.push(o.y_mm, o.y_mm + o.h_mm, o.y_mm + o.h_mm / 2);
+      }
+      // Też krawędzie strony (lewa, prawa, środek).
+      xCandidates.push(0, page.width_mm, page.width_mm / 2);
+      yCandidates.push(0, page.height_mm, page.height_mm / 2);
+
+      // Bieżący element — szukamy w state. Wymiary potrzebne do śledzenia.
+      const currentEl = elements.find((e) => e.id === selectedId);
+      const elWmm = currentEl?.w_mm ?? 0;
+      const elHmm = currentEl?.h_mm ?? 0;
+
+      /** Dla danej współrzędnej szuka najbliższego kandydata <= 1mm różnicy.
+       *  Zwraca [nowa wartość, czy znaleziono]. */
+      const findSnap = (val: number, candidates: number[]): { snapped: number; hit: number | null } => {
+        let bestHit: number | null = null;
+        let bestDiff = 1.0; // 1mm tolerancja
+        for (const c of candidates) {
+          const diff = Math.abs(val - c);
+          if (diff < bestDiff) {
+            bestDiff = diff;
+            bestHit = c;
+          }
+        }
+        return bestHit !== null ? { snapped: bestHit, hit: bestHit } : { snapped: val, hit: null };
+      };
+
       const inst = interact(el)
         .draggable({
           listeners: {
             move(e) {
               const t = e.target as HTMLElement;
-              const left = (parseFloat(t.style.left) || 0) + e.dx;
-              const top = (parseFloat(t.style.top) || 0) + e.dy;
+              let left = (parseFloat(t.style.left) || 0) + e.dx;
+              let top = (parseFloat(t.style.top) || 0) + e.dy;
+
+              // Smart guides — sprawdzamy wszystkie 3 punkty (lewa krawędź,
+              // środek, prawa krawędź) bieżącego elementu vs candidates.
+              const vGuides: number[] = [];
+              const hGuides: number[] = [];
+              const xMm = left / zoom;
+              const yMm = top / zoom;
+              const lefts = [xMm, xMm + elWmm / 2, xMm + elWmm];
+              const tops = [yMm, yMm + elHmm / 2, yMm + elHmm];
+              // Lewa krawędź
+              {
+                const r = findSnap(lefts[0], xCandidates);
+                if (r.hit !== null) { left = r.hit * zoom; vGuides.push(r.hit); }
+              }
+              // Środek
+              {
+                const newLeftMm = left / zoom;
+                const r = findSnap(newLeftMm + elWmm / 2, xCandidates);
+                if (r.hit !== null) { left = (r.hit - elWmm / 2) * zoom; vGuides.push(r.hit); }
+              }
+              // Prawa krawędź
+              {
+                const newLeftMm = left / zoom;
+                const r = findSnap(newLeftMm + elWmm, xCandidates);
+                if (r.hit !== null) { left = (r.hit - elWmm) * zoom; vGuides.push(r.hit); }
+              }
+              // Y axis
+              { const r = findSnap(tops[0], yCandidates); if (r.hit !== null) { top = r.hit * zoom; hGuides.push(r.hit); } }
+              {
+                const newTopMm = top / zoom;
+                const r = findSnap(newTopMm + elHmm / 2, yCandidates);
+                if (r.hit !== null) { top = (r.hit - elHmm / 2) * zoom; hGuides.push(r.hit); }
+              }
+              {
+                const newTopMm = top / zoom;
+                const r = findSnap(newTopMm + elHmm, yCandidates);
+                if (r.hit !== null) { top = (r.hit - elHmm) * zoom; hGuides.push(r.hit); }
+              }
+
               t.style.left = `${left}px`;
               t.style.top = `${top}px`;
+              setGuides({ vertical: vGuides, horizontal: hGuides });
             },
             end(e) {
               const t = e.target as HTMLElement;
-              const xMm = (parseFloat(t.style.left) || 0) / zoom;
-              const yMm = (parseFloat(t.style.top) || 0) / zoom;
+              const xMm = snap((parseFloat(t.style.left) || 0) / zoom, snapEnabled);
+              const yMm = snap((parseFloat(t.style.top) || 0) / zoom, snapEnabled);
+              setGuides({ vertical: [], horizontal: [] });
               onUpdate(selectedId, { x_mm: xMm, y_mm: yMm });
             },
           },
@@ -985,11 +1257,12 @@ function PageCanvas({
             },
             end(e) {
               const t = e.target as HTMLElement;
+              setGuides({ vertical: [], horizontal: [] });
               onUpdate(selectedId, {
-                x_mm: (parseFloat(t.style.left) || 0) / zoom,
-                y_mm: (parseFloat(t.style.top) || 0) / zoom,
-                w_mm: (parseFloat(t.style.width) || 0) / zoom,
-                h_mm: (parseFloat(t.style.height) || 0) / zoom,
+                x_mm: snap((parseFloat(t.style.left) || 0) / zoom, snapEnabled),
+                y_mm: snap((parseFloat(t.style.top) || 0) / zoom, snapEnabled),
+                w_mm: snap((parseFloat(t.style.width) || 0) / zoom, snapEnabled),
+                h_mm: snap((parseFloat(t.style.height) || 0) / zoom, snapEnabled),
               });
             },
           },
@@ -1002,7 +1275,7 @@ function PageCanvas({
       if (interactRef.current) interactRef.current.unset();
       interactRef.current = null;
     };
-  }, [selectedId, onUpdate, zoom]);
+  }, [selectedId, onUpdate, zoom, snapEnabled, elements, page.width_mm, page.height_mm]);
 
   // Overlay rysowanego elementu — pokazuje live preview (linia lub prostokąt)
   // dopóki user nie zwolni przycisku myszy. Linia rysowana jako SVG między
@@ -1078,8 +1351,11 @@ function PageCanvas({
           <ElementView
             key={el.id}
             el={el}
-            selected={selectedId === el.id}
-            onClick={() => onSelect(el.id)}
+            selected={selectedIds.has(el.id)}
+            onClick={(modifierKey) => {
+              if (modifierKey) onToggleSelect(el.id);
+              else onSelect(el.id);
+            }}
             onUpdate={onUpdate}
             zoom={zoom}
             defaultLang={defaultLang}
@@ -1090,6 +1366,38 @@ function PageCanvas({
           />
         ))}
         {previewBox}
+
+        {/* Smart guides — pomarańczowe linie wyrównania w trakcie drag */}
+        {guides.vertical.map((xMm, i) => (
+          <div
+            key={`v-${i}-${xMm}`}
+            style={{
+              position: "absolute",
+              left: `${xMm * zoom}px`,
+              top: 0,
+              width: 1,
+              height: hPx,
+              background: "#f59e0b",
+              pointerEvents: "none",
+              zIndex: 100,
+            }}
+          />
+        ))}
+        {guides.horizontal.map((yMm, i) => (
+          <div
+            key={`h-${i}-${yMm}`}
+            style={{
+              position: "absolute",
+              top: `${yMm * zoom}px`,
+              left: 0,
+              height: 1,
+              width: wPx,
+              background: "#f59e0b",
+              pointerEvents: "none",
+              zIndex: 100,
+            }}
+          />
+        ))}
       </div>
       <p className="mt-2 text-center text-[11px] text-slate-400">
         Strona {page.page_number} · {page.width_mm}×{page.height_mm} mm · scale {zoom}×
@@ -1101,7 +1409,9 @@ function PageCanvas({
 interface ElementViewProps {
   el: ElementRow;
   selected: boolean;
-  onClick: () => void;
+  /** modifierKey = true gdy user trzymał Shift/Ctrl/Cmd przy kliknięciu
+   *  (parent decyduje czy toggle czy single-select). */
+  onClick: (modifierKey: boolean) => void;
   onUpdate: (id: string, patch: Partial<ElementRow>) => void;
   zoom: number;
   defaultLang: string;
@@ -1189,7 +1499,7 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     return (
       <div
         data-el-id={el.id}
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
         onDoubleClick={(e) => { e.stopPropagation(); setEditingText(true); }}
         style={{
           ...baseStyle,
@@ -1264,7 +1574,7 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     return (
       <div
         data-el-id={el.id}
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
         style={{
           ...baseStyle,
           border: `${(typeof props.stroke_width === "number" ? props.stroke_width : 0.3) * zoom}px solid ${(props.color as string) ?? "#0f172a"}`,
@@ -1294,7 +1604,7 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     return (
       <div
         data-el-id={el.id}
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
         style={{
           ...baseStyle,
           height: `${svgH}px`,
@@ -1338,7 +1648,7 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     return (
       <div
         data-el-id={el.id}
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
         style={{
           ...baseStyle,
           background: url ? "#fff" : "linear-gradient(45deg,#cbd5e1 25%,#e2e8f0 25%,#e2e8f0 50%,#cbd5e1 50%,#cbd5e1 75%,#e2e8f0 75%,#e2e8f0)",
@@ -1389,7 +1699,7 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     return (
       <div
         data-el-id={el.id}
-        onClick={(e) => { e.stopPropagation(); onClick(); }}
+        onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
         style={{
           ...baseStyle,
           color: (props.color as string) ?? "#475569",
@@ -2057,7 +2367,7 @@ interface QrElementProps {
   url: string;
   baseStyle: React.CSSProperties;
   selected: boolean;
-  onClick: () => void;
+  onClick: (modifierKey: boolean) => void;
 }
 
 function QrElement({ elId, url, baseStyle, selected, onClick }: QrElementProps): React.ReactElement {
@@ -2085,7 +2395,7 @@ function QrElement({ elId, url, baseStyle, selected, onClick }: QrElementProps):
   return (
     <div
       data-el-id={elId}
-      onClick={(e) => { e.stopPropagation(); onClick(); }}
+      onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
       style={{
         ...baseStyle,
         background: "#fff",
@@ -2103,6 +2413,134 @@ function QrElement({ elId, url, baseStyle, selected, onClick }: QrElementProps):
           {genErr ? `QR err` : url ? "..." : "QR (set URL)"}
         </div>
       )}
+    </div>
+  );
+}
+
+interface FullscreenPreviewProps {
+  page: PageRow;
+  elements: ElementRow[];
+  imageUrls: Map<string, string>;
+  defaultLang: string;
+  totalPages: number;
+  onClose: () => void;
+}
+
+/** Pełnoekranowy podgląd strony bez UI. Symuluje finalny druk —
+ *  pokazuje stronę w skali ~viewport / page_mm. */
+function FullscreenPreview({ page, elements, imageUrls, defaultLang, totalPages, onClose }: FullscreenPreviewProps): React.ReactElement {
+  const [vw, setVw] = useState(800);
+  const [vh, setVh] = useState(600);
+
+  useEffect(() => {
+    const update = () => { setVw(window.innerWidth); setVh(window.innerHeight); };
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  // Zoom = dopasuj do mniejszej krawędzi viewportu (z marginesem 60px).
+  const maxScaleByWidth = (vw - 60) / page.width_mm;
+  const maxScaleByHeight = (vh - 100) / page.height_mm;
+  const previewScale = Math.min(maxScaleByWidth, maxScaleByHeight);
+  const wPx = page.width_mm * previewScale;
+  const hPx = page.height_mm * previewScale;
+
+  return (
+    <div className="fixed inset-0 z-50 flex flex-col items-center justify-center bg-slate-900/95 p-6">
+      <div className="mb-3 flex items-center gap-3 text-xs text-slate-300">
+        <span>Strona {page.page_number} · {page.width_mm}×{page.height_mm} mm · {Math.round(previewScale)}× (Esc zamyka)</span>
+      </div>
+      <div
+        className="relative bg-white shadow-2xl"
+        style={{ width: `${wPx}px`, height: `${hPx}px` }}
+      >
+        {elements.map((el) => (
+          <ElementView
+            key={el.id}
+            el={el}
+            selected={false}
+            onClick={() => { /* read-only */ }}
+            onUpdate={() => { /* read-only */ }}
+            zoom={previewScale}
+            defaultLang={defaultLang}
+            pageNumber={page.page_number}
+            totalPages={totalPages}
+            imageUrls={imageUrls}
+            disablePointer={true}
+          />
+        ))}
+      </div>
+      <button
+        type="button"
+        onClick={onClose}
+        className="mt-4 rounded bg-white px-4 py-1.5 text-xs font-semibold text-slate-700 hover:bg-slate-100"
+      >
+        Zamknij podgląd
+      </button>
+    </div>
+  );
+}
+
+function ShortcutsModal({ onClose }: { onClose: () => void }): React.ReactElement {
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const shortcuts: Array<{ keys: string; desc: string; section?: string }> = [
+    { section: "Selekcja", keys: "Klik", desc: "Zaznacz element" },
+    { section: "Selekcja", keys: "Shift / Ctrl + Klik", desc: "Dodaj/usuń z selekcji (multi-select)" },
+    { section: "Selekcja", keys: "Ctrl / Cmd + A", desc: "Zaznacz wszystkie elementy" },
+    { section: "Selekcja", keys: "Esc", desc: "Odznacz / anuluj rysowanie" },
+    { section: "Edycja", keys: "Ctrl / Cmd + Z", desc: "Cofnij ostatnią zmianę" },
+    { section: "Edycja", keys: "Ctrl / Cmd + D", desc: "Duplikuj zaznaczone (z offsetem 2 mm)" },
+    { section: "Edycja", keys: "Del / Backspace", desc: "Usuń zaznaczone" },
+    { section: "Edycja", keys: "Ctrl / Cmd + S", desc: "Informacja o auto-save (wszystko zapisuje się na bieżąco)" },
+    { section: "Widok", keys: "Cmd + P", desc: "Pełnoekranowy podgląd strony" },
+    { section: "Widok", keys: "Cmd + /", desc: "Ta lista skrótów" },
+    { section: "Rysowanie", keys: "Klik Linia / Prostokąt → drag", desc: "Narysuj element przeciągnięciem myszy" },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/40 p-6">
+      <div className="my-8 w-full max-w-2xl rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-5 py-3">
+          <h3 className="text-base font-semibold text-slate-900">⌨️ Skróty klawiszowe</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <div className="p-5">
+          {["Selekcja", "Edycja", "Widok", "Rysowanie"].map((section) => (
+            <div key={section} className="mb-4">
+              <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{section}</h4>
+              <table className="w-full text-xs">
+                <tbody>
+                  {shortcuts.filter((s) => s.section === section).map((s, i) => (
+                    <tr key={i} className="border-b border-slate-100">
+                      <td className="py-1.5 pr-3">
+                        <kbd className="rounded border border-slate-300 bg-slate-50 px-1.5 py-0.5 font-mono text-[11px] text-slate-700">
+                          {s.keys}
+                        </kbd>
+                      </td>
+                      <td className="py-1.5 text-slate-600">{s.desc}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+          <p className="mt-4 rounded bg-slate-50 px-3 py-2 text-[11px] text-slate-500">
+            ℹ️ Skróty z modyfikatorem są wyłączone gdy fokus jest w polu edytowalnym (textarea/input).
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
