@@ -14,6 +14,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 const API = "/generator-instrukcji/api/v4";
+
+interface ValidationIssue {
+  severity: "error" | "warning" | "info";
+  element_id?: string;
+  element_type?: string;
+  message: string;
+  fix_hint?: string;
+}
 const MM_PER_PT = 25.4 / 72;
 const DEFAULT_DISPLAY_SCALE = 6; // px per mm — 76mm × 6 = 456px on screen
 const PT_TO_PX_AT_SCALE = (scale: number) => scale * MM_PER_PT; // 1pt → px at given mm-scale
@@ -71,6 +79,20 @@ export default function Gen4Editor({
   // Mapa image_id → signed URL (z biblioteki obrazków projektu). Przeładowywana
   // po każdym uploadzie/usunięciu by canvas pokazywał aktualne dane.
   const [imageUrls, setImageUrls] = useState<Map<string, string>>(new Map());
+  // Walidacja layoutu bieżącej strony (zaciągana z /api/v4/pages/[id]/validate).
+  const [issues, setIssues] = useState<ValidationIssue[]>([]);
+  const [issuesBusy, setIssuesBusy] = useState(false);
+  // Tryb API/manual — używany m.in. żeby zdecydować czy pokazać 'Napraw przez AI'.
+  const [editorMode, setEditorMode] = useState<"auto" | "manual" | "unknown">("unknown");
+
+  useEffect(() => {
+    fetch(`${API}/status`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { mode?: "auto" | "manual" } | null) => {
+        if (j?.mode) setEditorMode(j.mode);
+      })
+      .catch(() => { /* zostaje 'unknown' */ });
+  }, []);
   // Narzędzie rysowania aktywne — line/rect rysuje się przeciągnięciem myszą
   // po stronie. Po narysowaniu lub kliknięciu prawym przyciskiem tryb gaśnie.
   const [drawingTool, setDrawingTool] = useState<"line" | "rect" | null>(null);
@@ -102,6 +124,35 @@ export default function Gen4Editor({
   }, [projectId]);
 
   useEffect(() => { void refreshImages(); }, [refreshImages]);
+
+  // Walidacja layoutu bieżącej strony — uruchamiana automatycznie po
+  // każdej zmianie elementów. Wynik widoczny jako pasek nad canvasem.
+  const refreshIssues = useCallback(async () => {
+    if (!currentPageId) {
+      setIssues([]);
+      return;
+    }
+    setIssuesBusy(true);
+    try {
+      const res = await fetch(`${API}/pages/${currentPageId}/validate/`, { cache: "no-store" });
+      if (res.ok) {
+        const j = (await res.json()) as { issues: ValidationIssue[] };
+        setIssues(j.issues ?? []);
+      }
+    } catch {
+      /* ignore — walidacja nie jest krytyczna */
+    } finally {
+      setIssuesBusy(false);
+    }
+  }, [currentPageId]);
+
+  useEffect(() => {
+    void refreshIssues();
+    // Re-walidacja po sukcesie zmiany elementów. Debounce 600ms by nie spamować
+    // przy szybkich edycjach.
+    const timer = setTimeout(() => void refreshIssues(), 600);
+    return () => clearTimeout(timer);
+  }, [refreshIssues, elements]);
 
   // Esc anuluje tryb rysowania.
   useEffect(() => {
@@ -279,6 +330,48 @@ export default function Gen4Editor({
         ? { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 30 }
         : { x_mm: 5, y_mm: 5, w_mm: 30, h_mm: 5 };
     await insertElement(type, defaults);
+  };
+
+  /** Napraw przez AI — buduje instrukcję z listy issues + fix_hints i wywołuje
+   *  ai-edit endpoint (Haiku 4.5). Po sukcesie reload elementów + re-walidacja. */
+  const fixIssuesWithAi = async () => {
+    if (!currentPageId || issues.length === 0) return;
+    const actionable = issues.filter((i) => i.severity !== "info" && i.fix_hint);
+    if (actionable.length === 0) {
+      setError("Brak problemów które AI mógłby naprawić automatycznie.");
+      return;
+    }
+    const instruction = [
+      "Popraw następujące problemy z layoutem strony:",
+      ...actionable.map((i, idx) => `${idx + 1}. ${i.message}. ${i.fix_hint ?? ""}`),
+      "",
+      "Zachowaj treść elementów — popraw tylko ich pozycje/rozmiary tak, by mieściły się",
+      "na stronie z 3mm marginesem i żeby teksty się nie ucinały.",
+    ].join("\n");
+    pushHistory(elements);
+    try {
+      const res = await fetch(`${API}/pages/${currentPageId}/ai-edit/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      // Reload elementów po fix.
+      const reload = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+      if (reload.ok) {
+        const j = (await reload.json()) as { elements: ElementRow[] };
+        setElements(j.elements ?? []);
+        setSelectedId(null);
+      }
+      await refreshIssues();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "AI fix failed");
+    }
   };
 
   /** Wywoływane przez PageCanvas po zakończeniu rysowania myszą.
@@ -603,6 +696,16 @@ export default function Gen4Editor({
               </span>
             </div>
           </div>
+
+          {/* Pasek walidacji — pokazuje liczbę problemów + przycisk Napraw przez AI */}
+          {currentPageId && issues.length > 0 && (
+            <ValidationBar
+              issues={issues}
+              busy={issuesBusy}
+              mode={editorMode}
+              onFix={() => void fixIssuesWithAi()}
+            />
+          )}
 
           <div className="flex-1 overflow-auto p-6">
             {!currentPage && (
@@ -1805,6 +1908,76 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
             Operacja zastąpi <strong>wszystkie</strong> obecne elementy strony nową listą.
           </p>
         </div>
+      )}
+    </div>
+  );
+}
+
+interface ValidationBarProps {
+  issues: ValidationIssue[];
+  busy: boolean;
+  mode: "auto" | "manual" | "unknown";
+  onFix: () => void;
+}
+
+function ValidationBar({ issues, busy, mode, onFix }: ValidationBarProps): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const errors = issues.filter((i) => i.severity === "error").length;
+  const warnings = issues.filter((i) => i.severity === "warning").length;
+  const infos = issues.filter((i) => i.severity === "info").length;
+  const fixable = issues.filter((i) => i.severity !== "info" && i.fix_hint).length;
+
+  const barColor =
+    errors > 0 ? "border-red-300 bg-red-50"
+    : warnings > 0 ? "border-amber-300 bg-amber-50"
+    : "border-slate-200 bg-slate-50";
+
+  return (
+    <div className={`border-b text-xs ${barColor}`}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-3 py-1.5 text-left hover:bg-black/5"
+      >
+        <span className="flex items-center gap-3">
+          <span className="font-medium">
+            🔍 Walidacja layoutu {busy && <span className="text-slate-400">(sprawdzam…)</span>}
+          </span>
+          {errors > 0 && <span className="rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-900">{errors} błędów</span>}
+          {warnings > 0 && <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">{warnings} ostrzeżeń</span>}
+          {infos > 0 && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">{infos} info</span>}
+        </span>
+        <span className="flex items-center gap-2">
+          {mode === "auto" && fixable > 0 && (
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onFix(); }}
+              className="rounded bg-emerald-700 px-2 py-0.5 text-[11px] font-semibold text-white hover:bg-emerald-800"
+              title="AI poprawi pozycje/rozmiary elementów żeby usunąć problemy"
+            >
+              🔧 Napraw przez AI ({fixable})
+            </button>
+          )}
+          <span className="text-slate-500">{open ? "▾" : "▸"}</span>
+        </span>
+      </button>
+      {open && (
+        <ul className="max-h-48 overflow-auto border-t border-black/10 px-3 py-2">
+          {issues.map((i, idx) => (
+            <li key={idx} className="mb-1 flex items-start gap-2 text-[11px]">
+              <span className={
+                "shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase " +
+                (i.severity === "error" ? "bg-red-200 text-red-900"
+                  : i.severity === "warning" ? "bg-amber-200 text-amber-900"
+                  : "bg-slate-200 text-slate-700")
+              }>{i.severity}</span>
+              <span className="flex-1 text-slate-700">
+                {i.message}
+                {i.fix_hint && <span className="block text-[10px] italic text-slate-500">↳ {i.fix_hint}</span>}
+              </span>
+            </li>
+          ))}
+        </ul>
       )}
     </div>
   );

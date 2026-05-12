@@ -1,8 +1,20 @@
 "use client";
 
-import { useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 const API = "/generator-instrukcji/api/v4";
+
+interface LintResult {
+  issues_per_page: Array<{
+    page_number: number;
+    page_title: string | null;
+    issues: Array<{ severity: "error" | "warning" | "info"; message: string; fix_hint?: string }>;
+  }>;
+  missing_sections: Array<{ id: string; title: string; reason: string }>;
+  orphan_images: string[];
+  summary: { errors: number; warnings: number; infos: number; total: number };
+  total_pages: number;
+}
 
 const LANGS = [
   { code: "pl", label: "Polski" },
@@ -33,6 +45,25 @@ export default function Gen4ExportPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState(false);
+  const [lint, setLint] = useState<LintResult | null>(null);
+  const [lintBusy, setLintBusy] = useState(false);
+  const [lintExpanded, setLintExpanded] = useState(false);
+
+  const refreshLint = useCallback(async () => {
+    setLintBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/lint/`, { cache: "no-store" });
+      if (!res.ok) return;
+      const j = (await res.json()) as LintResult;
+      setLint(j);
+    } catch {
+      /* ignore */
+    } finally {
+      setLintBusy(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => { void refreshLint(); }, [refreshLint]);
 
   const download = async () => {
     setBusy(true);
@@ -82,6 +113,12 @@ export default function Gen4ExportPanel({
         z panelu wyżej (jeśli istnieją; brakujące zostają w {defaultLang.toUpperCase()}).
       </p>
 
+      {lint && (
+        <div className="mb-4">
+          <LintCard lint={lint} expanded={lintExpanded} onToggle={() => setLintExpanded((v) => !v)} onRefresh={() => void refreshLint()} busy={lintBusy} />
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center gap-2">
         <label className="text-xs font-medium text-slate-700">Język:</label>
         <select
@@ -128,6 +165,107 @@ export default function Gen4ExportPanel({
 
       {error && (
         <p className="mt-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">{error}</p>
+      )}
+    </div>
+  );
+}
+
+interface LintCardProps {
+  lint: LintResult;
+  expanded: boolean;
+  busy: boolean;
+  onToggle: () => void;
+  onRefresh: () => void;
+}
+
+function LintCard({ lint, expanded, busy, onToggle, onRefresh }: LintCardProps): React.ReactElement {
+  const { summary, missing_sections, orphan_images, issues_per_page, total_pages } = lint;
+  const blocking = summary.errors > 0 || missing_sections.length > 0 || orphan_images.length > 0;
+  const allGood = summary.total === 0 && missing_sections.length === 0 && orphan_images.length === 0;
+
+  const headerBg = allGood
+    ? "border-emerald-200 bg-emerald-50"
+    : blocking
+      ? "border-red-200 bg-red-50"
+      : "border-amber-200 bg-amber-50";
+
+  return (
+    <div className={`rounded-lg border ${headerBg}`}>
+      <button type="button" onClick={onToggle} className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-black/5">
+        <span className="flex items-center gap-2 text-xs font-medium">
+          {allGood ? "✅ Projekt gotowy do druku" : blocking ? "🚫 Blokery przed eksportem" : "⚠️ Ostrzeżenia do sprawdzenia"}
+          <span className="text-slate-500">({total_pages} stron · {summary.total} problemów)</span>
+          {summary.errors > 0 && <span className="rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-900">{summary.errors} błędów</span>}
+          {summary.warnings > 0 && <span className="rounded bg-amber-200 px-1.5 py-0.5 text-[10px] font-semibold text-amber-900">{summary.warnings} ostrzeżeń</span>}
+          {summary.infos > 0 && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">{summary.infos} info</span>}
+          {missing_sections.length > 0 && <span className="rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-900">brak sekcji: {missing_sections.length}</span>}
+          {orphan_images.length > 0 && <span className="rounded bg-red-200 px-1.5 py-0.5 text-[10px] font-semibold text-red-900">obrazki sierot: {orphan_images.length}</span>}
+        </span>
+        <span className="flex items-center gap-2">
+          <button type="button" onClick={(e) => { e.stopPropagation(); onRefresh(); }} disabled={busy}
+            className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50 disabled:opacity-40">
+            {busy ? "..." : "Odśwież"}
+          </button>
+          <span className="text-slate-500">{expanded ? "▾" : "▸"}</span>
+        </span>
+      </button>
+
+      {expanded && (
+        <div className="border-t border-black/10 px-3 py-2 text-[11px]">
+          {missing_sections.length > 0 && (
+            <div className="mb-3">
+              <p className="mb-1 font-semibold text-red-900">🚫 Brakujące obowiązkowe sekcje:</p>
+              <ul className="space-y-0.5">
+                {missing_sections.map((s) => (
+                  <li key={s.id} className="text-slate-700">
+                    <strong>{s.title}</strong> <span className="text-slate-500">— {s.reason}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {orphan_images.length > 0 && (
+            <div className="mb-3">
+              <p className="mb-1 font-semibold text-red-900">🚫 Elementy image z nieistniejącym image_id ({orphan_images.length}):</p>
+              <p className="text-slate-500">Te elementy nie wyrenderują się w PDF. Usuń je lub wgraj brakujące obrazki do biblioteki.</p>
+            </div>
+          )}
+
+          {issues_per_page.length > 0 && (
+            <details>
+              <summary className="cursor-pointer font-semibold text-slate-700 hover:text-slate-900">
+                Problemy per strona ({issues_per_page.length} stron)
+              </summary>
+              <div className="mt-1 max-h-64 overflow-auto">
+                {issues_per_page.map((p) => (
+                  <div key={p.page_number} className="mb-2 rounded border border-slate-200 bg-white p-2">
+                    <p className="mb-1 text-[10px] font-semibold text-slate-700">
+                      Strona {p.page_number}{p.page_title ? ` — ${p.page_title}` : ""}
+                    </p>
+                    <ul className="space-y-0.5">
+                      {p.issues.map((i, idx) => (
+                        <li key={idx} className="flex items-start gap-1.5">
+                          <span className={
+                            "shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase " +
+                            (i.severity === "error" ? "bg-red-200 text-red-900"
+                              : i.severity === "warning" ? "bg-amber-200 text-amber-900"
+                              : "bg-slate-200 text-slate-700")
+                          }>{i.severity}</span>
+                          <span className="text-slate-600">{i.message}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ))}
+              </div>
+            </details>
+          )}
+
+          {allGood && (
+            <p className="text-emerald-800">Wszystkie wymagane sekcje obecne, brak ostrzeżeń layoutu, obrazki podpięte. Możesz eksportować PDF bez DRAFT.</p>
+          )}
+        </div>
       )}
     </div>
   );
