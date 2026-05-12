@@ -65,8 +65,54 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   if (Object.keys(update).length === 0)
     return NextResponse.json({ error: "nothing to update" }, { status: 400 });
 
+  // Pobierz stan PRZED zmianą (do post-edit log).
+  const { data: before } = await sb
+    .from("gen4_elements")
+    .select("page_id, type, x_mm, y_mm, w_mm, h_mm, properties")
+    .eq("id", elementId)
+    .single();
+
   const { error } = await sb.from("gen4_elements").update(update).eq("id", elementId);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+
+  // Post-edit log — fire-and-forget. Pomijamy jeśli zmiana to tylko z_index
+  // lub micro-move (< 0.5mm) — to nie sygnał o problemie z AI.
+  if (before) {
+    const micro =
+      Object.keys(update).every((k) => k === "z_index") ||
+      (
+        Object.keys(update).every((k) => ["x_mm", "y_mm"].includes(k)) &&
+        Math.abs((update.x_mm as number ?? before.x_mm) - before.x_mm) < 0.5 &&
+        Math.abs((update.y_mm as number ?? before.y_mm) - before.y_mm) < 0.5
+      );
+    if (!micro) {
+      const { data: page } = await sb
+        .from("gen4_pages")
+        .select("project_id")
+        .eq("id", before.page_id)
+        .single();
+      const descParts: string[] = [];
+      if ("properties" in update && before.properties) descParts.push("properties");
+      if ("x_mm" in update || "y_mm" in update) descParts.push("pozycja");
+      if ("w_mm" in update || "h_mm" in update) descParts.push("rozmiar");
+      void sb.from("gen4_post_edit_log").insert({
+        project_id: page?.project_id,
+        page_id: before.page_id,
+        element_id: elementId,
+        owner_email: auth.email,
+        source: "manual",
+        description: `${before.type}: ${descParts.join(", ")}`,
+        before_state: {
+          x_mm: before.x_mm,
+          y_mm: before.y_mm,
+          w_mm: before.w_mm,
+          h_mm: before.h_mm,
+          properties: before.properties,
+        },
+        after_state: update,
+      });
+    }
+  }
   return NextResponse.json({ ok: true });
 }
 

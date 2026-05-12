@@ -100,6 +100,12 @@ const expectations = [
   ["gen4_project_versions", "version_number"],
   ["gen4_project_versions", "description"],
   ["gen4_project_versions", "snapshot"],
+  // 0015 — post-edit log
+  ["gen4_post_edit_log", "id"],
+  ["gen4_post_edit_log", "project_id"],
+  ["gen4_post_edit_log", "owner_email"],
+  ["gen4_post_edit_log", "source"],
+  ["gen4_post_edit_log", "description"],
 ];
 
 async function checkColumn(table, column) {

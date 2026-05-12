@@ -32,8 +32,16 @@ export interface AiResponse {
   text: string;
   inputTokens: number;
   outputTokens: number;
+  /** Tokeny które trafiły do CREATE cache (typowo system prompt długi + cache_control).
+   *  Płatne tym samym co input ale ZAPISANE — kolejne wywołania z tym samym
+   *  prefiksem czytają z cache za 10% kosztu input. */
+  cacheCreationTokens?: number;
+  /** Tokeny ODCZYTANE z cache (90% taniej niż normalny input). */
+  cacheReadTokens?: number;
   model: string;
   latencyMs: number;
+  /** Temperature użyte przy wywołaniu (potrzebne do A/B variants gdzie róznicujemy). */
+  temperature?: number;
 }
 
 /** Calls Claude with a system prompt + user message, returns plain text.
@@ -53,6 +61,13 @@ export async function callClaude(opts: {
   model?: string;
   maxTokens?: number;
   attachments?: string[]; // Anthropic file_id list
+  /** Włącz prompt caching dla system prompta. Pierwszy call tworzy cache
+   *  (płaci za normalny input + 25%); kolejne calls z identycznym system
+   *  prompt czytają z cache (10% normalnego kosztu input). Zostaje 5 minut. */
+  cacheSystemPrompt?: boolean;
+  /** Temperature dla generacji. Default 1.0 (Anthropic default). A/B variants
+   *  używają 0.7 i 0.9 dla różnicowania wyników. */
+  temperature?: number;
 }): Promise<AiResponse> {
   const client = getAnthropicClient();
   const model = opts.model ?? INITIAL_MODEL;
@@ -69,13 +84,23 @@ export async function callClaude(opts: {
     });
   }
 
+  // System prompt — jeśli włączony caching, owijamy w content block z cache_control.
+  // Inaczej zwykły string (tańsza wersja gdy prompt krótki i się zmienia).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const systemParam: any = opts.cacheSystemPrompt
+    ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
+    : opts.system;
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const streamParams: any = {
     model,
     max_tokens: opts.maxTokens ?? 16000,
-    system: opts.system,
+    system: systemParam,
     messages: [{ role: "user", content: opts.attachments?.length ? userContent : opts.user }],
   };
+  if (typeof opts.temperature === "number") {
+    streamParams.temperature = opts.temperature;
+  }
   if (opts.attachments?.length) {
     streamParams.betas = ["files-api-2025-04-14"];
   }
@@ -88,12 +113,87 @@ export async function callClaude(opts: {
     .join("");
   if (!text) throw new Error("anthropic returned no text content");
 
+  // Cache tokens reporting — Anthropic zwraca cache_creation_input_tokens
+  // i cache_read_input_tokens w usage gdy caching aktywny.
+  const usage = message.usage as unknown as Record<string, unknown>;
   return {
     text,
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
+    cacheCreationTokens: typeof usage.cache_creation_input_tokens === "number"
+      ? usage.cache_creation_input_tokens
+      : undefined,
+    cacheReadTokens: typeof usage.cache_read_input_tokens === "number"
+      ? usage.cache_read_input_tokens
+      : undefined,
     model: message.model,
     latencyMs,
+    temperature: opts.temperature,
+  };
+}
+
+/** Wariant streamingowy callClaude — emituje fragmenty odpowiedzi via onChunk
+ *  callback, dzięki czemu UI może pokazywać tekst pojawiający się stopniowo.
+ *  Po skończeniu zwraca finalny AiResponse (jak callClaude).
+ *  Caller decyduje co zrobić z tekstem — typowo parse + apply. */
+export async function callClaudeStream(
+  opts: {
+    system: string;
+    user: string;
+    model?: string;
+    maxTokens?: number;
+    attachments?: string[];
+    cacheSystemPrompt?: boolean;
+    temperature?: number;
+  },
+  onChunk: (textDelta: string) => void,
+): Promise<AiResponse> {
+  const client = getAnthropicClient();
+  const model = opts.model ?? INITIAL_MODEL;
+  const start = Date.now();
+
+  const userContent: unknown[] = [{ type: "text", text: opts.user }];
+  for (const fileId of opts.attachments ?? []) {
+    userContent.unshift({
+      type: "document",
+      source: { type: "file", file_id: fileId },
+    });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const systemParam: any = opts.cacheSystemPrompt
+    ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
+    : opts.system;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const streamParams: any = {
+    model,
+    max_tokens: opts.maxTokens ?? 16000,
+    system: systemParam,
+    messages: [{ role: "user", content: opts.attachments?.length ? userContent : opts.user }],
+  };
+  if (typeof opts.temperature === "number") streamParams.temperature = opts.temperature;
+  if (opts.attachments?.length) streamParams.betas = ["files-api-2025-04-14"];
+
+  const stream = client.messages.stream(streamParams);
+  // Emit text fragments na bieżąco — Anthropic SDK ma event 'text' z deltą.
+  stream.on("text", (delta: string) => {
+    onChunk(delta);
+  });
+  const message = await stream.finalMessage();
+  const latencyMs = Date.now() - start;
+  const text = message.content.map((b) => (b.type === "text" ? b.text : "")).join("");
+
+  const usage = message.usage as unknown as Record<string, unknown>;
+  return {
+    text,
+    inputTokens: message.usage.input_tokens,
+    outputTokens: message.usage.output_tokens,
+    cacheCreationTokens: typeof usage.cache_creation_input_tokens === "number"
+      ? usage.cache_creation_input_tokens : undefined,
+    cacheReadTokens: typeof usage.cache_read_input_tokens === "number"
+      ? usage.cache_read_input_tokens : undefined,
+    model: message.model,
+    latencyMs,
+    temperature: opts.temperature,
   };
 }
 

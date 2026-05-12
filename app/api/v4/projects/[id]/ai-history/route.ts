@@ -22,18 +22,35 @@ const PRICING: Record<string, { input: number; output: number }> = {
   "opus": { input: 15, output: 75 },
 };
 
-function costUsd(model: string | null, inputTokens: number, outputTokens: number): number {
+/** Koszt z uwzględnieniem cache:
+ *   - uncached input: 1.0×
+ *   - cache write:    1.25× (Anthropic narzut)
+ *   - cache read:     0.1× (90% zniżki)
+ *   - output:         1.0× model output price */
+function costUsd(
+  model: string | null,
+  inputTokens: number,
+  outputTokens: number,
+  cacheWrite: number = 0,
+  cacheRead: number = 0,
+): number {
   if (!model) return 0;
-  const exact = PRICING[model];
-  if (exact) return (inputTokens * exact.input + outputTokens * exact.output) / 1_000_000;
-  // Fallback: dopasuj po podstawie nazwy
-  for (const key of Object.keys(PRICING)) {
-    if (model.toLowerCase().includes(key.toLowerCase())) {
-      const p = PRICING[key];
-      return (inputTokens * p.input + outputTokens * p.output) / 1_000_000;
+  const lookup = (m: string) => {
+    if (PRICING[m]) return PRICING[m];
+    for (const key of Object.keys(PRICING)) {
+      if (m.toLowerCase().includes(key.toLowerCase())) return PRICING[key];
     }
-  }
-  return 0;
+    return null;
+  };
+  const p = lookup(model);
+  if (!p) return 0;
+  return (
+    (inputTokens * p.input
+      + cacheWrite * p.input * 1.25
+      + cacheRead * p.input * 0.1
+      + outputTokens * p.output)
+    / 1_000_000
+  );
 }
 
 interface HistoryRow {
@@ -77,21 +94,29 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   const rows = (history ?? []) as HistoryRow[];
   let totalInput = 0;
   let totalOutput = 0;
+  let totalCacheWrite = 0;
+  let totalCacheRead = 0;
   let totalCost = 0;
-  const perWorkflow = new Map<string, { count: number; cost: number; input: number; output: number }>();
+  const perWorkflow = new Map<string, { count: number; cost: number; input: number; output: number; cache_read: number }>();
   const enriched = rows.map((r) => {
     const inT = r.input_tokens ?? 0;
     const outT = r.output_tokens ?? 0;
-    const cost = costUsd(r.model, inT, outT);
+    // Cache stats z structured (zapisujemy je przy każdym wywołaniu callClaude).
+    const cw = typeof r.structured?.cache_creation_tokens === "number" ? r.structured.cache_creation_tokens : 0;
+    const cr = typeof r.structured?.cache_read_tokens === "number" ? r.structured.cache_read_tokens : 0;
+    const cost = costUsd(r.model, inT, outT, cw, cr);
     totalInput += inT;
     totalOutput += outT;
+    totalCacheWrite += cw;
+    totalCacheRead += cr;
     totalCost += cost;
     const wf = (r.structured?.workflow_type as string | undefined) ?? "other";
-    const cur = perWorkflow.get(wf) ?? { count: 0, cost: 0, input: 0, output: 0 };
+    const cur = perWorkflow.get(wf) ?? { count: 0, cost: 0, input: 0, output: 0, cache_read: 0 };
     cur.count += 1;
     cur.cost += cost;
     cur.input += inT;
     cur.output += outT;
+    cur.cache_read += cr;
     perWorkflow.set(wf, cur);
     return { ...r, cost_usd: cost };
   });
@@ -102,6 +127,8 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       calls: rows.length,
       input_tokens: totalInput,
       output_tokens: totalOutput,
+      cache_write_tokens: totalCacheWrite,
+      cache_read_tokens: totalCacheRead,
       cost_usd: totalCost,
     },
     by_workflow: Array.from(perWorkflow.entries()).map(([workflow, stats]) => ({

@@ -55,9 +55,20 @@ const SCOPE_DESCRIPTIONS: Record<NoteScope, string> = {
   project: "Tylko dla tego jednego projektu. Idealne dla wartości technicznych (SAR, IMEI).",
 };
 
+interface Suggestion {
+  scope: NoteScope;
+  scope_value: string | null;
+  content: string;
+  why: string;
+  evidence_count: number;
+}
+
 export default function Gen4NotesPanel({ projectId, documentType, deviceType }: Props): React.ReactElement {
   const [notes, setNotes] = useState<AiNote[]>([]);
   const [loading, setLoading] = useState(true);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [suggestionsBusy, setSuggestionsBusy] = useState(false);
+  const [suggestMessage, setSuggestMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState<NoteScope | null>(null);
 
@@ -124,6 +135,52 @@ export default function Gen4NotesPanel({ projectId, documentType, deviceType }: 
     }
   };
 
+  const fetchSuggestions = async () => {
+    setSuggestionsBusy(true);
+    setSuggestMessage(null);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/ai-notes/suggest/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      const j = JSON.parse(text) as { suggestions: Suggestion[]; analyzed_edits?: number; message?: string };
+      setSuggestions(j.suggestions ?? []);
+      if (j.message) setSuggestMessage(j.message);
+      else if (j.suggestions?.length === 0) setSuggestMessage(`Brak wzorców w ostatnich ${j.analyzed_edits ?? "?"} edycjach.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "suggest failed");
+    } finally {
+      setSuggestionsBusy(false);
+    }
+  };
+
+  const acceptSuggestion = async (s: Suggestion) => {
+    try {
+      await fetch(`${API}/ai-notes/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          scope: s.scope,
+          scope_value: s.scope === "global" ? null : s.scope_value,
+          content: s.content,
+          why: s.why,
+        }),
+      });
+      setSuggestions((prev) => prev.filter((x) => x !== s));
+      await refresh();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "accept failed");
+    }
+  };
+
   const remove = async (id: string) => {
     if (!confirm("Usunąć notatkę?")) return;
     try {
@@ -168,7 +225,7 @@ export default function Gen4NotesPanel({ projectId, documentType, deviceType }: 
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4">
-      <div className="mb-3 flex items-baseline justify-between">
+      <div className="mb-3 flex items-baseline justify-between gap-3">
         <div>
           <h3 className="text-sm font-semibold text-slate-900">📚 Notatki dla AI (lessons learned)</h3>
           <p className="text-xs text-slate-500">
@@ -177,7 +234,59 @@ export default function Gen4NotesPanel({ projectId, documentType, deviceType }: 
             — następna generacja go uniknie.
           </p>
         </div>
+        <button
+          type="button"
+          disabled={suggestionsBusy}
+          onClick={() => void fetchSuggestions()}
+          className="shrink-0 rounded border border-emerald-300 bg-emerald-50 px-2 py-1 text-[11px] font-medium text-emerald-800 hover:bg-emerald-100 disabled:opacity-40"
+          title="AI analizuje Twoje ostatnie manualne edycje i sugeruje regułki które warto dodać"
+        >
+          {suggestionsBusy ? "Analizuję..." : "🪄 Sugestie AI"}
+        </button>
       </div>
+
+      {(suggestions.length > 0 || suggestMessage) && (
+        <div className="mb-3 rounded-lg border border-emerald-200 bg-emerald-50 p-3">
+          <p className="mb-2 text-xs font-semibold text-emerald-900">
+            🪄 Sugestie AI ({suggestions.length})
+            {suggestMessage && <span className="ml-2 font-normal text-emerald-700">— {suggestMessage}</span>}
+          </p>
+          {suggestions.length > 0 && (
+            <ul className="space-y-1.5">
+              {suggestions.map((s, idx) => (
+                <li key={idx} className="rounded border border-emerald-100 bg-white p-2 text-[11px]">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold text-slate-800">
+                        [{s.scope}{s.scope_value ? `:${s.scope_value}` : ""}] {s.content}
+                      </p>
+                      <p className="mt-0.5 italic text-slate-500">
+                        ↳ {s.why}{s.evidence_count > 0 ? ` (${s.evidence_count} dowodów)` : ""}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-1">
+                      <button
+                        type="button"
+                        onClick={() => void acceptSuggestion(s)}
+                        className="rounded bg-emerald-700 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-emerald-800"
+                      >
+                        Dodaj
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setSuggestions((prev) => prev.filter((x) => x !== s))}
+                        className="rounded border border-slate-300 bg-white px-2 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                      >
+                        Odrzuć
+                      </button>
+                    </div>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {error && (
         <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">

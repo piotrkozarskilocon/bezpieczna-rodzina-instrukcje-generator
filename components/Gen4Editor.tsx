@@ -1872,6 +1872,7 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
   const [imageBusy, setImageBusy] = useState(false);
   const [explainBusy, setExplainBusy] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
+  const [streamingText, setStreamingText] = useState<string | null>(null);
 
   // Wykryj tryb API/manual przy mount.
   useEffect(() => {
@@ -1893,6 +1894,7 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
     setError(null);
     setInfo(null);
     setExplanation(null);
+    setStreamingText(null);
   }, [pageId]);
 
   // Upload obrazka dla tej konkretnej strony — preferred_page_id ustawiamy
@@ -1953,6 +1955,71 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
       setError(err instanceof Error ? err.message : "explain failed");
     } finally {
       setExplainBusy(false);
+    }
+  };
+
+  /** Streaming variant — wyświetla fragmenty AI na bieżąco. */
+  const runStreamEdit = async () => {
+    if (!instruction.trim()) return;
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    setStreamingText("");
+    try {
+      const res = await fetch(`${API}/pages/${pageId}/ai-edit-stream/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: instruction.trim() }),
+      });
+      if (!res.ok || !res.body) {
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let accumulated = "";
+      let doneInfo: { elements: number } | null = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? ""; // ostatnia może być niepełna
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const evt = JSON.parse(line) as
+              | { type: "delta"; text: string }
+              | { type: "done"; elements: number; latency_ms: number }
+              | { type: "error"; error: string };
+            if (evt.type === "delta") {
+              accumulated += evt.text;
+              setStreamingText(accumulated);
+            } else if (evt.type === "done") {
+              doneInfo = { elements: evt.elements };
+            } else if (evt.type === "error") {
+              throw new Error(evt.error);
+            }
+          } catch (e) {
+            if (e instanceof Error && e.message.includes("JSON")) continue; // tolerujemy niepełne linie
+            throw e;
+          }
+        }
+      }
+      setStreamingText(null);
+      if (doneInfo) {
+        setInfo(`✨ Streaming: zastąpiono ${doneInfo.elements} elementów na stronie.`);
+        setInstruction("");
+        await onApplied();
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "stream failed");
+      setStreamingText(null);
+    } finally {
+      setBusy(false);
     }
   };
 
@@ -2108,15 +2175,26 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
         </div>
         <div className="mt-2 flex flex-wrap justify-end gap-1.5">
           {mode === "auto" && (
-            <button
-              type="button"
-              disabled={busy || !instruction.trim()}
-              onClick={() => void runAutoEdit()}
-              className="rounded-md bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
-              title="Wywołaj Claude API i od razu zastosuj wynik (Haiku 4.5, ~5-10 s)"
-            >
-              {busy ? "..." : "✨ Zastosuj przez AI"}
-            </button>
+            <>
+              <button
+                type="button"
+                disabled={busy || !instruction.trim()}
+                onClick={() => void runStreamEdit()}
+                className="rounded-md bg-indigo-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-800 disabled:opacity-50"
+                title="Streaming — wyświetla generowany tekst na bieżąco (Haiku 4.5)"
+              >
+                {busy && streamingText !== null ? "Stream..." : "🔁 Stream"}
+              </button>
+              <button
+                type="button"
+                disabled={busy || !instruction.trim()}
+                onClick={() => void runAutoEdit()}
+                className="rounded-md bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                title="Wywołaj Claude API i od razu zastosuj wynik (Haiku 4.5, ~5-10 s)"
+              >
+                {busy && streamingText === null ? "..." : "✨ Zastosuj przez AI"}
+              </button>
+            </>
           )}
           <button
             type="button"
@@ -2143,6 +2221,17 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
       {info && (
         <p className="rounded-md bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">{info}</p>
       )}
+      {streamingText !== null && (
+        <div className="rounded border border-indigo-300 bg-indigo-50 p-2">
+          <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+            🔁 AI generuje na żywo...
+          </p>
+          <pre className="max-h-48 overflow-auto whitespace-pre-wrap font-mono text-[10px] text-indigo-900">
+            {streamingText}<span className="animate-pulse">▌</span>
+          </pre>
+        </div>
+      )}
+
       {explanation && (
         <div className="rounded border border-indigo-200 bg-indigo-50 p-2">
           <div className="mb-1 flex items-center justify-between">

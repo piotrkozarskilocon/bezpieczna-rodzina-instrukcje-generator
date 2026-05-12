@@ -60,6 +60,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       model: EDIT_MODEL,
       maxTokens: 4000,
       attachments: attachments.length > 0 ? attachments : undefined,
+      // Caching — w pętli apply-DS per page (typowo 14× w wizardzie 'Zastosuj DS
+      // do projektu') system prompt jest identyczny (DS content + notes + ref).
+      // Pierwsze wywołanie tworzy cache, kolejne 13 ~10% kosztu input.
+      cacheSystemPrompt: true,
     });
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);
@@ -83,6 +87,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           ds_id: dsId,
           ds_name: built.dsName,
           elements_count: count,
+          cache_creation_tokens: ai.cacheCreationTokens,
+          cache_read_tokens: ai.cacheReadTokens,
         },
         model: ai.model,
         input_tokens: ai.inputTokens,

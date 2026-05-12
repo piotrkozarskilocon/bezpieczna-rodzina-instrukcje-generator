@@ -187,6 +187,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       model: EDIT_MODEL,
       maxTokens: 3000, // ~10 elementów = ~600-1200 tokenów output
       attachments: attachments.length > 0 ? attachments : undefined,
+      // Caching system prompt — w pętli auto-populate ~14 wywołań z identycznym
+      // systemem (notes + reference summary + design rules). Pierwsze tworzy cache,
+      // kolejne 13 czytają za 10% kosztu — to ~70% oszczędności na całym projekcie.
+      cacheSystemPrompt: true,
     });
     void incrementUsedCount(notes.map((n) => n.id));
     const parsed = parsePageEditResponse(ai.text);
@@ -203,6 +207,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         page_number: page.page_number,
         template: page.template,
         elements_count: count,
+        cache_creation_tokens: ai.cacheCreationTokens,
+        cache_read_tokens: ai.cacheReadTokens,
       },
       model: ai.model,
       input_tokens: ai.inputTokens,
