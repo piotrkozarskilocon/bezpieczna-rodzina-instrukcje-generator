@@ -67,36 +67,80 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  let formData: FormData;
-  try {
-    formData = await request.formData();
-  } catch {
-    return NextResponse.json({ error: "expected multipart/form-data" }, { status: 400 });
-  }
+  // Dwa warianty body:
+  //  A) JSON { file_path, name, kind, source_lang, size_bytes, mime_type } —
+  //     plik został już uploadowany direct przez signed URL (omija Vercel 4.5 MB cap).
+  //  B) multipart form-data (legacy, dla małych plików < 4.5 MB).
+  const contentType = request.headers.get("content-type") ?? "";
+  let filePath: string;
+  let kind = "other";
+  let sourceLang = "pl";
+  let fileName = "";
+  let fileSize = 0;
+  let fileMime = "application/pdf";
+  let buf: Buffer | null = null;
 
-  const file = formData.get("file");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "missing file field" }, { status: 400 });
-  }
-  if (file.size > MAX_BYTES) {
-    return NextResponse.json({ error: `file too large (max 25 MB)` }, { status: 413 });
-  }
-  if (file.type !== "application/pdf") {
-    return NextResponse.json({ error: "tylko PDF jest obsługiwany w fazie 1" }, { status: 415 });
-  }
-  const kindRaw = formData.get("kind");
-  const kind = typeof kindRaw === "string" && VALID_KINDS.has(kindRaw) ? kindRaw : "other";
-  const sourceLang = (formData.get("source_lang") as string | null)?.toLowerCase()?.slice(0, 5) ?? "pl";
+  if (contentType.includes("application/json")) {
+    // Wariant A: direct upload już zrobiony
+    const body = (await request.json().catch(() => null)) as
+      | { file_path?: string; name?: string; kind?: string; source_lang?: string; size_bytes?: number; mime_type?: string }
+      | null;
+    if (!body?.file_path?.trim() || !body?.name?.trim()) {
+      return NextResponse.json({ error: "missing file_path or name" }, { status: 400 });
+    }
+    // Walidacja że path zaczyna się od projectId (anti-cross-project)
+    if (!body.file_path.startsWith(`${id}/`)) {
+      return NextResponse.json({ error: "invalid file_path (must start with project id)" }, { status: 400 });
+    }
+    filePath = body.file_path;
+    fileName = body.name.slice(0, 200);
+    fileSize = typeof body.size_bytes === "number" ? body.size_bytes : 0;
+    fileMime = body.mime_type ?? "application/pdf";
+    if (fileSize > MAX_BYTES) {
+      return NextResponse.json({ error: `file too large (max 25 MB)` }, { status: 413 });
+    }
+    if (body.kind && VALID_KINDS.has(body.kind)) kind = body.kind;
+    if (body.source_lang) sourceLang = body.source_lang.toLowerCase().slice(0, 5);
+    // Pobierz bytes dla Anthropic Files API sync (plik już jest w bucket).
+    const { data: blob, error: dlErr } = await sb.storage.from(BUCKET).download(filePath);
+    if (dlErr || !blob) {
+      return NextResponse.json({ error: `download from storage failed: ${dlErr?.message ?? "blob null"}` }, { status: 500 });
+    }
+    buf = Buffer.from(await blob.arrayBuffer());
+  } else {
+    // Wariant B: multipart (legacy)
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch {
+      return NextResponse.json({ error: "expected multipart/form-data or application/json" }, { status: 400 });
+    }
+    const f = formData.get("file");
+    if (!(f instanceof File)) {
+      return NextResponse.json({ error: "missing file field" }, { status: 400 });
+    }
+    if (f.size > MAX_BYTES) {
+      return NextResponse.json({ error: `file too large (max 25 MB)` }, { status: 413 });
+    }
+    if (f.type !== "application/pdf") {
+      return NextResponse.json({ error: "tylko PDF jest obsługiwany w fazie 1" }, { status: 415 });
+    }
+    fileName = f.name.slice(0, 200);
+    fileSize = f.size;
+    fileMime = f.type;
+    const kindRaw = formData.get("kind");
+    if (typeof kindRaw === "string" && VALID_KINDS.has(kindRaw)) kind = kindRaw;
+    sourceLang = (formData.get("source_lang") as string | null)?.toLowerCase()?.slice(0, 5) ?? "pl";
 
-  // 1. Storage upload
-  const safeName = file.name.replace(/[^\w.\-]+/g, "_").slice(0, 100);
-  const filePath = `${id}/${Date.now()}-${safeName}`;
-  const buf = Buffer.from(await file.arrayBuffer());
-  const { error: uploadErr } = await sb.storage
-    .from(BUCKET)
-    .upload(filePath, buf, { contentType: file.type, upsert: false });
-  if (uploadErr) {
-    return NextResponse.json({ error: `storage upload failed: ${uploadErr.message}` }, { status: 500 });
+    const safeName = f.name.replace(/[^\w.\-]+/g, "_").slice(0, 100);
+    filePath = `${id}/${Date.now()}-${safeName}`;
+    buf = Buffer.from(await f.arrayBuffer());
+    const { error: uploadErr } = await sb.storage
+      .from(BUCKET)
+      .upload(filePath, buf, { contentType: f.type, upsert: false });
+    if (uploadErr) {
+      return NextResponse.json({ error: `storage upload failed: ${uploadErr.message}` }, { status: 500 });
+    }
   }
 
   // 2. Insert row
@@ -106,10 +150,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       project_id: id,
       kind,
       source_lang: sourceLang,
-      name: file.name.slice(0, 200),
+      name: fileName,
       file_path: filePath,
-      size_bytes: file.size,
-      mime_type: file.type,
+      size_bytes: fileSize,
+      mime_type: fileMime,
       uploaded_by: auth.email,
     })
     .select("id, kind, source_lang, name, file_path, size_bytes, mime_type, created_at")
@@ -124,11 +168,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // pierwsza generacja po uploadzie od razu używa pliku.
   let anthropicFileId: string | null = null;
   let extractedSummary: string | null = null;
-  if (process.env.ANTHROPIC_API_KEY) {
+  if (process.env.ANTHROPIC_API_KEY && buf) {
     try {
       const client = getAnthropicClient();
       const upload = await client.beta.files.upload({
-        file: await toFile(new Blob([buf], { type: "application/pdf" }), file.name),
+        file: await toFile(new Blob([new Uint8Array(buf)], { type: fileMime }), fileName),
       });
       anthropicFileId = upload.id;
 

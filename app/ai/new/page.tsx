@@ -156,19 +156,39 @@ export default function AiNewProjectPage(): React.ReactElement {
       }
 
       // Wgraj pliki referencyjne (jeśli były) ZANIM ruszymy populate —
-      // dzięki temu AI w generowaniu treści ma do nich dostęp.
+      // dzięki temu AI w generowaniu treści ma do nich dostęp. Direct upload
+      // przez signed URL (omija Vercel 4.5 MB cap dla dużych SAR/spec PDF-ów).
       if (refFiles.length > 0) {
         for (let i = 0; i < refFiles.length; i++) {
           const { file, kind, lang } = refFiles[i];
           setStage(`Wgrywam i synchronizuję plik referencyjny ${i + 1}/${refFiles.length}: ${file.name}...`);
-          const form = new FormData();
-          form.append("file", file);
-          form.append("kind", kind);
-          form.append("source_lang", lang);
           try {
+            // 1. Signed URL
+            const initRes = await fetch(`${API_BASE}/projects/${json.id}/reference-docs/upload-url/`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ filename: file.name, size_bytes: file.size }),
+            });
+            if (!initRes.ok) continue;
+            const init = (await initRes.json()) as { signed_url: string; file_path: string };
+            // 2. Direct PUT
+            await fetch(init.signed_url, {
+              method: "PUT",
+              headers: { "Content-Type": file.type },
+              body: file,
+            });
+            // 3. Finalize (metadata + Anthropic sync)
             await fetch(`${API_BASE}/projects/${json.id}/reference-docs/`, {
               method: "POST",
-              body: form,
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                file_path: init.file_path,
+                name: file.name,
+                kind,
+                source_lang: lang,
+                size_bytes: file.size,
+                mime_type: file.type,
+              }),
             });
           } catch {
             /* ignoruj — user może doupload-ować w panelu projektu */

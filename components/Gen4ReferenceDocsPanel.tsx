@@ -80,19 +80,47 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
     setBusy(true);
     setError(null);
     try {
-      const form = new FormData();
-      form.append("file", pendingFile);
-      form.append("kind", pendingKind);
-      form.append("source_lang", pendingLang);
-      const res = await fetch(`${API}/projects/${projectId}/reference-docs/`, {
+      // 1. Pobierz signed upload URL — omija Vercel 4.5 MB cap, plik idzie
+      //    direct do Supabase Storage.
+      const initRes = await fetch(`${API}/projects/${projectId}/reference-docs/upload-url/`, {
         method: "POST",
-        body: form,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ filename: pendingFile.name, size_bytes: pendingFile.size }),
       });
-      if (!res.ok) {
-        const text = await res.text();
+      if (!initRes.ok) {
+        const text = await initRes.text();
         let parsed: { error?: string } = {};
         try { parsed = JSON.parse(text); } catch { /* ignore */ }
-        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+        throw new Error(parsed.error ?? `HTTP ${initRes.status} (upload-url)`);
+      }
+      const init = (await initRes.json()) as { signed_url: string; file_path: string; token: string };
+
+      // 2. PUT plik bezpośrednio do bucket — może być duży (Vercel out of the way).
+      const putRes = await fetch(init.signed_url, {
+        method: "PUT",
+        headers: { "Content-Type": pendingFile.type },
+        body: pendingFile,
+      });
+      if (!putRes.ok) throw new Error(`storage PUT failed: HTTP ${putRes.status}`);
+
+      // 3. POST metadata — backend pobiera plik z storage, sync z Anthropic Files API.
+      const finRes = await fetch(`${API}/projects/${projectId}/reference-docs/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          file_path: init.file_path,
+          name: pendingFile.name,
+          kind: pendingKind,
+          source_lang: pendingLang,
+          size_bytes: pendingFile.size,
+          mime_type: pendingFile.type,
+        }),
+      });
+      if (!finRes.ok) {
+        const text = await finRes.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${finRes.status} (finalize)`);
       }
       setPendingFile(null);
       setPendingKind("tech_spec");
