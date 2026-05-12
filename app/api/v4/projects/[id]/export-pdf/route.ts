@@ -29,7 +29,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   const sb = getSupabaseAdmin();
   const { data: project, error } = await sb
     .from("gen4_projects")
-    .select("id, owner_email, name")
+    .select("id, owner_email, name, approved_by, approved_at")
     .eq("id", id)
     .eq("owner_email", auth.email)
     .single();
@@ -45,11 +45,19 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   const bleedParam = request.nextUrl.searchParams.get("bleed");
   const bleedMm = bleedParam ? Math.min(10, Math.max(0, parseFloat(bleedParam))) : 0;
   const cropMarks = request.nextUrl.searchParams.get("crop") === "1";
+  const foldMarks = request.nextUrl.searchParams.get("fold") === "1";
 
   let bytes: Uint8Array;
   try {
     const data = await loadProjectForExport(id, lang);
-    bytes = await exportProjectToPdf(data, lang, { watermarkDraft, bleedMm, cropMarks });
+    bytes = await exportProjectToPdf(data, lang, {
+      watermarkDraft,
+      bleedMm,
+      cropMarks,
+      foldMarks,
+      approvedBy: project.approved_by ?? undefined,
+      approvedAt: project.approved_at ?? undefined,
+    });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "export failed" },

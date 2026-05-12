@@ -49,6 +49,16 @@ interface ElementRow {
   properties: Record<string, unknown>;
 }
 
+/** Presety formatów stron. User może wybrać z dropdown lub wpisać własne mm. */
+const PAGE_FORMATS: Array<{ label: string; width_mm: number; height_mm: number }> = [
+  { label: "Mini 76×76 mm (domyślne)", width_mm: 76, height_mm: 76 },
+  { label: "Mini rozkład 152×76 mm", width_mm: 152, height_mm: 76 },
+  { label: "A7 74×105 mm", width_mm: 74, height_mm: 105 },
+  { label: "A6 105×148 mm", width_mm: 105, height_mm: 148 },
+  { label: "A5 148×210 mm", width_mm: 148, height_mm: 210 },
+  { label: "A4 210×297 mm", width_mm: 210, height_mm: 297 },
+];
+
 const TEMPLATES: Array<{ id: string; label: string; description: string }> = [
   { id: "blank", label: "Pusta", description: "Czysta strona bez elementów" },
   { id: "cover", label: "Okładka", description: "Logo + model + wersja" },
@@ -87,6 +97,9 @@ export default function Gen4Editor({
     });
   }, []);
   const [showAddPage, setShowAddPage] = useState(false);
+  // Lazy loading sidebar — przy >50 stronach pokazujemy tylko pierwsze 50,
+  // przycisk "Pokaż więcej" odsłania kolejne 50.
+  const [pagesVisible, setPagesVisible] = useState(50);
   const [error, setError] = useState<string | null>(null);
   const [zoom, setZoom] = useState<number>(DEFAULT_DISPLAY_SCALE);
   const [rightTab, setRightTab] = useState<"properties" | "ai">("properties");
@@ -290,6 +303,27 @@ export default function Gen4Editor({
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "delete failed");
+    }
+  };
+
+  /** Zmiana wymiarów strony (PATCH). Wpływa na canvas i PDF eksport. */
+  const changePageFormat = async (page: PageRow, widthMm: number, heightMm: number) => {
+    if (widthMm < 10 || widthMm > 600 || heightMm < 10 || heightMm > 600) {
+      setError("Nieprawidłowe wymiary (10-600 mm).");
+      return;
+    }
+    try {
+      const res = await fetch(`${API}/pages/${page.id}/`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ width_mm: widthMm, height_mm: heightMm }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      setPages((prev) =>
+        prev.map((p) => (p.id === page.id ? { ...p, width_mm: widthMm, height_mm: heightMm } : p)),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "format change failed");
     }
   };
 
@@ -693,7 +727,7 @@ export default function Gen4Editor({
                 Brak stron. Kliknij <strong>+ Dodaj</strong>.
               </li>
             )}
-            {pages.map((p) => {
+            {pages.slice(0, pagesVisible).map((p) => {
               const displayTitle =
                 p.template === "cover"
                   ? "Okładka"
@@ -749,6 +783,17 @@ export default function Gen4Editor({
                 </li>
               );
             })}
+            {pages.length > pagesVisible && (
+              <li className="mt-1">
+                <button
+                  type="button"
+                  onClick={() => setPagesVisible((v) => v + 50)}
+                  className="block w-full rounded border border-dashed border-slate-300 px-2 py-1 text-center text-[11px] text-slate-600 hover:bg-slate-100"
+                >
+                  ▾ Pokaż więcej ({pages.length - pagesVisible} ukrytych)
+                </button>
+              </li>
+            )}
           </ul>
         </aside>
 
@@ -902,6 +947,32 @@ export default function Gen4Editor({
               <span className="ml-2 text-slate-400">
                 {currentPage ? `${currentPage.width_mm}×${currentPage.height_mm} mm` : "—"}
               </span>
+              {currentPage && (
+                <select
+                  value={`${currentPage.width_mm}x${currentPage.height_mm}`}
+                  onChange={(e) => {
+                    if (!e.target.value) return;
+                    const found = PAGE_FORMATS.find(
+                      (f) => `${f.width_mm}x${f.height_mm}` === e.target.value,
+                    );
+                    if (!found || !currentPage) return;
+                    void changePageFormat(currentPage, found.width_mm, found.height_mm);
+                  }}
+                  className="rounded border border-slate-300 bg-white px-1 py-0.5 text-[11px]"
+                  title="Zmień format tej strony (np. rozkład 152×76)"
+                >
+                  {PAGE_FORMATS.find((f) => f.width_mm === currentPage.width_mm && f.height_mm === currentPage.height_mm) === undefined && (
+                    <option value={`${currentPage.width_mm}x${currentPage.height_mm}`}>
+                      {currentPage.width_mm}×{currentPage.height_mm} (custom)
+                    </option>
+                  )}
+                  {PAGE_FORMATS.map((f) => (
+                    <option key={f.label} value={`${f.width_mm}x${f.height_mm}`}>
+                      {f.label}
+                    </option>
+                  ))}
+                </select>
+              )}
             </div>
           </div>
 

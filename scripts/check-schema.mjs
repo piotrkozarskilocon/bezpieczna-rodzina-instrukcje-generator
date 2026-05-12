@@ -108,6 +108,9 @@ const expectations = [
   ["gen4_post_edit_log", "description"],
   // 0016 — template flag
   ["gen4_projects", "is_template"],
+  // 0017 — approved
+  ["gen4_projects", "approved_by"],
+  ["gen4_projects", "approved_at"],
 ];
 
 async function checkColumn(table, column) {

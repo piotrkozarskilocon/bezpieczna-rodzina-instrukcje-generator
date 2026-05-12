@@ -46,9 +46,76 @@ export default function Gen4ExportPanel({
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState(false);
   const [print, setPrint] = useState(false); // crop marks + 3mm bleed
+  const [foldMarks, setFoldMarks] = useState(false);
   const [lint, setLint] = useState<LintResult | null>(null);
   const [lintBusy, setLintBusy] = useState(false);
   const [lintExpanded, setLintExpanded] = useState(false);
+  // Compliance check + approve
+  const [complianceBusy, setComplianceBusy] = useState(false);
+  const [complianceIssues, setComplianceIssues] = useState<Array<{
+    severity: "critical" | "warning" | "info";
+    section_id?: string;
+    page_number?: number;
+    message: string;
+    legal_basis?: string;
+  }> | null>(null);
+  const [approveBusy, setApproveBusy] = useState(false);
+  const [approvedBy, setApprovedBy] = useState<string | null>(null);
+
+  useEffect(() => {
+    // Załaduj aktualny approval status z gen4_projects (jednostrzałowo).
+    fetch(`/generator-instrukcji/api/v4/projects/${projectId}`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { project?: { approved_by?: string | null } } | null) => {
+        if (j?.project?.approved_by) setApprovedBy(j.project.approved_by);
+      })
+      .catch(() => { /* silent */ });
+  }, [projectId]);
+
+  const runComplianceCheck = async () => {
+    setComplianceBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/compliance-check/`, { method: "POST" });
+      const text = await res.text();
+      if (!res.ok) {
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        setError(parsed.error ?? `HTTP ${res.status}`);
+        return;
+      }
+      const j = JSON.parse(text) as { issues: Array<{ severity: "critical" | "warning" | "info"; section_id?: string; page_number?: number; message: string; legal_basis?: string }> };
+      setComplianceIssues(j.issues ?? []);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "compliance check failed");
+    } finally {
+      setComplianceBusy(false);
+    }
+  };
+
+  const toggleApproved = async () => {
+    setApproveBusy(true);
+    try {
+      const newApprover = approvedBy
+        ? null
+        : (window.prompt("Twoje imię i nazwisko (zatwierdzający):") ?? null);
+      if (approvedBy === null && !newApprover) {
+        setApproveBusy(false);
+        return;
+      }
+      const res = await fetch(`${API}/projects/${projectId}/approve/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ approved_by: newApprover }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = (await res.json()) as { approved_by: string | null };
+      setApprovedBy(j.approved_by);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "approve failed");
+    } finally {
+      setApproveBusy(false);
+    }
+  };
 
   const refreshLint = useCallback(async () => {
     setLintBusy(true);
@@ -70,7 +137,7 @@ export default function Gen4ExportPanel({
     setBusy(true);
     setError(null);
     try {
-      const query = `lang=${lang}${draft ? "&draft=1" : ""}${print ? "&bleed=3&crop=1" : ""}`;
+      const query = `lang=${lang}${draft ? "&draft=1" : ""}${print ? "&bleed=3&crop=1" : ""}${foldMarks ? "&fold=1" : ""}`;
       const res = await fetch(`${API}/projects/${projectId}/export-pdf/?${query}`, {
         method: "GET",
         cache: "no-store",
@@ -117,6 +184,65 @@ export default function Gen4ExportPanel({
       {lint && (
         <div className="mb-4">
           <LintCard lint={lint} expanded={lintExpanded} onToggle={() => setLintExpanded((v) => !v)} onRefresh={() => void refreshLint()} busy={lintBusy} />
+        </div>
+      )}
+
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <button
+          type="button"
+          onClick={() => void runComplianceCheck()}
+          disabled={complianceBusy}
+          className="rounded border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-800 hover:bg-purple-100 disabled:opacity-40"
+          title="AI sprawdza zgodność prawną dokumentu (drugi pass)"
+        >
+          {complianceBusy ? "Sprawdzam..." : "⚖️ AI compliance check"}
+        </button>
+        <button
+          type="button"
+          onClick={() => void toggleApproved()}
+          disabled={approveBusy}
+          className={
+            "rounded border px-3 py-1.5 text-xs font-semibold disabled:opacity-40 " +
+            (approvedBy
+              ? "border-emerald-400 bg-emerald-100 text-emerald-900 hover:bg-emerald-200"
+              : "border-slate-300 bg-white text-slate-700 hover:bg-slate-50")
+          }
+        >
+          {approvedBy ? `✓ Zatwierdzone (${approvedBy})` : "Zatwierdź do druku"}
+        </button>
+      </div>
+
+      {complianceIssues && (
+        <div className={
+          "mb-4 rounded-lg border p-3 " +
+          (complianceIssues.some((i) => i.severity === "critical")
+            ? "border-red-200 bg-red-50"
+            : complianceIssues.length > 0
+              ? "border-amber-200 bg-amber-50"
+              : "border-emerald-200 bg-emerald-50")
+        }>
+          <p className="mb-2 text-xs font-semibold text-slate-800">
+            ⚖️ AI Compliance: {complianceIssues.length === 0 ? "BRAK UCHYBIEŃ" : `${complianceIssues.length} uchybień`}
+          </p>
+          {complianceIssues.length > 0 && (
+            <ul className="space-y-1 text-[11px]">
+              {complianceIssues.map((iss, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className={
+                    "shrink-0 rounded px-1 py-0.5 text-[9px] font-semibold uppercase " +
+                    (iss.severity === "critical" ? "bg-red-200 text-red-900"
+                      : iss.severity === "warning" ? "bg-amber-200 text-amber-900"
+                      : "bg-slate-200 text-slate-700")
+                  }>{iss.severity}</span>
+                  <span className="text-slate-700">
+                    {iss.page_number && <strong>S{iss.page_number}: </strong>}
+                    {iss.message}
+                    {iss.legal_basis && <em className="block text-[10px] text-slate-500">{iss.legal_basis}</em>}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 
@@ -167,6 +293,19 @@ export default function Gen4ExportPanel({
           </span>
         </label>
 
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
+          <input
+            type="checkbox"
+            checked={foldMarks}
+            onChange={(e) => setFoldMarks(e.target.checked)}
+            className="h-3.5 w-3.5"
+          />
+          <span>
+            <strong>Fold marks</strong>
+            <span className="ml-1 text-[10px] text-slate-500">(dla stron rozkładanych — kreska w środku)</span>
+          </span>
+        </label>
+
         <button
           type="button"
           disabled={busy}
@@ -175,6 +314,14 @@ export default function Gen4ExportPanel({
         >
           {busy ? "Generuję..." : `📄 Pobierz PDF (${lang.toUpperCase()}${draft ? " · DRAFT" : ""}${print ? " · PRINT" : ""})`}
         </button>
+        <a
+          href={`${API}/projects/${projectId}/export-json/`}
+          download
+          className="inline-flex items-center gap-2 rounded-md border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50"
+          title="Eksport struktury do JSON (Figma, InDesign, własne narzędzia)"
+        >
+          📋 JSON
+        </a>
       </div>
 
       {error && (

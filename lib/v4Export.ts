@@ -441,11 +441,18 @@ export interface ExportOptions {
   /** Gdy true, każda strona dostaje semi-transparent watermark 'DRAFT'
    *  przekątnie — chroni przed wysłaniem niezatwierdzonego dokumentu do drukarni. */
   watermarkDraft?: boolean;
+  /** Stopka 'Zatwierdzono: [imię] [data]' na każdej stronie — gdy projekt
+   *  ma approved_by + approved_at, eksport może je dodać do PDF. */
+  approvedBy?: string;
+  approvedAt?: string;
   /** Bleed dla druku profesjonalnego (mm). Typowo 3mm. Gdy > 0, strona PDF
    *  jest powiększona o 2*bleed, treść przesunięta o bleed do środka. */
   bleedMm?: number;
   /** Crop marks (znaczniki obcinania) w narożnikach — działa razem z bleed. */
   cropMarks?: boolean;
+  /** Fold marks (znaczniki składania) — dla stron rozkładanych (szer >= 2× wys
+   *  lub wys >= 2× szer) rysuje cienką kreskę w środku osi krótszego boku. */
+  foldMarks?: boolean;
 }
 
 /** Builds the PDF and returns its bytes (Uint8Array, ready for response).
@@ -530,6 +537,19 @@ export async function exportProjectToPdf(
     // Watermark DRAFT po wszystkich elementach (na wierzchu). Tekst przekątnie
     // 45° w bladoszarym kolorze, żeby był widoczny ale nie blokował druku
     // korekt podczas review.
+    // Stopka 'Zatwierdzono' — w lewym dolnym rogu strony (poza marginesem
+    // treści, w bleed area lub blisko krawędzi). Bardzo mały font.
+    if (options?.approvedBy) {
+      const stamp = `Zatwierdzono: ${options.approvedBy}${options.approvedAt ? ` • ${new Date(options.approvedAt).toLocaleDateString("pl-PL")}` : ""}`;
+      page.drawText(stamp, {
+        x: bleedPt + 1,
+        y: bleedPt + 1.2,
+        size: 3.5,
+        font: fontRegular,
+        color: rgb(0.4, 0.4, 0.4),
+      });
+    }
+
     if (options?.watermarkDraft) {
       const text = "DRAFT";
       const wmSize = Math.min(widthPt, heightPt) * 0.25;
@@ -543,6 +563,38 @@ export async function exportProjectToPdf(
         opacity: 0.18,
         rotate: degrees(45),
       });
+    }
+
+    // Fold marks — dla stron rozkładanych (np. 152×76) cienka pionowa lub
+    // pozioma kreska w środku osi krótszego wymiaru. Wystaje 1-2mm na bleed.
+    if (options?.foldMarks) {
+      const innerW = innerWidthPt;
+      const innerH = innerHeightPt;
+      const isWideFold = innerW >= 1.8 * innerH; // pozioma składa (np. 152×76)
+      const isTallFold = innerH >= 1.8 * innerW;
+      if (isWideFold) {
+        // Pionowa kreska w środku osi X
+        const midX = bleedPt + innerW / 2;
+        const overshoot = Math.min(bleedPt * 0.5, 3);
+        page.drawLine({
+          start: { x: midX, y: bleedPt - overshoot },
+          end: { x: midX, y: bleedPt + innerH + overshoot },
+          thickness: 0.2,
+          color: rgb(0.5, 0.5, 0.5),
+          dashArray: [2, 2],
+        });
+      } else if (isTallFold) {
+        // Pozioma kreska w środku osi Y
+        const midY = bleedPt + innerH / 2;
+        const overshoot = Math.min(bleedPt * 0.5, 3);
+        page.drawLine({
+          start: { x: bleedPt - overshoot, y: midY },
+          end: { x: bleedPt + innerW + overshoot, y: midY },
+          thickness: 0.2,
+          color: rgb(0.5, 0.5, 0.5),
+          dashArray: [2, 2],
+        });
+      }
     }
 
     // Crop marks — cienkie czarne linie w narożnikach pokazujące gdzie
