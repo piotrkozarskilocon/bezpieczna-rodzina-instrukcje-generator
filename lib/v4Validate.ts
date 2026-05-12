@@ -20,6 +20,11 @@ export interface ValidationIssue {
   message: string;
   /** Sugerowana akcja naprawcza (do AI fix prompt). */
   fix_hint?: string;
+  /** Czy "Napraw przez AI" powinien dotykać tego problemu. Domyślnie true
+   *  dla wszystkich layoutowych issues (out-of-bounds, overflow, overlap,
+   *  zerowe wymiary, brak title). FALSE dla placeholderów DO UZUPEŁNIENIA
+   *  i image bez image_id — tych AI nie powinien wymyślać. */
+  ai_fixable?: boolean;
 }
 
 export interface ElementForValidation {
@@ -79,6 +84,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
       severity: "warning",
       message: `Strona ${page.page_number} nie ma tytułu`,
       fix_hint: "Ustaw page.title — dodaj krótki nagłówek opisujący zawartość strony.",
+      ai_fixable: false, // AI nie zna właściwego tytułu — user musi go zdefiniować
     });
   }
 
@@ -93,6 +99,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         element_type: el.type,
         message: `Element ${el.type} wychodzi POZA stronę (pozycja: ${el.x_mm.toFixed(1)},${el.y_mm.toFixed(1)} ${el.w_mm.toFixed(1)}×${el.h_mm.toFixed(1)} mm; strona ${page.width_mm}×${page.height_mm} mm)`,
         fix_hint: `Przesuń element żeby mieścił się w obszarze strony (0,0)-(${page.width_mm},${page.height_mm}) mm.`,
+        ai_fixable: true,
       });
     }
 
@@ -107,6 +114,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         element_type: el.type,
         message: `Element ${el.type} narusza ${PAGE_MARGIN_MM} mm margines strony`,
         fix_hint: `Przesuń element o kilka mm do wewnątrz — drukarnia obcina ${PAGE_MARGIN_MM} mm z każdej krawędzi.`,
+        ai_fixable: true,
       });
     }
 
@@ -123,6 +131,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
             element_type: el.type,
             message: `Tekst "${content.slice(0, 40)}${content.length > 40 ? "…" : ""}" jest za długi dla boxa (potrzeba ~${estimatedH.toFixed(1)} mm, jest ${el.h_mm.toFixed(1)} mm)`,
             fix_hint: `Powiększ h_mm boxa do ~${Math.ceil(estimatedH)} mm, lub zmniejsz font_size_pt, lub skróć treść.`,
+            ai_fixable: true,
           });
         }
       }
@@ -135,6 +144,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
           element_type: el.type,
           message: `Element zawiera placeholder "⚠️ DO UZUPEŁNIENIA" — wartość niezdefiniowana`,
           fix_hint: "Wpisz konkretną wartość (z raportu SAR, specyfikacji technicznej itd.) lub wgraj plik referencyjny.",
+          ai_fixable: false, // AI nie powinien wymyślać wartości — user musi je dostarczyć
         });
       }
     }
@@ -150,6 +160,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
           element_type: el.type,
           message: "Element image bez image_id i bez opisu placeholderu",
           fix_hint: "Wgraj obrazek do biblioteki projektu z opisem i przypisz go preferred_page_id, lub usuń ten element.",
+          ai_fixable: false, // AI nie wie który obrazek tu pasuje — user musi wgrać i przypisać
         });
       }
     }
@@ -161,6 +172,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         element_id: el.id,
         element_type: el.type,
         message: `Element ${el.type} ma zerowe wymiary (${el.w_mm}×${el.h_mm} mm) — może być niewidoczny`,
+        ai_fixable: true,
       });
     }
   }
@@ -183,7 +195,8 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         element_id: a.id,
         element_type: a.type,
         message: `${a.type} nakłada się na ${b.type} (sąsiednie boxy zachodzą na siebie)`,
-        fix_hint: "Sprawdź czy to celowe — jeśli nie, przesuń jeden z elementów.",
+        fix_hint: `Sprawdź czy to celowe — jeśli nie, przesuń jeden z elementów (${a.type} ${a.id} lub ${b.type} ${b.id}).`,
+        ai_fixable: true, // AI może przesunąć jeden z elementów żeby się nie nakładały
       });
     }
   }

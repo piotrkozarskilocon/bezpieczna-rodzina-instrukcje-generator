@@ -21,6 +21,10 @@ interface ValidationIssue {
   element_type?: string;
   message: string;
   fix_hint?: string;
+  /** Czy "Napraw przez AI" powinien dotykać tego problemu. Domyślnie true
+   *  — false dla placeholderów DO UZUPEŁNIENIA, brakujących obrazków,
+   *  brakujących tytułów (AI nie powinien wymyślać tych wartości). */
+  ai_fixable?: boolean;
 }
 const MM_PER_PT = 25.4 / 72;
 const DEFAULT_DISPLAY_SCALE = 6; // px per mm — 76mm × 6 = 456px on screen
@@ -423,7 +427,9 @@ export default function Gen4Editor({
    *  ai-edit endpoint (Haiku 4.5). Po sukcesie reload elementów + re-walidacja. */
   const fixIssuesWithAi = async () => {
     if (!currentPageId || issues.length === 0) return;
-    const actionable = issues.filter((i) => i.severity !== "info" && i.fix_hint);
+    // Filtrujemy po ai_fixable (nie po severity) — info-level overlap jest naprawialny,
+    // ale placeholder DO UZUPEŁNIENIA już nie (AI nie powinien wymyślać wartości).
+    const actionable = issues.filter((i) => i.ai_fixable !== false && i.fix_hint);
     if (actionable.length === 0) {
       setError("Brak problemów które AI mógłby naprawić automatycznie.");
       return;
@@ -2526,7 +2532,7 @@ function ValidationBar({ issues, busy, mode, onFix, fixBusy, fixStartedAt, fixRe
   const errors = issues.filter((i) => i.severity === "error").length;
   const warnings = issues.filter((i) => i.severity === "warning").length;
   const infos = issues.filter((i) => i.severity === "info").length;
-  const fixable = issues.filter((i) => i.severity !== "info" && i.fix_hint).length;
+  const fixable = issues.filter((i) => i.ai_fixable !== false && i.fix_hint).length;
 
   const barColor =
     fixBusy ? "border-indigo-300 bg-indigo-50"
