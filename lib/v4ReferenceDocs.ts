@@ -1,8 +1,10 @@
 /**
- * Pliki referencyjne projektu — wpinane jako PDF attachments w wywołaniach AI
- * (skeleton, auto-populate, ai-edit, apply-design). AI czyta zawartość PDF
- * bezpośrednio i wyciąga konkretne wartości techniczne zamiast wstawiać
- * placeholdery DO UZUPEŁNIENIA.
+ * Pliki referencyjne projektu — wpinane jako attachments w wywołaniach AI
+ * (skeleton, auto-populate, ai-edit, apply-design). Obsługujemy PDF, TXT, MD,
+ * CSV, JSON natywnie (Anthropic Files API), a DOCX/XLSX po konwersji do
+ * tekstu/CSV (patrz lib/v4FileExtract.ts). AI czyta zawartość bezpośrednio
+ * i wyciąga konkretne wartości techniczne zamiast wstawiać placeholdery
+ * DO UZUPEŁNIENIA.
  */
 
 import { getSupabaseAdmin } from "@/lib/supabase";
@@ -45,7 +47,9 @@ export function renderReferenceDocsForPrompt(docs: ReferenceDoc[]): string {
   if (docs.length === 0) return "";
   const lines: string[] = [
     "📎 PLIKI REFERENCYJNE PROJEKTU:",
-    "Załączone PDF-y zawierają konkretne dane techniczne dla tego modelu.",
+    "Załączone pliki zawierają konkretne dane techniczne dla tego modelu.",
+    "Mogą być w różnych formatach (PDF, dokumenty Word skonwertowane do tekstu,",
+    "arkusze Excel skonwertowane do CSV, pliki tekstowe, dane JSON).",
     "Używaj ich JAKO ŹRÓDŁA wartości w generowanym dokumencie — wyciągaj liczby,",
     "normy, częstotliwości, IP rating, wartości SAR head/body, datę badania itd.",
     "Zamiast wstawiać placeholder '⚠️ DO UZUPEŁNIENIA: wartość SAR' — wpisz",

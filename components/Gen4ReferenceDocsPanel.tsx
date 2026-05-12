@@ -1,13 +1,16 @@
 "use client";
 
 /**
- * Panel plików referencyjnych projektu — PDF-y z raportem SAR, specyfikacją
- * techniczną producenta, instrukcjami w obcych językach. AI dostaje je
- * jako attachments via Anthropic Files API i wyciąga konkretne wartości
- * (zamiast wstawiać placeholder DO UZUPEŁNIENIA).
+ * Panel plików referencyjnych projektu — PDF/DOCX/XLSX/TXT/MD/CSV/JSON
+ * z raportem SAR, specyfikacją techniczną producenta, instrukcjami w obcych
+ * językach. AI dostaje je jako attachments via Anthropic Files API
+ * (DOCX/XLSX są konwertowane do tekstu po stronie serwera) i wyciąga
+ * konkretne wartości zamiast wstawiać placeholder DO UZUPEŁNIENIA.
  */
 
 import { useCallback, useEffect, useState } from "react";
+
+const ACCEPT_TYPES = ".pdf,.txt,.md,.csv,.json,.docx,.xlsx,application/pdf,text/plain,text/markdown,text/csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 const API = "/generator-instrukcji/api/v4";
 
@@ -150,9 +153,10 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
         <div>
           <h3 className="text-sm font-semibold text-slate-900">📎 Pliki referencyjne</h3>
           <p className="text-xs text-slate-500">
-            Wgraj PDF-y z konkretnymi danymi: raport SAR, specyfikacja techniczna, instrukcja
-            producenta (może być w obcym języku). AI czyta je bezpośrednio i wstawia wartości
-            w generowanej instrukcji zamiast placeholderów <em>DO UZUPEŁNIENIA</em>.
+            Wgraj pliki z konkretnymi danymi: raport SAR, specyfikacja techniczna, instrukcja
+            producenta (może być w obcym języku). Akceptujemy <strong>PDF, DOCX, XLSX, TXT, MD, CSV, JSON</strong>
+            (DOCX/XLSX są konwertowane do tekstu/CSV po stronie serwera). AI czyta je bezpośrednio
+            i wstawia wartości w generowanej instrukcji zamiast placeholderów <em>DO UZUPEŁNIENIA</em>.
           </p>
         </div>
       </div>
@@ -168,11 +172,11 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
       <div className="mb-4 rounded-lg border-2 border-dashed border-slate-300 bg-slate-50 p-3">
         {!pendingFile ? (
           <label className="flex cursor-pointer flex-col items-center gap-1 py-3 text-xs text-slate-600">
-            <span className="font-medium">+ Wgraj plik referencyjny (PDF, max 25 MB)</span>
+            <span className="font-medium">+ Wgraj plik referencyjny (PDF / DOCX / XLSX / TXT / MD / CSV / JSON, max 25 MB)</span>
             <span className="text-[10px] text-slate-500">Kliknij lub przeciągnij plik</span>
             <input
               type="file"
-              accept="application/pdf"
+              accept={ACCEPT_TYPES}
               className="hidden"
               onChange={(e) => setPendingFile(e.target.files?.[0] ?? null)}
             />

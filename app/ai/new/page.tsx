@@ -468,10 +468,10 @@ export default function AiNewProjectPage(): React.ReactElement {
             </ul>
           )}
           <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-purple-400 hover:bg-purple-50">
-            <span>+ Dodaj PDF</span>
+            <span>+ Dodaj plik (PDF / DOCX / XLSX / TXT / MD / CSV / JSON)</span>
             <input
               type="file"
-              accept="application/pdf"
+              accept=".pdf,.txt,.md,.csv,.json,.docx,.xlsx,application/pdf,text/plain,text/markdown,text/csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               multiple
               className="hidden"
               onChange={(e) => {

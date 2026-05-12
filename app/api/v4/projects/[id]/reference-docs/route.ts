@@ -4,6 +4,11 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { getAnthropicClient, callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { toFile } from "@anthropic-ai/sdk/core/uploads";
+import {
+  ACCEPTED_MIME_TYPES,
+  normalizeMime,
+  prepareFileForAi,
+} from "@/lib/v4FileExtract";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -95,7 +100,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     filePath = body.file_path;
     fileName = body.name.slice(0, 200);
     fileSize = typeof body.size_bytes === "number" ? body.size_bytes : 0;
-    fileMime = body.mime_type ?? "application/pdf";
+    const normalizedType = normalizeMime(body.mime_type ?? null, fileName);
+    if (!normalizedType || !ACCEPTED_MIME_TYPES.has(normalizedType)) {
+      return NextResponse.json(
+        { error: "nieobsługiwany typ pliku — wgraj PDF, TXT, MD, CSV, JSON, DOCX lub XLSX" },
+        { status: 415 },
+      );
+    }
+    fileMime = normalizedType;
     if (fileSize > MAX_BYTES) {
       return NextResponse.json({ error: `file too large (max 25 MB)` }, { status: 413 });
     }
@@ -122,12 +134,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     if (f.size > MAX_BYTES) {
       return NextResponse.json({ error: `file too large (max 25 MB)` }, { status: 413 });
     }
-    if (f.type !== "application/pdf") {
-      return NextResponse.json({ error: "tylko PDF jest obsługiwany w fazie 1" }, { status: 415 });
+    const normalizedType = normalizeMime(f.type, f.name);
+    if (!normalizedType || !ACCEPTED_MIME_TYPES.has(normalizedType)) {
+      return NextResponse.json(
+        { error: "nieobsługiwany typ pliku — wgraj PDF, TXT, MD, CSV, JSON, DOCX lub XLSX" },
+        { status: 415 },
+      );
     }
     fileName = f.name.slice(0, 200);
     fileSize = f.size;
-    fileMime = f.type;
+    fileMime = normalizedType;
     const kindRaw = formData.get("kind");
     if (typeof kindRaw === "string" && VALID_KINDS.has(kindRaw)) kind = kindRaw;
     sourceLang = (formData.get("source_lang") as string | null)?.toLowerCase()?.slice(0, 5) ?? "pl";
@@ -165,23 +181,35 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   // 3. Anthropic Files API sync (jeśli klucz dostępny). Trzymamy odpowiedź
   // przed response żeby UI dostał anthropic_file_id już teraz — wtedy
-  // pierwsza generacja po uploadzie od razu używa pliku.
+  // pierwsza generacja po uploadzie od razu używa pliku. DOCX/XLSX są
+  // konwertowane do tekstu/CSV po stronie serwera bo Anthropic Files API
+  // nie akceptuje binarnych formatów Office.
   let anthropicFileId: string | null = null;
   let extractedSummary: string | null = null;
   if (process.env.ANTHROPIC_API_KEY && buf) {
     try {
+      const prepared = await prepareFileForAi(buf, fileName, fileMime);
       const client = getAnthropicClient();
       const upload = await client.beta.files.upload({
-        file: await toFile(new Blob([new Uint8Array(buf)], { type: fileMime }), fileName),
+        file: await toFile(
+          new Blob([new Uint8Array(prepared.bytes)], { type: prepared.mimeType }),
+          prepared.filename,
+        ),
       });
       anthropicFileId = upload.id;
 
-      // Krótki extract summary — AI czyta pierwszych kilka stron i opisuje co to
+      // Krótki extract summary — AI czyta pierwszych kilka stron i opisuje co to.
+      // Dla skonwertowanych dodajemy info do user prompt żeby AI wiedział że to
+      // tekst z DOCX/XLSX (a nie oryginalny PDF).
+      const convertedNote = prepared.converted
+        ? ` (oryginalnie ${fileMime.includes("word") ? "DOCX" : "XLSX"} — skonwertowany do tekstu)`
+        : "";
       const summaryAi = await callClaude({
         system: "Jesteś asystentem analizującym dokumenty techniczne dla generatora instrukcji obsługi smartwatchy Locon. Streszczasz pliki referencyjne w 1-3 zdaniach po POLSKU. Wyciągaj konkretne wartości techniczne (np. SAR head/body w W/kg, normy, częstotliwości, IP rating, pojemność baterii, wymiary). Bez fence, bez prozy poza treścią.",
-        user: `Streść zawartość załączonego pliku ${kind === "sar_report" ? "(raport SAR)" : kind === "tech_spec" ? "(specyfikacja techniczna)" : kind === "manufacturer_manual" ? "(instrukcja producenta — może być w obcym języku, przetłumacz kluczowe terminy)" : ""} w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`,
+        user: `Streść zawartość załączonego pliku${convertedNote} ${kind === "sar_report" ? "(raport SAR)" : kind === "tech_spec" ? "(specyfikacja techniczna)" : kind === "manufacturer_manual" ? "(instrukcja producenta — może być w obcym języku, przetłumacz kluczowe terminy)" : ""} w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`,
         model: EDIT_MODEL,
         maxTokens: 500,
+        attachments: [anthropicFileId],
       });
       extractedSummary = summaryAi.text.trim().slice(0, 2000);
     } catch (err) {
