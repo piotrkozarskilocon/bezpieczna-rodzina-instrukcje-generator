@@ -66,6 +66,18 @@ const expectations = [
   ["gen4_projects", "document_type"],
   ["gen4_projects", "device_type"],
   ["gen4_projects", "legal_template_version"],
+  // 0010 — images description + preferred_page
+  ["gen4_images", "description"],
+  ["gen4_images", "preferred_page_id"],
+  ["gen4_images", "mime_type"],
+  // 0011 — AI notes
+  ["gen4_ai_notes", "id"],
+  ["gen4_ai_notes", "owner_email"],
+  ["gen4_ai_notes", "scope"],
+  ["gen4_ai_notes", "scope_value"],
+  ["gen4_ai_notes", "content"],
+  ["gen4_ai_notes", "is_active"],
+  ["gen4_ai_notes", "used_count"],
 ];
 
 async function checkColumn(table, column) {

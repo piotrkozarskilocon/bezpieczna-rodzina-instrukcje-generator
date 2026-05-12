@@ -1457,6 +1457,8 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
   const [copied, setCopied] = useState(false);
   const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
   const [imageBusy, setImageBusy] = useState(false);
+  const [explainBusy, setExplainBusy] = useState(false);
+  const [explanation, setExplanation] = useState<string | null>(null);
 
   // Wykryj tryb API/manual przy mount.
   useEffect(() => {
@@ -1477,6 +1479,7 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
     setImportJson("");
     setError(null);
     setInfo(null);
+    setExplanation(null);
   }, [pageId]);
 
   // Upload obrazka dla tej konkretnej strony — preferred_page_id ustawiamy
@@ -1508,6 +1511,35 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
       setError(err instanceof Error ? err.message : "upload failed");
     } finally {
       setImageBusy(false);
+    }
+  };
+
+  // Wyjaśnij decyzję AI — analizuje aktualną stronę + legal templates + notatki
+  // i zwraca markdown z uzasadnieniem.
+  const explainPage = async () => {
+    setExplainBusy(true);
+    setError(null);
+    setInfo(null);
+    setExplanation(null);
+    try {
+      const res = await fetch(`${API}/pages/${pageId}/explain/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        if (text.startsWith("<")) throw new Error(`HTTP ${res.status}: serwer zwrócił HTML`);
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
+      }
+      const j = JSON.parse(text) as { explanation: string };
+      setExplanation(j.explanation);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "explain failed");
+    } finally {
+      setExplainBusy(false);
     }
   };
 
@@ -1623,9 +1655,22 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
   return (
     <div className="space-y-3 text-xs">
       <div className="rounded border border-purple-200 bg-purple-50 p-3">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-purple-800">
-          Strona {pageNumber}
-        </p>
+        <div className="mb-2 flex items-center justify-between">
+          <p className="text-[10px] font-semibold uppercase tracking-wide text-purple-800">
+            Strona {pageNumber}
+          </p>
+          {mode === "auto" && (
+            <button
+              type="button"
+              disabled={explainBusy}
+              onClick={() => void explainPage()}
+              className="rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] font-medium text-purple-700 hover:bg-purple-100 disabled:opacity-50"
+              title="AI tłumaczy dlaczego ta strona wygląda tak jak wygląda"
+            >
+              {explainBusy ? "..." : "ℹ️ Dlaczego tak?"}
+            </button>
+          )}
+        </div>
         <label className="block text-[11px] text-slate-700">
           Co chcesz zrobić ze stroną?
         </label>
@@ -1684,6 +1729,25 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
       )}
       {info && (
         <p className="rounded-md bg-emerald-50 px-2 py-1 text-[11px] text-emerald-800">{info}</p>
+      )}
+      {explanation && (
+        <div className="rounded border border-indigo-200 bg-indigo-50 p-2">
+          <div className="mb-1 flex items-center justify-between">
+            <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700">
+              ℹ️ Wyjaśnienie AI
+            </span>
+            <button
+              type="button"
+              onClick={() => setExplanation(null)}
+              className="text-[10px] text-indigo-400 hover:text-indigo-700"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="whitespace-pre-wrap text-[11px] leading-snug text-slate-700">
+            {explanation}
+          </div>
+        </div>
       )}
 
       {prompt && (

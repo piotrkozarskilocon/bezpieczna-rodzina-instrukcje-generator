@@ -11,6 +11,7 @@ import {
   bulkInsertSkeletonPages,
   parseJsonFromAi,
 } from "@/lib/v4Generate";
+import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
 import {
   isValidDocumentType,
   isValidDeviceType,
@@ -104,16 +105,29 @@ export async function POST(request: NextRequest) {
   // które zawsze zmieści się w 60s Hobby cap.
   let aiLog: Record<string, unknown>;
   try {
+    // Załaduj aktywne notatki AI dla tego kontekstu (global + document + device).
+    // Project_id ustawimy po insercie w trybie ai-edit/auto-populate — na etapie
+    // skeleton nowy projekt jeszcze nie ma notatek własnych.
+    const notes = await loadActiveNotes({
+      owner_email: auth.email,
+      document_type: input.document_type,
+      device_type: input.device_type,
+    });
+    const notesBlock = renderNotesForPrompt(notes);
+
+    const baseSystem = buildSkeletonSystemPrompt({
+      document_type: input.document_type,
+      device_type: input.device_type,
+      step_count: input.step_count,
+    });
     const ai = await callClaude({
-      system: buildSkeletonSystemPrompt({
-        document_type: input.document_type,
-        device_type: input.device_type,
-        step_count: input.step_count,
-      }),
+      system: notesBlock ? `${notesBlock}\n\n${baseSystem}` : baseSystem,
       user: buildSkeletonUserPrompt(input),
       model: INITIAL_MODEL,
       maxTokens: 6000, // szkielet ~14-20 stron (multi-step = krok per strona)
     });
+    // Fire-and-forget — bump used_count notatek których faktycznie użyliśmy.
+    void incrementUsedCount(notes.map((n) => n.id));
     aiLog = {
       step: "skeleton_generation",
       model: ai.model,

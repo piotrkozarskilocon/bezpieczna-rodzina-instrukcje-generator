@@ -6,6 +6,7 @@ import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { ownPage, parsePageEditResponse, replacePageElements } from "@/lib/v4Edit";
 import { loadProjectImages, renderImagesForPrompt } from "@/lib/v4Generate";
 import { getRequiredSections, type DocumentType, type DeviceType } from "@/lib/v4LegalTemplates";
+import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -166,13 +167,23 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   userLines.push("");
   userLines.push("Zwróć JSON z tablicą elementów (3-10 elementów dla większości stron).");
 
+  // Notatki AI dla tego kontekstu (global + per doc/dev/project).
+  const notes = await loadActiveNotes({
+    owner_email: auth.email,
+    document_type: docType ?? undefined,
+    device_type: devType ?? undefined,
+    project_id: page.project_id,
+  });
+  const notesBlock = renderNotesForPrompt(notes);
+
   try {
     const ai = await callClaude({
-      system,
+      system: notesBlock ? `${notesBlock}\n\n${system}` : system,
       user: userLines.join("\n"),
       model: EDIT_MODEL,
       maxTokens: 3000, // ~10 elementów = ~600-1200 tokenów output
     });
+    void incrementUsedCount(notes.map((n) => n.id));
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);
 

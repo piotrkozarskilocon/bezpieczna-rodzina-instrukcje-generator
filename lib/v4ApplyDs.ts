@@ -14,6 +14,7 @@ import {
   loadProjectImages,
   renderImagesForPrompt,
 } from "@/lib/v4Generate";
+import { loadActiveNotes, renderNotesForPrompt } from "@/lib/v4Notes";
 
 interface DsRow {
   id: string;
@@ -123,14 +124,24 @@ export async function buildApplyDsToProjectPrompt(
   // Model docelowy z ai_input projektu.
   const { data: projectMeta } = await sb
     .from("gen4_projects")
-    .select("ai_input")
+    .select("ai_input, owner_email, document_type, device_type")
     .eq("id", projectId)
     .single();
   const aiInput = (projectMeta?.ai_input ?? {}) as Record<string, unknown>;
   const modelName = typeof aiInput.model_name === "string" ? aiInput.model_name : null;
   const modelCode = typeof aiInput.model_code === "string" ? aiInput.model_code : null;
+  const notes = projectMeta?.owner_email
+    ? await loadActiveNotes({
+        owner_email: projectMeta.owner_email,
+        document_type: projectMeta.document_type,
+        device_type: projectMeta.device_type,
+        project_id: projectId,
+      })
+    : [];
+  const notesBlock = renderNotesForPrompt(notes);
 
   const system = [
+    ...(notesBlock ? [notesBlock, ""] : []),
     "Jesteś asystentem AI zastosowującym design system do KOMPLETNEJ instrukcji",
     "obsługi smartwatcha marki Locon. Otrzymujesz aktualny stan całego projektu",
     "(wszystkie strony i elementy) oraz design system (kolory, typografia, spacing,",
@@ -228,14 +239,24 @@ export async function buildApplyDsToPagePrompt(
   // Model docelowy z ai_input projektu.
   const { data: projectMeta } = await sb
     .from("gen4_projects")
-    .select("ai_input")
+    .select("ai_input, owner_email, document_type, device_type")
     .eq("id", page.project_id)
     .single();
   const aiInput = (projectMeta?.ai_input ?? {}) as Record<string, unknown>;
   const modelName = typeof aiInput.model_name === "string" ? aiInput.model_name : null;
   const modelCode = typeof aiInput.model_code === "string" ? aiInput.model_code : null;
+  const notes = projectMeta?.owner_email
+    ? await loadActiveNotes({
+        owner_email: projectMeta.owner_email,
+        document_type: projectMeta.document_type,
+        device_type: projectMeta.device_type,
+        project_id: page.project_id,
+      })
+    : [];
+  const notesBlock = renderNotesForPrompt(notes);
 
   const system = [
+    ...(notesBlock ? [notesBlock, ""] : []),
     "Jesteś asystentem AI zastosowującym design system do POJEDYNCZEJ strony",
     "drukowanej instrukcji obsługi smartwatcha marki Locon.",
     "",

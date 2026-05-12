@@ -22,6 +22,7 @@ import {
   renderImagesForPrompt,
   parseJsonFromAi,
 } from "@/lib/v4Generate";
+import { loadActiveNotes, renderNotesForPrompt } from "@/lib/v4Notes";
 
 const VALID_TYPES = new Set([
   "text", "image", "line", "rect", "qr", "page_number", "callout",
@@ -103,19 +104,29 @@ export async function buildPageEditPrompt(
   // image elements z prawdziwymi image_id.
   const projectImages = await loadProjectImages(page.project_id);
 
-  // Model docelowy — wyciągany z ai_input projektu, żeby AI nie mieszał
-  // wcześniejszych modeli z biblioteki promptów.
+  // Model docelowy + notatki AI — wyciągamy z ai_input projektu, żeby AI
+  // nie mieszał wcześniejszych modeli i pamiętał lessons learned.
   const sb = getSupabaseAdmin();
   const { data: project } = await sb
     .from("gen4_projects")
-    .select("ai_input")
+    .select("ai_input, owner_email, document_type, device_type")
     .eq("id", page.project_id)
     .single();
   const aiInput = (project?.ai_input ?? {}) as Record<string, unknown>;
   const modelName = typeof aiInput.model_name === "string" ? aiInput.model_name : null;
   const modelCode = typeof aiInput.model_code === "string" ? aiInput.model_code : null;
+  const notes = project?.owner_email
+    ? await loadActiveNotes({
+        owner_email: project.owner_email,
+        document_type: project.document_type,
+        device_type: project.device_type,
+        project_id: page.project_id,
+      })
+    : [];
+  const notesBlock = renderNotesForPrompt(notes);
 
   const system = [
+    ...(notesBlock ? [notesBlock, ""] : []),
     "Jesteś asystentem AI do edycji POJEDYNCZEJ strony drukowanej instrukcji obsługi",
     "smartwatcha marki Locon. Strona ma format 76x76 mm, druk w skali szarości,",
     "na cienkim papierze.",

@@ -8,6 +8,7 @@ import Gen4DesignSystemPanel from "@/components/Gen4DesignSystemPanel";
 import Gen4ExportPanel from "@/components/Gen4ExportPanel";
 import Gen4ImagePanel from "@/components/Gen4ImagePanel";
 import Gen4CostDashboard from "@/components/Gen4CostDashboard";
+import Gen4NotesPanel from "@/components/Gen4NotesPanel";
 
 const PAGE_API_BASE = "/generator-instrukcji/api/v4";
 
@@ -19,6 +20,8 @@ interface ProjectDetail {
   ai_input: Record<string, unknown> | null;
   ai_log: Array<Record<string, unknown>>;
   design_system: Record<string, unknown> | null;
+  document_type?: string | null;
+  device_type?: string | null;
   text_element_count?: number;
   created_at: string;
   updated_at: string;
@@ -158,6 +161,14 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
 
               <div className="mb-4">
                 <Gen4DesignSystemPanel projectId={id} pages={pages} />
+              </div>
+
+              <div className="mb-4">
+                <Gen4NotesPanel
+                  projectId={id}
+                  documentType={project.document_type ?? null}
+                  deviceType={project.device_type ?? null}
+                />
               </div>
 
               <div className="mb-4">
