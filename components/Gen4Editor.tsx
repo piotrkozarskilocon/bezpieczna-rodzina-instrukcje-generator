@@ -109,6 +109,16 @@ export default function Gen4Editor({
   // Walidacja layoutu bieżącej strony (zaciągana z /api/v4/pages/[id]/validate).
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [issuesBusy, setIssuesBusy] = useState(false);
+  const [fixBusy, setFixBusy] = useState(false);
+  const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
+  const [fixResult, setFixResult] = useState<string | null>(null);
+  // Tick co 1s żeby pokazać upłynięty czas w pasku statusu (UX podczas 5-15s).
+  const [fixTick, setFixTick] = useState(0);
+  useEffect(() => {
+    if (!fixBusy) return;
+    const interval = setInterval(() => setFixTick((v) => v + 1), 1000);
+    return () => clearInterval(interval);
+  }, [fixBusy]);
   // Tryb API/manual — używany m.in. żeby zdecydować czy pokazać 'Napraw przez AI'.
   const [editorMode, setEditorMode] = useState<"auto" | "manual" | "unknown">("unknown");
 
@@ -418,6 +428,8 @@ export default function Gen4Editor({
       setError("Brak problemów które AI mógłby naprawić automatycznie.");
       return;
     }
+    const issuesBefore = issues.length;
+    const actionableBefore = actionable.length;
     const instruction = [
       "Popraw następujące problemy z layoutem strony:",
       ...actionable.map((i, idx) => `${idx + 1}. ${i.message}. ${i.fix_hint ?? ""}`),
@@ -426,6 +438,10 @@ export default function Gen4Editor({
       "na stronie z 3mm marginesem i żeby teksty się nie ucinały.",
     ].join("\n");
     pushHistory(elements);
+    setError(null);
+    setFixBusy(true);
+    setFixStartedAt(Date.now());
+    setFixTick(0);
     try {
       const res = await fetch(`${API}/pages/${currentPageId}/ai-edit/`, {
         method: "POST",
@@ -441,16 +457,36 @@ export default function Gen4Editor({
         try { parsed = JSON.parse(text); } catch { /* ignore */ }
         throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
       }
+      const j = (await res.json()) as { elements?: number };
+      const newElementsCount = j.elements ?? 0;
       // Reload elementów po fix.
       const reload = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
       if (reload.ok) {
-        const j = (await reload.json()) as { elements: ElementRow[] };
-        setElements(j.elements ?? []);
+        const jr = (await reload.json()) as { elements: ElementRow[] };
+        setElements(jr.elements ?? []);
         setSelectedId(null);
       }
       await refreshIssues();
+      // Po refreshIssues setIssues jeszcze może być stale w closure — czytamy
+      // nową walidację z zewnątrz przez kolejne setTimeout, ale prościej:
+      // poczekaj 1 tick na re-render, potem porównaj długości.
+      setTimeout(() => {
+        setIssues((current) => {
+          const fixed = Math.max(0, issuesBefore - current.length);
+          const elapsed = fixStartedAt ? Math.round((Date.now() - fixStartedAt) / 1000) : 0;
+          setFixResult(
+            `✅ AI naprawił ${fixed}/${actionableBefore} problemów (${newElementsCount} elementów po fixie, ` +
+            `${elapsed}s, Haiku 4.5). Pasek walidacji powyżej już jest odświeżony.`,
+          );
+          return current;
+        });
+        setTimeout(() => setFixResult(null), 10000);
+      }, 200);
     } catch (err) {
       setError(err instanceof Error ? err.message : "AI fix failed");
+    } finally {
+      setFixBusy(false);
+      setFixStartedAt(null);
     }
   };
 
@@ -980,12 +1016,16 @@ export default function Gen4Editor({
           </div>
 
           {/* Pasek walidacji — pokazuje liczbę problemów + przycisk Napraw przez AI */}
-          {currentPageId && issues.length > 0 && (
+          {currentPageId && (issues.length > 0 || fixBusy || fixResult) && (
             <ValidationBar
               issues={issues}
               busy={issuesBusy}
               mode={editorMode}
               onFix={() => void fixIssuesWithAi()}
+              fixBusy={fixBusy}
+              fixStartedAt={fixStartedAt}
+              fixResult={fixResult}
+              onClearResult={() => setFixResult(null)}
             />
           )}
 
@@ -2465,22 +2505,52 @@ interface ValidationBarProps {
   busy: boolean;
   mode: "auto" | "manual" | "unknown";
   onFix: () => void;
+  fixBusy: boolean;
+  fixStartedAt: number | null;
+  fixResult: string | null;
+  onClearResult: () => void;
 }
 
-function ValidationBar({ issues, busy, mode, onFix }: ValidationBarProps): React.ReactElement {
+function ValidationBar({ issues, busy, mode, onFix, fixBusy, fixStartedAt, fixResult, onClearResult }: ValidationBarProps): React.ReactElement {
   const [open, setOpen] = useState(false);
+  const [, forceTick] = useState(0);
+  // Tick co 0.5s gdy AI naprawia — pokazujemy upłynięty czas na żywo.
+  useEffect(() => {
+    if (!fixBusy) return;
+    const t = setInterval(() => forceTick((v) => v + 1), 500);
+    return () => clearInterval(t);
+  }, [fixBusy]);
+
+  const elapsed = fixStartedAt ? Math.round((Date.now() - fixStartedAt) / 1000) : 0;
+
   const errors = issues.filter((i) => i.severity === "error").length;
   const warnings = issues.filter((i) => i.severity === "warning").length;
   const infos = issues.filter((i) => i.severity === "info").length;
   const fixable = issues.filter((i) => i.severity !== "info" && i.fix_hint).length;
 
   const barColor =
-    errors > 0 ? "border-red-300 bg-red-50"
+    fixBusy ? "border-indigo-300 bg-indigo-50"
+    : fixResult ? "border-emerald-300 bg-emerald-50"
+    : errors > 0 ? "border-red-300 bg-red-50"
     : warnings > 0 ? "border-amber-300 bg-amber-50"
     : "border-slate-200 bg-slate-50";
 
   return (
     <div className={`border-b text-xs ${barColor}`}>
+      {fixBusy && (
+        <div className="flex items-center gap-2 border-b border-indigo-200 px-3 py-1.5 text-indigo-900">
+          <span className="inline-block h-3 w-3 animate-spin rounded-full border-2 border-indigo-700 border-t-transparent" />
+          <span className="font-medium">🔧 AI naprawia ({fixable} problemów)...</span>
+          <span className="text-indigo-600">{elapsed}s</span>
+          <span className="text-[10px] text-indigo-500">(typowo 5-15s · timeout 60s)</span>
+        </div>
+      )}
+      {fixResult && !fixBusy && (
+        <div className="flex items-start justify-between gap-2 border-b border-emerald-200 px-3 py-1.5 text-emerald-900">
+          <span className="font-medium">{fixResult}</span>
+          <button type="button" onClick={onClearResult} className="shrink-0 text-emerald-500 hover:text-emerald-800">✕</button>
+        </div>
+      )}
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -2495,7 +2565,7 @@ function ValidationBar({ issues, busy, mode, onFix }: ValidationBarProps): React
           {infos > 0 && <span className="rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">{infos} info</span>}
         </span>
         <span className="flex items-center gap-2">
-          {mode === "auto" && fixable > 0 && (
+          {mode === "auto" && fixable > 0 && !fixBusy && (
             <button
               type="button"
               onClick={(e) => { e.stopPropagation(); onFix(); }}
