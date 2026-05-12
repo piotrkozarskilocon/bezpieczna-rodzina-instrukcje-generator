@@ -69,9 +69,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       system: built.system,
       user: built.user,
       model: EDIT_MODEL,
-      // layout_only = mniej tokenów do wygenerowania (te same elements, tylko
-      // poprawione współrzędne). 2500 wystarczy, lepiej mieścić się w 60s.
-      maxTokens: skipAttachments ? 2500 : 4000,
+      // Spis treści / strony z 20+ elementami potrafią potrzebować 6-8k tokenów
+      // outputu — przy 4k Haiku obcinał JSON w środku tablicy. layout_only ma
+      // niższy budżet bo zmienia tylko współrzędne, nie treść.
+      maxTokens: skipAttachments ? 6000 : 12000,
       attachments: attachments.length > 0 ? attachments : undefined,
       cacheSystemPrompt: true,
     });

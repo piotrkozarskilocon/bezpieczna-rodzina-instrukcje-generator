@@ -114,6 +114,11 @@ export default function Gen4Editor({
   const [issues, setIssues] = useState<ValidationIssue[]>([]);
   const [issuesBusy, setIssuesBusy] = useState(false);
   const [fixBusy, setFixBusy] = useState(false);
+  // Apply style from current page to other pages — pętla per target page,
+  // bieżący progress widoczny w toolbarze (X/N stron).
+  const [applyStyleBusy, setApplyStyleBusy] = useState(false);
+  const [applyStyleProgress, setApplyStyleProgress] = useState<{ done: number; total: number } | null>(null);
+  const [applyStyleErr, setApplyStyleErr] = useState<string | null>(null);
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
   const [fixResult, setFixResult] = useState<string | null>(null);
   // Tick co 1s żeby pokazać upłynięty czas w pasku statusu (UX podczas 5-15s).
@@ -494,6 +499,61 @@ export default function Gen4Editor({
       setFixBusy(false);
       setFixStartedAt(null);
     }
+  };
+
+  /** Zastosuj wygląd aktualnej strony do WSZYSTKICH innych stron projektu.
+   *  Pętla per target page (każda strona = osobne wywołanie /apply-style/),
+   *  bo Vercel Hobby ma 60s cap a 14 stron × ~5s = 70s. Po każdej stronie
+   *  odświeżamy elementy jeśli to aktualnie wyświetlana strona. */
+  const applyStyleToOtherPages = async () => {
+    if (!currentPageId || applyStyleBusy) return;
+    const targets = pages.filter((p) => p.id !== currentPageId);
+    if (targets.length === 0) {
+      setApplyStyleErr("Tylko jedna strona w projekcie — nie ma do czego zastosować stylu.");
+      return;
+    }
+    const sourcePageNum = currentPage?.page_number ?? "?";
+    const ok = window.confirm(
+      `Zastosować wygląd strony ${sourcePageNum} do pozostałych ${targets.length} stron?\n\n` +
+      "AI przeniesie kolory, fonty, układ i ozdobniki z tej strony, zachowując TREŚĆ pozostałych stron.\n\n" +
+      "To może potrwać 30-90s. Możesz dalej pracować — odśwież stronę po zakończeniu.",
+    );
+    if (!ok) return;
+
+    setApplyStyleBusy(true);
+    setApplyStyleErr(null);
+    setApplyStyleProgress({ done: 0, total: targets.length });
+    const failures: string[] = [];
+    for (let i = 0; i < targets.length; i++) {
+      const target = targets[i];
+      try {
+        const res = await fetch(`${API}/pages/${target.id}/apply-style/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ source_page_id: currentPageId }),
+        });
+        if (!res.ok) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          failures.push(`Strona ${target.page_number}: ${j.error ?? `HTTP ${res.status}`}`);
+        }
+      } catch (err) {
+        failures.push(`Strona ${target.page_number}: ${err instanceof Error ? err.message : "fetch failed"}`);
+      }
+      setApplyStyleProgress({ done: i + 1, total: targets.length });
+    }
+    if (failures.length > 0) {
+      setApplyStyleErr(`Zastosowano styl. ${failures.length} z ${targets.length} stron nie powiodło się:\n${failures.slice(0, 3).join("\n")}`);
+    }
+    setApplyStyleBusy(false);
+    // Odśwież bieżącą stronę (jeśli była w targetach to mamy nowe elementy)
+    if (currentPageId) {
+      const res = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+      if (res.ok) {
+        const j = (await res.json()) as { elements: ElementRow[] };
+        setElements(j.elements ?? []);
+      }
+    }
+    setTimeout(() => { setApplyStyleProgress(null); setApplyStyleErr(null); }, 12000);
   };
 
   /** Wywoływane przez PageCanvas po zakończeniu rysowania myszą.
@@ -928,6 +988,17 @@ export default function Gen4Editor({
               >
                 ↶ Cofnij {history.length > 0 && <span className="text-slate-400">({history.length})</span>}
               </button>
+              <button
+                type="button"
+                disabled={applyStyleBusy || pages.length < 2 || !currentPageId}
+                onClick={() => void applyStyleToOtherPages()}
+                className="rounded border border-purple-300 bg-purple-50 px-2 py-0.5 font-medium text-purple-700 hover:border-purple-500 hover:bg-purple-100 disabled:opacity-30"
+                title="AI przepisze pozostałe strony używając stylu tej strony jako wzorca (zachowuje treść, zmienia kolory/fonty/układ)."
+              >
+                {applyStyleBusy && applyStyleProgress
+                  ? `✨ Wygląd → inne (${applyStyleProgress.done}/${applyStyleProgress.total})...`
+                  : "✨ Wygląd → inne strony"}
+              </button>
               <span className="text-slate-500">Zoom:</span>
               <button type="button" onClick={() => setZoom((z) => Math.max(2, z - 1))}
                 className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50">−</button>
@@ -1035,6 +1106,32 @@ export default function Gen4Editor({
             />
           )}
 
+          {/* Status apply-style — gdy trwa lub po zakończeniu z błędami */}
+          {(applyStyleBusy || applyStyleProgress || applyStyleErr) && (
+            <div
+              className={
+                "border-b px-4 py-2 text-[12px] " +
+                (applyStyleErr
+                  ? "border-amber-300 bg-amber-50 text-amber-800"
+                  : applyStyleBusy
+                    ? "border-purple-300 bg-purple-50 text-purple-800"
+                    : "border-emerald-300 bg-emerald-50 text-emerald-800")
+              }
+            >
+              {applyStyleBusy && applyStyleProgress && (
+                <>
+                  ✨ AI stosuje styl strony {currentPage?.page_number ?? "?"} do pozostałych — postęp{" "}
+                  <strong>{applyStyleProgress.done}/{applyStyleProgress.total}</strong>. Możesz dalej pracować, ale nie zmieniaj
+                  zaznaczonej strony.
+                </>
+              )}
+              {!applyStyleBusy && applyStyleProgress && !applyStyleErr && (
+                <>✅ Zastosowano wygląd do {applyStyleProgress.total} stron. Zmień stronę i wróć, aby zobaczyć efekty.</>
+              )}
+              {applyStyleErr && <span className="whitespace-pre-line">{applyStyleErr}</span>}
+            </div>
+          )}
+
           <div className="flex-1 overflow-auto p-6">
             {!currentPage && (
               <div className="rounded-xl border border-dashed border-slate-300 bg-white p-12 text-center text-sm text-slate-500">
@@ -1140,6 +1237,15 @@ export default function Gen4Editor({
                     element={selectedElement}
                     onUpdate={(patch) => void updateElement(selectedElement.id, patch)}
                     onDelete={() => void deleteElement(selectedElement.id)}
+                    pageId={currentPageId}
+                    onAiFixApplied={async () => {
+                      // reload elementów po per-element AI fix
+                      const res = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+                      if (res.ok) {
+                        const j = (await res.json()) as { elements: ElementRow[] };
+                        setElements(j.elements ?? []);
+                      }
+                    }}
                   />
                 )}
               </>
@@ -1918,15 +2024,47 @@ interface ElementPropertiesProps {
   element: ElementRow;
   onUpdate: (patch: Partial<ElementRow>) => void;
   onDelete: () => void;
+  pageId?: string | null;
+  onAiFixApplied?: () => Promise<void> | void;
 }
 
-function ElementProperties({ element, onUpdate, onDelete }: ElementPropertiesProps): React.ReactElement {
+function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied }: ElementPropertiesProps): React.ReactElement {
   const props = element.properties as Record<string, string | number>;
   const setProp = (k: string, v: string | number) =>
     onUpdate({ properties: { ...props, [k]: v } });
   const setNumberProp = (k: string, v: string) => {
     const n = parseFloat(v);
     if (Number.isFinite(n)) setProp(k, n);
+  };
+
+  // Per-element AI fix — wywołuje /api/v4/pages/[pageId]/elements/[elementId]/ai-fix
+  // i podmienia tylko ten jeden element. Szybciej niż edycja całej strony, bo
+  // AI dostaje tylko jeden element + kontekst pozostałych jako read-only.
+  const [aiInstr, setAiInstr] = useState("");
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiErr, setAiErr] = useState<string | null>(null);
+  const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const runAiFix = async () => {
+    if (!pageId || !aiInstr.trim()) return;
+    setAiBusy(true);
+    setAiErr(null);
+    try {
+      const res = await fetch(`${API}/pages/${pageId}/elements/${element.id}/ai-fix/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: aiInstr.trim() }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setAiInstr("");
+      if (onAiFixApplied) await onAiFixApplied();
+    } catch (err) {
+      setAiErr(err instanceof Error ? err.message : "AI fix failed");
+    } finally {
+      setAiBusy(false);
+    }
   };
 
   return (
@@ -2032,6 +2170,65 @@ function ElementProperties({ element, onUpdate, onDelete }: ElementPropertiesPro
               onChange={(e) => setProp("format", e.target.value)}
               className="w-full rounded border border-slate-300 px-1 py-0.5" />
           </Row>
+        </div>
+      )}
+
+      {pageId && (
+        <div className="rounded border border-purple-200 bg-purple-50 p-2">
+          {!aiPanelOpen ? (
+            <button
+              type="button"
+              onClick={() => setAiPanelOpen(true)}
+              className="w-full rounded bg-purple-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-purple-700"
+            >
+              ✨ Popraw ten element przez AI
+            </button>
+          ) : (
+            <>
+              <div className="mb-1 flex items-center justify-between">
+                <span className="text-[10px] font-semibold uppercase tracking-wide text-purple-700">
+                  ✨ AI fix dla tego elementu
+                </span>
+                <button
+                  type="button"
+                  onClick={() => { setAiPanelOpen(false); setAiErr(null); }}
+                  className="text-[10px] text-purple-600 hover:underline"
+                  disabled={aiBusy}
+                >
+                  zwiń
+                </button>
+              </div>
+              <textarea
+                value={aiInstr}
+                onChange={(e) => setAiInstr(e.target.value)}
+                placeholder={
+                  element.type === "text" || element.type === "callout"
+                    ? `np. „skróć do 2 zdań”, „popraw kontrast — biały tekst na ciemnym tle”, „pogrub nagłówek”...`
+                    : element.type === "image"
+                      ? `np. „przesuń wyżej żeby nie nakładał się na tekst”...`
+                      : element.type === "rect"
+                        ? `np. „zmień kolor na bardziej stonowany”, „zaokrąglij rogi”...`
+                        : "Co chcesz zmienić w tym elemencie?"
+                }
+                rows={3}
+                className="w-full rounded border border-purple-300 bg-white px-2 py-1 text-[11px]"
+                disabled={aiBusy}
+              />
+              <button
+                type="button"
+                onClick={() => void runAiFix()}
+                disabled={aiBusy || !aiInstr.trim()}
+                className="mt-1 w-full rounded bg-purple-600 px-2 py-1.5 text-[11px] font-semibold text-white hover:bg-purple-700 disabled:opacity-50"
+              >
+                {aiBusy ? "AI poprawia..." : "Wyślij do AI"}
+              </button>
+              {aiErr && (
+                <div className="mt-1 rounded border border-red-200 bg-red-50 px-2 py-1 text-[10px] text-red-700">
+                  {aiErr}
+                </div>
+              )}
+            </>
+          )}
         </div>
       )}
 

@@ -58,7 +58,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       system: built.system,
       user: built.user,
       model: EDIT_MODEL,
-      maxTokens: 4000,
+      maxTokens: 12000,
       attachments: attachments.length > 0 ? attachments : undefined,
       // Caching — w pętli apply-DS per page (typowo 14× w wizardzie 'Zastosuj DS
       // do projektu') system prompt jest identyczny (DS content + notes + ref).

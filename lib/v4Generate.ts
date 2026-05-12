@@ -582,14 +582,134 @@ export function parseJsonFromAi<T = unknown>(text: string): T {
     } catch {
       try {
         return JSON.parse(escapeControlCharsInStrings(extracted)) as T;
-      } catch { /* finalne wyrzucenie poniżej */ }
+      } catch { /* dalej */ }
+    }
+  }
+
+  // Próba 5: napraw obcięty JSON. Sytuacja: Haiku skończył tokeny w środku
+  // tablicy elements [...], zostawiając niedomkniętą strukturę. Robimy walk
+  // śledzący stack ([, {, ") i ucinamy do ostatniej pozycji gdzie ostatni
+  // ELEMENT tablicy/obiektu zamknął się czysto, potem zamykamy pozostały
+  // stack odwrotnie. Działa zarówno na `noFence` jak i na surowy `raw`.
+  for (const candidate of [noFence, raw]) {
+    const repaired = repairTruncatedJson(candidate);
+    if (repaired) {
+      try {
+        return JSON.parse(repaired) as T;
+      } catch {
+        try {
+          return JSON.parse(escapeControlCharsInStrings(repaired)) as T;
+        } catch { /* finalne wyrzucenie poniżej */ }
+      }
     }
   }
 
   const preview = raw.slice(0, 400);
+  const tail = raw.slice(-200);
   throw new Error(
-    `failed to parse JSON after 4 attempts (fence-strip + control-char-escape + bracket-extract)\nPreview: ${preview}`,
+    `failed to parse JSON after 5 attempts (fence-strip + control-char-escape + bracket-extract + truncation-repair)\nPreview: ${preview}\n...\nTail: ${tail}`,
   );
+}
+
+/** Próbuje naprawić JSON który został obcięty w środku (limit output tokens
+ *  z modelu, kill connection itd.). Walk char-by-char śledzi stack otwartych
+ *  brackets/braces oraz stringi, i wyznacza najpóźniejszą pozycję gdzie da się
+ *  bezpiecznie ZAMKNĄĆ wszystko co zostało otwarte. Zwraca naprawiony string
+ *  lub `null` jeśli się nie da. */
+function repairTruncatedJson(input: string): string | null {
+  if (!input) return null;
+  // Zacznij od pierwszego sensownego znaku otwierającego.
+  const firstOpen = (() => {
+    const o = input.indexOf("{");
+    const a = input.indexOf("[");
+    if (o === -1) return a;
+    if (a === -1) return o;
+    return Math.min(o, a);
+  })();
+  if (firstOpen === -1) return null;
+  const s = input.slice(firstOpen);
+
+  const stack: string[] = []; // "{" | "[" | "\""
+  let lastSafeCut = -1; // pozycja PO ostatnim zamknięciu obiektu/tablicy gdy depth >= 1
+  let i = 0;
+  while (i < s.length) {
+    const ch = s[i];
+    const top = stack[stack.length - 1];
+    if (top === "\"") {
+      if (ch === "\\") {
+        i += 2; // pomiń escape'owany znak
+        continue;
+      }
+      if (ch === "\"") {
+        stack.pop();
+      }
+      i++;
+      continue;
+    }
+    if (ch === "\"") {
+      stack.push("\"");
+      i++;
+      continue;
+    }
+    if (ch === "{" || ch === "[") {
+      stack.push(ch);
+      i++;
+      continue;
+    }
+    if (ch === "}" || ch === "]") {
+      const expected = ch === "}" ? "{" : "[";
+      if (top === expected) {
+        stack.pop();
+        // Jeśli wewnątrz tablicy/obiektu (depth >= 1), zapisz pozycję jako
+        // bezpieczny punkt cięcia — wszystko do tu jest poprawnym prefiksem.
+        if (stack.length >= 1) {
+          lastSafeCut = i + 1;
+        }
+      } else {
+        // niezgodność — brak naprawy
+        return null;
+      }
+      i++;
+      continue;
+    }
+    i++;
+  }
+
+  // Jeśli stack pusty → JSON kompletny, nie ma czego naprawiać (ale parse
+  // wcześniej się wywalił, więc problem nie jest truncacją). Zwracamy null.
+  if (stack.length === 0) return null;
+  // Potrzebujemy choć jednego zamkniętego elementu w środku — w przeciwnym
+  // razie tablica byłaby pusta i nie ma sensu kontynuować.
+  if (lastSafeCut === -1) return null;
+
+  // Odetnij do ostatniego bezpiecznego cięcia, usuń trailing przecinek/whitespace,
+  // i zamknij pozostałe brackety odwrotnie.
+  let head = s.slice(0, lastSafeCut).replace(/[\s,]+$/, "");
+  // Z tej pozycji w PRZÓD przeparsuj jeszcze raz tylko żeby ustalić aktualny
+  // stack — bo lastSafeCut to pozycja ze stack-em "po cięciu" historycznie, ale
+  // zachowaliśmy stan z tej pozycji. Bezpieczniej: ponownie przejdź head.
+  const repairStack: string[] = [];
+  let j = 0;
+  while (j < head.length) {
+    const ch = head[j];
+    const top = repairStack[repairStack.length - 1];
+    if (top === "\"") {
+      if (ch === "\\") { j += 2; continue; }
+      if (ch === "\"") repairStack.pop();
+      j++;
+      continue;
+    }
+    if (ch === "\"") { repairStack.push("\""); j++; continue; }
+    if (ch === "{" || ch === "[") { repairStack.push(ch); j++; continue; }
+    if (ch === "}" || ch === "]") { repairStack.pop(); j++; continue; }
+    j++;
+  }
+  // Zamknij stack odwrotnie.
+  while (repairStack.length > 0) {
+    const open = repairStack.pop();
+    head += open === "{" ? "}" : open === "[" ? "]" : "\"";
+  }
+  return head;
 }
 
 /** Walks the input one char at a time, tracking whether we're inside a

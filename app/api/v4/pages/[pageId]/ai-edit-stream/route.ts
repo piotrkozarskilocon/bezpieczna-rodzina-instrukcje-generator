@@ -92,7 +92,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
             system: built.system,
             user: built.user,
             model: EDIT_MODEL,
-            maxTokens: 4000,
+            maxTokens: 12000, // strony z 20+ elementami potrzebują wiecej; truncation = JSON parse fail
             attachments: attachments.length > 0 ? attachments : undefined,
             cacheSystemPrompt: true,
           },
