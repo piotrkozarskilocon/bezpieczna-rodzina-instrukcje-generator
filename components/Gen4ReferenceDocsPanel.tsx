@@ -99,12 +99,28 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
       const init = (await initRes.json()) as { signed_url: string; file_path: string; token: string };
 
       // 2. PUT plik bezpośrednio do bucket — może być duży (Vercel out of the way).
+      // Niektóre przeglądarki / OS nie ustawiają MIME na DOCX/XLSX przy drag&drop —
+      // wtedy spada na application/octet-stream (też jest na allowlist bucketa).
+      const ctForPut = pendingFile.type && pendingFile.type.trim() ? pendingFile.type : "application/octet-stream";
       const putRes = await fetch(init.signed_url, {
         method: "PUT",
-        headers: { "Content-Type": pendingFile.type },
+        headers: { "Content-Type": ctForPut },
         body: pendingFile,
       });
-      if (!putRes.ok) throw new Error(`storage PUT failed: HTTP ${putRes.status}`);
+      if (!putRes.ok) {
+        // Supabase Storage przy odrzuceniu zwraca JSON z `error` / `message` —
+        // pokaż to userowi zamiast samego HTTP 400.
+        const respText = await putRes.text().catch(() => "");
+        let detail = "";
+        try {
+          const j = JSON.parse(respText) as { error?: string; message?: string };
+          detail = j.error ?? j.message ?? "";
+        } catch { detail = respText.slice(0, 200); }
+        throw new Error(
+          `storage PUT failed: HTTP ${putRes.status}${detail ? " — " + detail : ""}. ` +
+          `Jeśli to typ pliku, bucket Supabase może mieć restrykcję MIME — uruchom migrację 0018.`,
+        );
+      }
 
       // 3. POST metadata — backend pobiera plik z storage, sync z Anthropic Files API.
       const finRes = await fetch(`${API}/projects/${projectId}/reference-docs/`, {
