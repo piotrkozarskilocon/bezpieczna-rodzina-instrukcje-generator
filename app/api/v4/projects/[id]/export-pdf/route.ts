@@ -39,16 +39,17 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   if (!SUPPORTED_LANGS.has(lang)) {
     return NextResponse.json({ error: `unsupported lang (${lang})` }, { status: 400 });
   }
-  // Watermark DRAFT — opcjonalny query param `?draft=1`. Domyślnie BEZ
-  // watermarka (większość eksportów to wgląd dla siebie). UI w Gen4ExportPanel
-  // ma checkbox 'DRAFT' obok wyboru języka — chroni przed wysłaniem
-  // nieautoryzowanego pliku do drukarni.
+  // Watermark DRAFT — opcjonalny query param `?draft=1`.
   const watermarkDraft = request.nextUrl.searchParams.get("draft") === "1";
+  // Bleed + crop marks dla druku profesjonalnego — opcjonalne `?bleed=3&crop=1`.
+  const bleedParam = request.nextUrl.searchParams.get("bleed");
+  const bleedMm = bleedParam ? Math.min(10, Math.max(0, parseFloat(bleedParam))) : 0;
+  const cropMarks = request.nextUrl.searchParams.get("crop") === "1";
 
   let bytes: Uint8Array;
   try {
     const data = await loadProjectForExport(id, lang);
-    bytes = await exportProjectToPdf(data, lang, { watermarkDraft });
+    bytes = await exportProjectToPdf(data, lang, { watermarkDraft, bleedMm, cropMarks });
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "export failed" },

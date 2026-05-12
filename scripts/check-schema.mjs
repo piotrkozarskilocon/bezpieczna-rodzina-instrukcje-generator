@@ -94,6 +94,12 @@ const expectations = [
   ["gen4_translation_memory", "target_text"],
   ["gen4_translation_memory", "source_hash"],
   ["gen4_translation_memory", "used_count"],
+  // 0014 — project versions
+  ["gen4_project_versions", "id"],
+  ["gen4_project_versions", "project_id"],
+  ["gen4_project_versions", "version_number"],
+  ["gen4_project_versions", "description"],
+  ["gen4_project_versions", "snapshot"],
 ];
 
 async function checkColumn(table, column) {

@@ -214,6 +214,7 @@ function wrapText(text: string, font: PDFFont, sizePt: number, maxWidthPt: numbe
 
 interface DrawContext {
   page: PDFPage;
+  /** Wysokość obszaru treści (bez bleed) — używana w konwersji Y-from-top → bottom. */
   pageHeightPt: number;
   fontRegular: PDFFont;
   fontBold: PDFFont;
@@ -221,6 +222,10 @@ interface DrawContext {
   totalPages: number;
   lang: string;
   imageBytes: Map<string, { bytes: Uint8Array; mime: string }>;
+  /** Offset rysowania od dolnej-lewej krawędzi fizycznej strony PDF.
+   *  Gdy bleed=0 → 0/0. Gdy bleed=3mm → bleedPt/bleedPt. */
+  offsetXPt: number;
+  offsetYPt: number;
 }
 
 /** Render one element. Returns nothing — direct draw on the page. */
@@ -230,10 +235,11 @@ async function drawElement(
   resolveText: (el: ElementRow) => string,
 ): Promise<void> {
   const props = el.properties ?? {};
-  const xPt = el.x_mm * PT_PER_MM;
+  // Globalne offsety z bleed/crop marks dodajemy do każdej współrzędnej x/y.
+  const xPt = el.x_mm * PT_PER_MM + ctx.offsetXPt;
   const wPt = el.w_mm * PT_PER_MM;
   const hPt = el.h_mm * PT_PER_MM;
-  const yPdfBottom = mmYTopToPdfBottom(el.y_mm, el.h_mm, ctx.pageHeightPt);
+  const yPdfBottom = mmYTopToPdfBottom(el.y_mm, el.h_mm, ctx.pageHeightPt) + ctx.offsetYPt;
 
   if (el.type === "text" || el.type === "callout") {
     const sizePt = typeof (props as Record<string, unknown>).font_size_pt === "number"
@@ -248,7 +254,7 @@ async function drawElement(
 
     const lines = wrapText(text, font, sizePt, wPt);
     const lineHeightPt = sizePt * 1.2;
-    let cursorY = ctx.pageHeightPt - el.y_mm * PT_PER_MM - sizePt; // baseline of first line
+    let cursorY = ctx.pageHeightPt - el.y_mm * PT_PER_MM - sizePt + ctx.offsetYPt; // baseline of first line, with bleed offset
     for (const line of lines) {
       // Don't draw past the bottom edge of the box.
       if (cursorY < yPdfBottom - 0.5) break;
@@ -296,9 +302,9 @@ async function drawElement(
     const y2Pct = typeof p.y2_pct === "number" ? p.y2_pct : 50;
     // Konwersja procentów na px w bounding boxie, z mm w punktach PDF.
     const x1Pt = xPt + (x1Pct / 100) * wPt;
-    const y1Pt = ctx.pageHeightPt - (el.y_mm + (y1Pct / 100) * el.h_mm) * PT_PER_MM;
+    const y1Pt = ctx.pageHeightPt - (el.y_mm + (y1Pct / 100) * el.h_mm) * PT_PER_MM + ctx.offsetYPt;
     const x2Pt = xPt + (x2Pct / 100) * wPt;
-    const y2Pt = ctx.pageHeightPt - (el.y_mm + (y2Pct / 100) * el.h_mm) * PT_PER_MM;
+    const y2Pt = ctx.pageHeightPt - (el.y_mm + (y2Pct / 100) * el.h_mm) * PT_PER_MM + ctx.offsetYPt;
     ctx.page.drawLine({
       start: { x: x1Pt, y: y1Pt },
       end: { x: x2Pt, y: y2Pt },
@@ -435,6 +441,11 @@ export interface ExportOptions {
   /** Gdy true, każda strona dostaje semi-transparent watermark 'DRAFT'
    *  przekątnie — chroni przed wysłaniem niezatwierdzonego dokumentu do drukarni. */
   watermarkDraft?: boolean;
+  /** Bleed dla druku profesjonalnego (mm). Typowo 3mm. Gdy > 0, strona PDF
+   *  jest powiększona o 2*bleed, treść przesunięta o bleed do środka. */
+  bleedMm?: number;
+  /** Crop marks (znaczniki obcinania) w narożnikach — działa razem z bleed. */
+  cropMarks?: boolean;
 }
 
 /** Builds the PDF and returns its bytes (Uint8Array, ready for response).
@@ -471,19 +482,33 @@ export async function exportProjectToPdf(
   pdfDoc.setProducer("Generator Instrukcji v4");
 
   const totalPages = data.pages.length;
+  // Bleed dla druku profesjonalnego. Gdy bleedMm > 0, strona PDF jest fizycznie
+  // większa, treść przesunięta do środka — drukarnia obcina bleedMm z każdej
+  // strony żeby uzyskać docelowy format.
+  const bleedMm = Math.max(0, options?.bleedMm ?? 0);
+  const bleedPt = bleedMm * PT_PER_MM;
   for (const p of data.pages) {
-    const widthPt = p.width_mm * PT_PER_MM;
-    const heightPt = p.height_mm * PT_PER_MM;
+    const innerWidthPt = p.width_mm * PT_PER_MM;
+    const innerHeightPt = p.height_mm * PT_PER_MM;
+    // Strona PDF: docelowy format + 2*bleed na każdą oś.
+    const widthPt = innerWidthPt + 2 * bleedPt;
+    const heightPt = innerHeightPt + 2 * bleedPt;
     const page = pdfDoc.addPage([widthPt, heightPt]);
+
     const ctx: DrawContext = {
       page,
-      pageHeightPt: heightPt,
+      // pageHeightPt = wysokość OBSZARU TREŚCI (bez bleed). drawElement używa
+      // jej do konwersji Y-top→Y-bottom dla współrzędnych w mm, a osobny offset
+      // (offsetYPt = bleedPt) przesuwa to wszystko do środka fizycznej strony.
+      pageHeightPt: innerHeightPt,
       fontRegular,
       fontBold,
       pageNumber: p.page_number,
       totalPages,
       lang,
       imageBytes: data.imageBytes,
+      offsetXPt: bleedPt,
+      offsetYPt: bleedPt,
     };
     // Sort by z_index ascending so later-drawn elements layer on top.
     const sorted = [...p.elements].sort((a, b) => a.z_index - b.z_index);
@@ -518,6 +543,43 @@ export async function exportProjectToPdf(
         opacity: 0.18,
         rotate: degrees(45),
       });
+    }
+
+    // Crop marks — cienkie czarne linie w narożnikach pokazujące gdzie
+    // drukarnia ma obcinać. Wymaga bleed > 0 (musi być miejsce na rysowanie).
+    if (options?.cropMarks && bleedPt > 0) {
+      const markLen = Math.min(bleedPt * 0.8, 4); // długość kreski w pt, max ~1.4 mm
+      const gap = bleedPt * 0.2; // odstęp między rogiem treści a kreską
+      const sw = 0.3; // stroke width w pt
+      const cornerColor = rgb(0, 0, 0);
+      // Narożniki w układzie fizycznej strony (0..widthPt, 0..heightPt):
+      const innerL = bleedPt;
+      const innerR = bleedPt + innerWidthPt;
+      const innerB = bleedPt;
+      const innerT = bleedPt + innerHeightPt;
+      // 4 narożniki × 2 linie (pionowa + pozioma).
+      const corners: Array<{ x: number; y: number; sx: number; sy: number }> = [
+        { x: innerL, y: innerB, sx: -1, sy: -1 }, // lewy dolny
+        { x: innerR, y: innerB, sx: 1, sy: -1 }, // prawy dolny
+        { x: innerL, y: innerT, sx: -1, sy: 1 }, // lewy górny
+        { x: innerR, y: innerT, sx: 1, sy: 1 }, // prawy górny
+      ];
+      for (const c of corners) {
+        // Pozioma kreska wystająca w bleed (od x±gap do x±(gap+markLen)).
+        page.drawLine({
+          start: { x: c.x + c.sx * gap, y: c.y },
+          end: { x: c.x + c.sx * (gap + markLen), y: c.y },
+          thickness: sw,
+          color: cornerColor,
+        });
+        // Pionowa kreska wystająca w bleed.
+        page.drawLine({
+          start: { x: c.x, y: c.y + c.sy * gap },
+          end: { x: c.x, y: c.y + c.sy * (gap + markLen) },
+          thickness: sw,
+          color: cornerColor,
+        });
+      }
     }
   }
 

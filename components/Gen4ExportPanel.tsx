@@ -45,6 +45,7 @@ export default function Gen4ExportPanel({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [draft, setDraft] = useState(false);
+  const [print, setPrint] = useState(false); // crop marks + 3mm bleed
   const [lint, setLint] = useState<LintResult | null>(null);
   const [lintBusy, setLintBusy] = useState(false);
   const [lintExpanded, setLintExpanded] = useState(false);
@@ -69,7 +70,7 @@ export default function Gen4ExportPanel({
     setBusy(true);
     setError(null);
     try {
-      const query = `lang=${lang}${draft ? "&draft=1" : ""}`;
+      const query = `lang=${lang}${draft ? "&draft=1" : ""}${print ? "&bleed=3&crop=1" : ""}`;
       const res = await fetch(`${API}/projects/${projectId}/export-pdf/?${query}`, {
         method: "GET",
         cache: "no-store",
@@ -153,13 +154,26 @@ export default function Gen4ExportPanel({
           </span>
         </label>
 
+        <label className="flex cursor-pointer items-center gap-1.5 text-xs text-slate-700">
+          <input
+            type="checkbox"
+            checked={print}
+            onChange={(e) => setPrint(e.target.checked)}
+            className="h-3.5 w-3.5"
+          />
+          <span>
+            <strong>3 mm bleed + crop marks</strong>
+            <span className="ml-1 text-[10px] text-slate-500">(do drukarni profesjonalnej)</span>
+          </span>
+        </label>
+
         <button
           type="button"
           disabled={busy}
           onClick={() => void download()}
           className="ml-auto inline-flex items-center gap-2 rounded-md bg-slate-900 px-4 py-1.5 text-sm font-semibold text-white hover:bg-slate-700 disabled:opacity-50"
         >
-          {busy ? "Generuję..." : `📄 Pobierz PDF (${lang.toUpperCase()}${draft ? " · DRAFT" : ""})`}
+          {busy ? "Generuję..." : `📄 Pobierz PDF (${lang.toUpperCase()}${draft ? " · DRAFT" : ""}${print ? " · PRINT" : ""})`}
         </button>
       </div>
 

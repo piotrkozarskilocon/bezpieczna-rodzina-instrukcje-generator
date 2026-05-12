@@ -7,6 +7,7 @@ import {
   parseJsonFromAi,
   validateGenerated,
 } from "@/lib/v4Generate";
+import { createVersion } from "@/lib/v4Versions";
 
 export const runtime = "nodejs";
 
@@ -52,6 +53,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       { status: 400 },
     );
   }
+
+  // Snapshot stanu PRZED import (destruktywna operacja — apply-DS lub
+  // regen z claude.ai). User może cofnąć przez panel historii wersji.
+  await createVersion(id, "Snapshot przed manual import (regen / apply DS)", auth.email);
 
   // Wipe existing pages (CASCADE removes elements) so import is idempotent.
   const { error: delErr } = await sb.from("gen4_pages").delete().eq("project_id", id);
