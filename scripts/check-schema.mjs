@@ -86,6 +86,14 @@ const expectations = [
   ["gen4_reference_docs", "file_path"],
   ["gen4_reference_docs", "anthropic_file_id"],
   ["gen4_reference_docs", "extracted_summary"],
+  // 0013 — translation memory
+  ["gen4_translation_memory", "id"],
+  ["gen4_translation_memory", "owner_email"],
+  ["gen4_translation_memory", "target_lang"],
+  ["gen4_translation_memory", "source_text"],
+  ["gen4_translation_memory", "target_text"],
+  ["gen4_translation_memory", "source_hash"],
+  ["gen4_translation_memory", "used_count"],
 ];
 
 async function checkColumn(table, column) {

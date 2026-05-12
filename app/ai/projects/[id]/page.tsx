@@ -62,6 +62,44 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
     return () => { active = false; };
   }, [id]);
 
+  const handleClone = async () => {
+    const currentModelName = (project?.ai_input?.model_name as string | undefined) ?? "";
+    const currentModelCode = (project?.ai_input?.model_code as string | undefined) ?? "";
+    const name = window.prompt("Nazwa nowego projektu:", `${project?.name ?? ""} (kopia)`);
+    if (!name?.trim()) return;
+    const modelCode = window.prompt(
+      "Kod modelu (puste = zostaw jak w oryginale):",
+      currentModelCode,
+    );
+    const modelName = window.prompt(
+      "Nazwa modelu (puste = zostaw jak w oryginale):",
+      currentModelName,
+    );
+    setBusy(true);
+    try {
+      const res = await fetch(`${PAGE_API_BASE}/projects/${id}/clone/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name.trim(),
+          model_code: modelCode?.trim() || undefined,
+          model_name: modelName?.trim() || undefined,
+        }),
+      });
+      if (!res.ok) {
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      const j = (await res.json()) as { id: string };
+      window.location.href = `/generator-instrukcji/ai/projects/${j.id}`;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "clone failed");
+      setBusy(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!confirm("Usunąć projekt? Operacja nieodwracalna.")) return;
     setBusy(true);
@@ -130,6 +168,16 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
                 <dd className="font-mono text-xs text-slate-500">{project.id}</dd>
               </dl>
             </div>
+            <div className="flex flex-col gap-2">
+              <button
+                type="button"
+                onClick={handleClone}
+                disabled={busy}
+                className="rounded-md border border-emerald-300 bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-800 hover:bg-emerald-100 disabled:opacity-50"
+                title="Skopiuj projekt z możliwością zmiany modelu — zachowuje strony, design system, notatki, pliki referencyjne"
+              >
+                📋 Klonuj projekt
+              </button>
             <button
               type="button"
               onClick={handleDelete}
@@ -138,6 +186,7 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
             >
               Usuń projekt
             </button>
+            </div>
           </div>
 
           {project.status === "draft" && (

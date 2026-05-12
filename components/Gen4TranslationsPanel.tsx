@@ -41,6 +41,18 @@ export default function Gen4TranslationsPanel({ projectId, totalTextElements }: 
   const [error, setError] = useState<string | null>(null);
   const [info, setInfo] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
+  const [batchBusy, setBatchBusy] = useState(false);
+  const [batchProgress, setBatchProgress] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetch(`${API}/status`, { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((j: { mode?: "auto" | "manual" } | null) => {
+        if (j?.mode) setMode(j.mode);
+      })
+      .catch(() => { /* zostaje 'unknown' */ });
+  }, []);
 
   const refreshCoverage = useCallback(async () => {
     try {
@@ -102,6 +114,63 @@ export default function Gen4TranslationsPanel({ projectId, totalTextElements }: 
     }
   };
 
+  /** Auto-tłumaczenie przez API (Haiku 4.5) — używa translation memory + AI.
+   *  Po sukcesie odświeża coverage; nie wymaga manual copy/paste. */
+  const autoTranslate = async (lang: TargetLang) => {
+    setBatchBusy(true);
+    setError(null);
+    setInfo(null);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/translate/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lang }),
+      });
+      const text = await res.text();
+      if (!res.ok) {
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+      }
+      const j = JSON.parse(text) as { translations: number; cached: number; fresh: number; total: number };
+      setInfo(`${lang.toUpperCase()}: ${j.translations}/${j.total} przetłumaczonych (${j.cached} z memory, ${j.fresh} świeżych).`);
+      await refreshCoverage();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "auto-translate failed");
+    } finally {
+      setBatchBusy(false);
+    }
+  };
+
+  /** Batch — tłumaczy projekt na wszystkie 6 języków sekwencyjnie. */
+  const batchTranslateAll = async () => {
+    setBatchBusy(true);
+    setError(null);
+    setInfo(null);
+    setBatchProgress(null);
+    let okCount = 0;
+    let failCount = 0;
+    for (let i = 0; i < SUPPORTED_LANGS.length; i++) {
+      const lang = SUPPORTED_LANGS[i];
+      setBatchProgress(`${i + 1}/${SUPPORTED_LANGS.length}: ${lang.toUpperCase()} ${LANG_LABELS[lang]}...`);
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/translate/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ lang }),
+        });
+        if (res.ok) okCount++;
+        else failCount++;
+      } catch {
+        failCount++;
+      }
+    }
+    setBatchProgress(null);
+    setInfo(`Batch tłumaczenia: ${okCount}/${SUPPORTED_LANGS.length} języków OK${failCount > 0 ? ` (${failCount} do retry)` : ""}.`);
+    await refreshCoverage();
+    setBatchBusy(false);
+  };
+
   const importTranslation = async () => {
     if (!activeLang || !importJson.trim()) return;
     setBusy(true);
@@ -133,10 +202,31 @@ export default function Gen4TranslationsPanel({ projectId, totalTextElements }: 
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-6">
-      <h3 className="mb-1 text-base font-semibold text-slate-900">Tłumaczenia</h3>
-      <p className="mb-4 text-xs text-slate-500">
-        Wygeneruj wersję dla wybranego języka. Workflow: kliknij język → skopiuj prompt → wklej w nowej rozmowie z Claude.ai → wynikowy JSON wklej do importu.
-      </p>
+      <div className="mb-4 flex items-baseline justify-between gap-3">
+        <div>
+          <h3 className="text-base font-semibold text-slate-900">🌍 Tłumaczenia</h3>
+          <p className="text-xs text-slate-500">
+            {mode === "auto"
+              ? "Klucz API podpięty — tłumaczenia automatyczne (Haiku 4.5) + translation memory cross-project. Klik 'Auto' przy języku albo 'Przetłumacz wszystkie' poniżej."
+              : "Workflow manualny: kliknij język → skopiuj prompt → wklej w claude.ai → wynikowy JSON wklej do importu."}
+          </p>
+        </div>
+        {mode === "auto" && (
+          <button
+            type="button"
+            disabled={batchBusy}
+            onClick={() => void batchTranslateAll()}
+            className="shrink-0 rounded-md bg-emerald-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+            title="Przetłumacz na wszystkie 6 języków sekwencyjnie (Haiku 4.5 + memory)"
+          >
+            {batchBusy ? "Tłumaczę..." : `🌍 Przetłumacz wszystkie ${SUPPORTED_LANGS.length} języków`}
+          </button>
+        )}
+      </div>
+
+      {batchProgress && (
+        <p className="mb-3 rounded-md bg-purple-50 px-3 py-2 text-xs text-purple-800">{batchProgress}</p>
+      )}
 
       <ul className="mb-4 grid grid-cols-2 gap-2 sm:grid-cols-3">
         {SUPPORTED_LANGS.map((lang) => {
@@ -145,28 +235,41 @@ export default function Gen4TranslationsPanel({ projectId, totalTextElements }: 
           const completionPct = totalTextElements > 0 ? Math.round((done / totalTextElements) * 100) : 0;
           return (
             <li key={lang}>
-              <button
-                type="button"
-                onClick={() => void openLang(lang)}
-                disabled={busy && !isActive}
-                className={
-                  "flex w-full flex-col items-start rounded-md border px-3 py-2 text-left transition disabled:opacity-50 " +
-                  (isActive
-                    ? "border-purple-500 bg-purple-50"
-                    : "border-slate-200 bg-white hover:border-purple-300")
-                }
-              >
-                <span className="flex w-full items-baseline justify-between gap-2 text-sm font-semibold text-slate-900">
-                  <span>{lang.toUpperCase()}</span>
-                  <span className="text-[10px] font-medium text-slate-500">{LANG_LABELS[lang]}</span>
-                </span>
-                <span className="mt-1 flex items-baseline gap-2 text-[11px] text-slate-500">
-                  <span>{done}/{totalTextElements}</span>
-                  <span className={done === totalTextElements && totalTextElements > 0 ? "text-emerald-600" : ""}>
-                    {completionPct}%
+              <div className={
+                "rounded-md border " +
+                (isActive ? "border-purple-500 bg-purple-50" : "border-slate-200 bg-white hover:border-purple-300")
+              }>
+                <button
+                  type="button"
+                  onClick={() => void openLang(lang)}
+                  disabled={busy && !isActive}
+                  className="flex w-full flex-col items-start px-3 pt-2 pb-1 text-left disabled:opacity-50"
+                >
+                  <span className="flex w-full items-baseline justify-between gap-2 text-sm font-semibold text-slate-900">
+                    <span>{lang.toUpperCase()}</span>
+                    <span className="text-[10px] font-medium text-slate-500">{LANG_LABELS[lang]}</span>
                   </span>
-                </span>
-              </button>
+                  <span className="mt-1 flex items-baseline gap-2 text-[11px] text-slate-500">
+                    <span>{done}/{totalTextElements}</span>
+                    <span className={done === totalTextElements && totalTextElements > 0 ? "text-emerald-600" : ""}>
+                      {completionPct}%
+                    </span>
+                  </span>
+                </button>
+                {mode === "auto" && (
+                  <div className="border-t border-slate-100 px-2 py-1">
+                    <button
+                      type="button"
+                      disabled={batchBusy}
+                      onClick={(e) => { e.stopPropagation(); void autoTranslate(lang); }}
+                      className="w-full rounded bg-emerald-700 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
+                      title="Tłumacz automatycznie przez Claude API + translation memory"
+                    >
+                      ✨ Auto
+                    </button>
+                  </div>
+                )}
+              </div>
             </li>
           );
         })}
