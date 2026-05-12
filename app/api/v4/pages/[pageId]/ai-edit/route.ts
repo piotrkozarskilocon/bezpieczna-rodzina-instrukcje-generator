@@ -32,11 +32,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => null)) as { instruction?: string } | null;
+  const body = (await request.json().catch(() => null)) as
+    | { instruction?: string; skip_attachments?: boolean; layout_only?: boolean }
+    | null;
   const instruction = body?.instruction?.trim();
   if (!instruction) {
     return NextResponse.json({ error: "missing instruction" }, { status: 400 });
   }
+  // layout_only / skip_attachments — pomijamy PDF reference docs gdy
+  // operacja jest geometryczna (np. 'Napraw przez AI' z walidacji layoutu).
+  // Bez tego Claude czyta wszystkie PDF (SAR + spec + chińska instrukcja) i
+  // wywołanie przekracza 60s Vercel cap → 502/504.
+  const skipAttachments = body?.skip_attachments === true || body?.layout_only === true;
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -54,7 +61,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .select("project_id")
     .eq("id", pageId)
     .single();
-  const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
+  const refDocs = pageMeta && !skipAttachments ? await loadReferenceDocs(pageMeta.project_id) : [];
   const attachments = getAttachmentFileIds(refDocs);
 
   try {
@@ -62,8 +69,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       system: built.system,
       user: built.user,
       model: EDIT_MODEL,
-      maxTokens: 4000,
+      // layout_only = mniej tokenów do wygenerowania (te same elements, tylko
+      // poprawione współrzędne). 2500 wystarczy, lepiej mieścić się w 60s.
+      maxTokens: skipAttachments ? 2500 : 4000,
       attachments: attachments.length > 0 ? attachments : undefined,
+      cacheSystemPrompt: true,
     });
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);

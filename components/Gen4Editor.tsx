@@ -430,13 +430,16 @@ export default function Gen4Editor({
       const res = await fetch(`${API}/pages/${currentPageId}/ai-edit/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction }),
+        // layout_only=true → endpoint pomija ładowanie PDF reference docs
+        // (są niepotrzebne dla geometrycznych poprawek, a powodowały timeout
+        // bo Claude próbował czytać wszystkie PDFy projektu).
+        body: JSON.stringify({ instruction, layout_only: true }),
       });
       if (!res.ok) {
         const text = await res.text();
         let parsed: { error?: string } = {};
         try { parsed = JSON.parse(text); } catch { /* ignore */ }
-        throw new Error(parsed.error ?? `HTTP ${res.status}`);
+        throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
       }
       // Reload elementów po fix.
       const reload = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
