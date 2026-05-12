@@ -1958,15 +1958,32 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     const url = imageId ? imageUrls.get(imageId) : null;
     const placeholderDesc = (props.placeholder_description as string | undefined) ?? null;
     const fitMode = (props.fit_mode as string | undefined) ?? "contain";
+    // Opacity — gdy AI lub user oznaczy obrazek jako watermark (np. opacity 0.1-0.3),
+    // musi prześwitywać do elementów pod spodem. Wczesniej renderer to ignorowal,
+    // wiec watermark renderowal sie jakby mial pelne 100% — przykrywal niebieski
+    // pasek pod tekstem i robil "biale na bialym".
+    const rawOpacity = typeof props.opacity === "number" ? (props.opacity as number) : 1;
+    const opacity = Math.max(0, Math.min(1, rawOpacity));
+    const isWatermark = opacity < 1;
     return (
       <div
         data-el-id={el.id}
         onClick={(e) => { e.stopPropagation(); onClick(e.shiftKey || e.ctrlKey || e.metaKey); }}
         style={{
           ...baseStyle,
-          background: url ? "#fff" : "linear-gradient(45deg,#cbd5e1 25%,#e2e8f0 25%,#e2e8f0 50%,#cbd5e1 50%,#cbd5e1 75%,#e2e8f0 75%,#e2e8f0)",
+          // Bez bialego tla gdy to watermark — musi przeswityawc do elementow
+          // ponizej. Tylko placeholder (brak url) ma kratke + obrysowanie.
+          background: url
+            ? "transparent"
+            : "linear-gradient(45deg,#cbd5e1 25%,#e2e8f0 25%,#e2e8f0 50%,#cbd5e1 50%,#cbd5e1 75%,#e2e8f0 75%,#e2e8f0)",
           backgroundSize: url ? undefined : "12px 12px",
-          outline: selected ? "2px solid #f59e0b" : "1px dashed rgba(100,116,139,0.4)",
+          // Watermark nie powinien miec widocznej ramki w trybie idle, zeby user
+          // nie mylil go z normalnym obrazkiem. Selected dalej oznaczamy.
+          outline: selected
+            ? "2px solid #f59e0b"
+            : isWatermark
+              ? "1px dotted rgba(100,116,139,0.25)"
+              : "1px dashed rgba(100,116,139,0.4)",
           cursor: selected ? "move" : "pointer",
           touchAction: "none",
           overflow: "hidden",
@@ -1983,6 +2000,7 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
               objectFit: fitMode === "cover" ? "cover" : "contain",
               display: "block",
               pointerEvents: "none",
+              opacity, // bug fix — props.opacity teraz dziala (watermark, fade itd.)
             }}
           />
         ) : (
@@ -2195,6 +2213,60 @@ function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied
               onChange={(e) => setProp("url", e.target.value)}
               className="w-full rounded border border-slate-300 px-1 py-0.5" />
           </Row>
+        </div>
+      )}
+
+      {element.type === "image" && (
+        <div className="rounded border border-slate-200 bg-white p-2">
+          <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-slate-500">Obraz</div>
+          <Row label="image_id">
+            <input type="text" value={(props.image_id as string) ?? ""}
+              onChange={(e) => setProp("image_id", e.target.value)}
+              className="w-full rounded border border-slate-300 px-1 py-0.5 font-mono"
+              placeholder="(brak — wgraj w bibliotece obrazków)" />
+          </Row>
+          <Row label="Dopas.">
+            <select value={(props.fit_mode as string) ?? "contain"}
+              onChange={(e) => setProp("fit_mode", e.target.value)}
+              className="w-full rounded border border-slate-300 px-1 py-0.5">
+              <option value="contain">contain (mieści w boxie)</option>
+              <option value="cover">cover (wypełnia, przycina)</option>
+            </select>
+          </Row>
+          <Row label="Przezr.">
+            <div className="flex items-center gap-1.5">
+              <input
+                type="range"
+                min={0}
+                max={1}
+                step={0.05}
+                value={typeof props.opacity === "number" ? (props.opacity as number) : 1}
+                onChange={(e) => setProp("opacity", parseFloat(e.target.value))}
+                className="flex-1"
+                title="0 = niewidoczny, 1 = pełen. Dla watermarka ustaw 0.10-0.20."
+              />
+              <input
+                type="number"
+                min={0}
+                max={1}
+                step={0.05}
+                value={typeof props.opacity === "number" ? (props.opacity as number).toFixed(2) : "1.00"}
+                onChange={(e) => setNumberProp("opacity", e.target.value)}
+                className="w-12 rounded border border-slate-300 px-1 py-0.5 text-right"
+              />
+            </div>
+          </Row>
+          {typeof props.opacity === "number" && (props.opacity as number) < 1 && (
+            <p className="mt-1 text-[10px] text-slate-500">
+              {(props.opacity as number) < 0.08
+                ? "⚠️ Bardzo niska — obrazek prawie niewidoczny. Watermark: 0.10–0.20."
+                : (props.opacity as number) < 0.25
+                  ? "💧 Watermark — przeswituje, tlo pod spodem widoczne."
+                  : (props.opacity as number) < 0.7
+                    ? "Polprzezroczysty obrazek."
+                    : "Niemal pelny obrazek."}
+            </p>
+          )}
         </div>
       )}
 

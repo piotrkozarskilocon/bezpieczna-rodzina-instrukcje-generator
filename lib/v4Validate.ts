@@ -163,6 +163,21 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
           ai_fixable: false, // AI nie wie który obrazek tu pasuje — user musi wgrać i przypisać
         });
       }
+      // 6b. Image z opacity < 0.08 — prawie niewidoczny. AI czasem generuje
+      //     opacity 0.03 myslac ze to "watermark", ale po naprawie rendera
+      //     0.03 oznacza realnie niewidoczny obrazek. Watermark powinien byc
+      //     w okolicy 0.10-0.20.
+      const op = el.properties.opacity;
+      if (typeof op === "number" && op > 0 && op < 0.08) {
+        issues.push({
+          severity: "info",
+          element_id: el.id,
+          element_type: el.type,
+          message: `Image ma bardzo niską opacity (${op}) — prawie niewidoczny`,
+          fix_hint: `Dla watermarka ustaw opacity 0.10–0.20 (obecnie ${op} daje praktycznie pusty box). Lub ustaw 0 żeby usunąć go z layoutu.`,
+          ai_fixable: true,
+        });
+      }
     }
 
     // 7. Element z zerowymi wymiarami

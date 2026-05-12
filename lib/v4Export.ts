@@ -425,7 +425,17 @@ async function drawElement(
           drawX = xPt + (wPt - drawW) / 2;
         }
       }
-      ctx.page.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+      // Opacity dla watermarkow — pdf-lib obsluguje natywnie przez parametr
+      // opacity w drawImage. Bez tego watermark wychodzil na PDF na 100%.
+      const rawOpacity = (props as Record<string, unknown>).opacity;
+      const opacity = typeof rawOpacity === "number" ? Math.max(0, Math.min(1, rawOpacity)) : 1;
+      ctx.page.drawImage(img, {
+        x: drawX,
+        y: drawY,
+        width: drawW,
+        height: drawH,
+        ...(opacity < 1 ? { opacity } : {}),
+      });
     } catch (err) {
       console.warn(`[v4 export] embed image ${imageId} failed:`, err);
       ctx.page.drawRectangle({
