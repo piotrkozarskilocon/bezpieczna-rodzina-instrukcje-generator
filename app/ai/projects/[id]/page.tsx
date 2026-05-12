@@ -12,6 +12,7 @@ import Gen4NotesPanel from "@/components/Gen4NotesPanel";
 import Gen4ReferenceDocsPanel from "@/components/Gen4ReferenceDocsPanel";
 import Gen4VersionsPanel from "@/components/Gen4VersionsPanel";
 import Gen4AuditPanel from "@/components/Gen4AuditPanel";
+import Gen4AiDebugPanel from "@/components/Gen4AiDebugPanel";
 
 const PAGE_API_BASE = "/generator-instrukcji/api/v4";
 
@@ -290,6 +291,10 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
               </div>
 
               <Gen4Editor projectId={id} defaultLang={project.default_lang} />
+
+              <div className="mt-4">
+                <Gen4AiDebugPanel projectId={id} />
+              </div>
             </>
           )}
 

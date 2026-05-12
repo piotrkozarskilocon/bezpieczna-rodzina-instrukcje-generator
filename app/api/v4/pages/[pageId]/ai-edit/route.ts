@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
+import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import {
   ownPage,
   buildPageEditPrompt,
@@ -10,6 +10,7 @@ import {
   replacePageElements,
 } from "@/lib/v4Edit";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -33,7 +34,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { instruction?: string; skip_attachments?: boolean; layout_only?: boolean }
+    | {
+        instruction?: string;
+        skip_attachments?: boolean;
+        layout_only?: boolean;
+        model?: string;
+        custom_system?: string;
+        custom_user?: string;
+      }
     | null;
   const instruction = body?.instruction?.trim();
   if (!instruction) {
@@ -44,6 +52,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // Bez tego Claude czyta wszystkie PDF (SAR + spec + chińska instrukcja) i
   // wywołanie przekracza 60s Vercel cap → 502/504.
   const skipAttachments = body?.skip_attachments === true || body?.layout_only === true;
+  const chosenModel = resolveModel(body?.model, EDIT_MODEL);
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -55,6 +64,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const built = await buildPageEditPrompt(pageId, instruction);
   if (!built) return NextResponse.json({ error: "page not found" }, { status: 404 });
 
+  // Override promptu przez usera (debug "Edytuj prompt przed uruchomieniem").
+  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
+  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
+  const promptEdited = !!(body?.custom_system || body?.custom_user);
+
   const sb = getSupabaseAdmin();
   const { data: pageMeta } = await sb
     .from("gen4_pages")
@@ -64,20 +78,42 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const refDocs = pageMeta && !skipAttachments ? await loadReferenceDocs(pageMeta.project_id) : [];
   const attachments = getAttachmentFileIds(refDocs);
 
+  const maxTokens = skipAttachments ? 6000 : 12000;
+  const startedAt = Date.now();
   try {
     const ai = await callClaude({
-      system: built.system,
-      user: built.user,
-      model: EDIT_MODEL,
-      // Spis treści / strony z 20+ elementami potrafią potrzebować 6-8k tokenów
-      // outputu — przy 4k Haiku obcinał JSON w środku tablicy. layout_only ma
-      // niższy budżet bo zmienia tylko współrzędne, nie treść.
-      maxTokens: skipAttachments ? 6000 : 12000,
+      system: systemPrompt,
+      user: userPrompt,
+      model: chosenModel,
+      maxTokens,
       attachments: attachments.length > 0 ? attachments : undefined,
       cacheSystemPrompt: true,
     });
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);
+
+    // Debug log — zapisz dokladnie co poszlo do AI i co wrocilo.
+    if (pageMeta) {
+      void logAiCall({
+        project_id: pageMeta.project_id,
+        page_id: pageId,
+        endpoint: "ai-edit",
+        context_type: "page",
+        user_instruction: instruction,
+        system_prompt: systemPrompt,
+        user_prompt: userPrompt,
+        prompt_edited_by_user: promptEdited,
+        model: chosenModel,
+        max_tokens: maxTokens,
+        response_text: ai.text,
+        tokens_in: ai.inputTokens,
+        tokens_out: ai.outputTokens,
+        cache_creation_tokens: ai.cacheCreationTokens ?? null,
+        cache_read_tokens: ai.cacheReadTokens ?? null,
+        duration_ms: Date.now() - startedAt,
+        user_email: auth.email,
+      });
+    }
 
     const { data: page } = await sb
       .from("gen4_pages")
@@ -107,6 +143,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ ok: true, elements: count });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
+    // Loguj tez bledy — czesto najwazniejsze do debugu (parse fail, timeout itd.).
+    if (pageMeta) {
+      void logAiCall({
+        project_id: pageMeta.project_id,
+        page_id: pageId,
+        endpoint: "ai-edit",
+        context_type: "page",
+        user_instruction: instruction,
+        system_prompt: systemPrompt,
+        user_prompt: userPrompt,
+        prompt_edited_by_user: promptEdited,
+        model: chosenModel,
+        max_tokens: maxTokens,
+        error: msg,
+        duration_ms: Date.now() - startedAt,
+        user_email: auth.email,
+      });
+    }
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

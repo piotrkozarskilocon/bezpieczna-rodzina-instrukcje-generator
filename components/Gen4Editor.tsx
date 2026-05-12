@@ -119,6 +119,8 @@ export default function Gen4Editor({
   const [applyStyleBusy, setApplyStyleBusy] = useState(false);
   const [applyStyleProgress, setApplyStyleProgress] = useState<{ done: number; total: number } | null>(null);
   const [applyStyleErr, setApplyStyleErr] = useState<string | null>(null);
+  // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
+  const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
   const [fixResult, setFixResult] = useState<string | null>(null);
   // Tick co 1s żeby pokazać upłynięty czas w pasku statusu (UX podczas 5-15s).
@@ -530,7 +532,7 @@ export default function Gen4Editor({
         const res = await fetch(`${API}/pages/${target.id}/apply-style/`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ source_page_id: currentPageId }),
+          body: JSON.stringify({ source_page_id: currentPageId, model: editorAiModel }),
         });
         if (!res.ok) {
           const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -999,6 +1001,17 @@ export default function Gen4Editor({
                   ? `✨ Wygląd → inne (${applyStyleProgress.done}/${applyStyleProgress.total})...`
                   : "✨ Wygląd → inne strony"}
               </button>
+              <select
+                value={editorAiModel}
+                onChange={(e) => setEditorAiModel(e.target.value)}
+                className="rounded border border-purple-300 bg-white px-1 py-0.5 text-[10px] text-purple-700"
+                title="Model AI dla akcji Wygląd → inne strony i innych AI w toolbarze. Sonnet/Opus dają lepsze rezultaty ale są droższe i wolniejsze."
+                disabled={applyStyleBusy}
+              >
+                <option value="claude-haiku-4-5-20251001">Haiku</option>
+                <option value="claude-sonnet-4-6">Sonnet</option>
+                <option value="claude-opus-4-7">Opus</option>
+              </select>
               <span className="text-slate-500">Zoom:</span>
               <button type="button" onClick={() => setZoom((z) => Math.max(2, z - 1))}
                 className="rounded border border-slate-300 bg-white px-1.5 py-0.5 hover:bg-slate-50">−</button>
@@ -2044,6 +2057,7 @@ function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied
   const [aiBusy, setAiBusy] = useState(false);
   const [aiErr, setAiErr] = useState<string | null>(null);
   const [aiPanelOpen, setAiPanelOpen] = useState(false);
+  const [aiModel, setAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const runAiFix = async () => {
     if (!pageId || !aiInstr.trim()) return;
     setAiBusy(true);
@@ -2052,7 +2066,7 @@ function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied
       const res = await fetch(`${API}/pages/${pageId}/elements/${element.id}/ai-fix/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction: aiInstr.trim() }),
+        body: JSON.stringify({ instruction: aiInstr.trim(), model: aiModel }),
       });
       if (!res.ok) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
@@ -2214,6 +2228,20 @@ function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied
                 className="w-full rounded border border-purple-300 bg-white px-2 py-1 text-[11px]"
                 disabled={aiBusy}
               />
+              <label className="mt-1 block text-[10px] text-purple-700">
+                Model:
+                <select
+                  value={aiModel}
+                  onChange={(e) => setAiModel(e.target.value)}
+                  className="ml-1 rounded border border-purple-300 bg-white px-1 py-0.5 text-[10px]"
+                  disabled={aiBusy}
+                  title="Wybierz model AI. Haiku — szybki/tani (default). Sonnet — lepsza jakość, ~5× drożej. Opus — najdroższy, do trudnych przypadków."
+                >
+                  <option value="claude-haiku-4-5-20251001">Haiku 4.5 (szybki/tani)</option>
+                  <option value="claude-sonnet-4-6">Sonnet 4.6 (lepszy)</option>
+                  <option value="claude-opus-4-7">Opus 4.7 (najlepszy/drogi)</option>
+                </select>
+              </label>
               <button
                 type="button"
                 onClick={() => void runAiFix()}
@@ -2264,6 +2292,13 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
   const [explainBusy, setExplainBusy] = useState(false);
   const [explanation, setExplanation] = useState<string | null>(null);
   const [streamingText, setStreamingText] = useState<string | null>(null);
+  // Model picker — user wybiera kazdorazowo. Defaultem Haiku (szybko/tanio).
+  const [aiModel, setAiModel] = useState<string>("claude-haiku-4-5-20251001");
+  // Preview-and-edit promptu: gdy ustawiona, frontend pokazuje modal z edytowalnymi
+  // system_prompt i user_prompt; po kliknieciu "Wyslij teraz" wywoluje runAutoEdit
+  // z custom_system/custom_user zamiast generator-built.
+  const [previewedPrompt, setPreviewedPrompt] = useState<{ system: string; user: string } | null>(null);
+  const [previewBusy, setPreviewBusy] = useState(false);
 
   // Wykryj tryb API/manual przy mount.
   useEffect(() => {
@@ -2349,18 +2384,24 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
     }
   };
 
-  /** Streaming variant — wyświetla fragmenty AI na bieżąco. */
-  const runStreamEdit = async () => {
+  /** Streaming variant — wyświetla fragmenty AI na bieżąco.
+   *  Opcjonalne `override` z modalu "Edytuj prompt przed wysłaniem". */
+  const runStreamEdit = async (override?: { system: string; user: string }) => {
     if (!instruction.trim()) return;
     setBusy(true);
     setError(null);
     setInfo(null);
     setStreamingText("");
     try {
+      const reqBody: Record<string, unknown> = { instruction: instruction.trim(), model: aiModel };
+      if (override) {
+        reqBody.custom_system = override.system;
+        reqBody.custom_user = override.user;
+      }
       const res = await fetch(`${API}/pages/${pageId}/ai-edit-stream/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction: instruction.trim() }),
+        body: JSON.stringify(reqBody),
       });
       if (!res.ok || !res.body) {
         const text = await res.text();
@@ -2415,16 +2456,22 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
   };
 
   // Auto-tryb: jedno wywołanie API, bez krok-po-kroku copy/paste.
-  const runAutoEdit = async () => {
+  // Opcjonalne `override` z modalu "Edytuj prompt przed wysłaniem".
+  const runAutoEdit = async (override?: { system: string; user: string }) => {
     if (!instruction.trim()) return;
     setBusy(true);
     setError(null);
     setInfo(null);
     try {
+      const reqBody: Record<string, unknown> = { instruction: instruction.trim(), model: aiModel };
+      if (override) {
+        reqBody.custom_system = override.system;
+        reqBody.custom_user = override.user;
+      }
       const res = await fetch(`${API}/pages/${pageId}/ai-edit/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ instruction: instruction.trim() }),
+        body: JSON.stringify(reqBody),
       });
       const text = await res.text();
       if (!res.ok) {
@@ -2434,15 +2481,42 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
         throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
       }
       const j = JSON.parse(text) as { elements: number };
-      setInfo(`Zastąpiono ${j.elements} elementów (Haiku 4.5).`);
+      const modelLabel = aiModel.includes("haiku") ? "Haiku 4.5" : aiModel.includes("sonnet") ? "Sonnet 4.6" : "Opus 4.7";
+      setInfo(`Zastąpiono ${j.elements} elementów (${modelLabel}${override ? ", prompt edytowany" : ""}).`);
       setInstruction("");
       setPrompt(null);
       setImportJson("");
+      setPreviewedPrompt(null);
       await onApplied();
     } catch (err) {
       setError(err instanceof Error ? err.message : "ai-edit failed");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Pobiera prompt z preview-prompt endpointu i otwiera modal do edycji.
+   *  Po edycji user moze wywolac runAutoEdit z override = { system, user }. */
+  const previewAndEditPrompt = async () => {
+    if (!instruction.trim()) return;
+    setPreviewBusy(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/pages/${pageId}/ai-edit/preview-prompt/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ instruction: instruction.trim() }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      const j = (await res.json()) as { system: string; user: string };
+      setPreviewedPrompt({ system: j.system, user: j.user });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "preview prompt failed");
+    } finally {
+      setPreviewBusy(false);
     }
   };
 
@@ -2564,15 +2638,40 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
             </button>
           ))}
         </div>
+        {mode === "auto" && (
+          <div className="mt-2 flex items-center gap-1.5 text-[10px] text-purple-700">
+            <span>Model:</span>
+            <select
+              value={aiModel}
+              onChange={(e) => setAiModel(e.target.value)}
+              className="rounded border border-purple-300 bg-white px-1 py-0.5"
+              disabled={busy}
+              title="Wybierz model AI dla tego wywołania. Haiku — szybki/tani (default). Sonnet — lepsza jakość. Opus — najwyższa jakość, najwolniejszy."
+            >
+              <option value="claude-haiku-4-5-20251001">Haiku 4.5 (szybki/tani)</option>
+              <option value="claude-sonnet-4-6">Sonnet 4.6 (lepszy)</option>
+              <option value="claude-opus-4-7">Opus 4.7 (najlepszy/drogi)</option>
+            </select>
+          </div>
+        )}
         <div className="mt-2 flex flex-wrap justify-end gap-1.5">
           {mode === "auto" && (
             <>
               <button
                 type="button"
+                disabled={busy || previewBusy || !instruction.trim()}
+                onClick={() => void previewAndEditPrompt()}
+                className="rounded-md border border-amber-400 bg-amber-50 px-2.5 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-50"
+                title="Pokaż prompt który generator zbuduje, edytuj przed wysłaniem (debug)"
+              >
+                {previewBusy ? "..." : "👁️ Edytuj prompt"}
+              </button>
+              <button
+                type="button"
                 disabled={busy || !instruction.trim()}
                 onClick={() => void runStreamEdit()}
                 className="rounded-md bg-indigo-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-indigo-800 disabled:opacity-50"
-                title="Streaming — wyświetla generowany tekst na bieżąco (Haiku 4.5)"
+                title="Streaming — wyświetla generowany tekst na bieżąco"
               >
                 {busy && streamingText !== null ? "Stream..." : "🔁 Stream"}
               </button>
@@ -2581,7 +2680,7 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
                 disabled={busy || !instruction.trim()}
                 onClick={() => void runAutoEdit()}
                 className="rounded-md bg-emerald-700 px-2.5 py-1 text-[11px] font-semibold text-white hover:bg-emerald-800 disabled:opacity-50"
-                title="Wywołaj Claude API i od razu zastosuj wynik (Haiku 4.5, ~5-10 s)"
+                title="Wywołaj Claude API i od razu zastosuj wynik"
               >
                 {busy && streamingText === null ? "..." : "✨ Zastosuj przez AI"}
               </button>
@@ -2598,6 +2697,82 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
           </button>
         </div>
       </div>
+
+      {/* ─── Modal: Edytuj prompt przed wysłaniem ─────────────────────────── */}
+      {previewedPrompt && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) setPreviewedPrompt(null);
+          }}
+        >
+          <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
+              <div>
+                <h3 className="text-sm font-semibold text-slate-900">👁️ Edytuj prompt przed wysłaniem</h3>
+                <p className="text-[10px] text-slate-500">
+                  Generator zbudował poniższe prompty na podstawie Twojej instrukcji. Możesz je edytować i kliknąć
+                  „Wyślij teraz” — wtedy AI dostanie Twoją wersję zamiast wygenerowanej.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setPreviewedPrompt(null)}
+                className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="flex-1 space-y-2 overflow-y-auto p-3 text-xs">
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    System prompt ({previewedPrompt.system.length} znaków)
+                  </span>
+                </div>
+                <textarea
+                  value={previewedPrompt.system}
+                  onChange={(e) => setPreviewedPrompt((prev) => (prev ? { ...prev, system: e.target.value } : prev))}
+                  rows={12}
+                  className="w-full rounded border border-slate-300 bg-slate-50 p-2 font-mono text-[10px]"
+                />
+              </div>
+              <div>
+                <div className="mb-1 flex items-center justify-between">
+                  <span className="text-[10px] font-semibold uppercase tracking-wide text-slate-600">
+                    User prompt ({previewedPrompt.user.length} znaków)
+                  </span>
+                </div>
+                <textarea
+                  value={previewedPrompt.user}
+                  onChange={(e) => setPreviewedPrompt((prev) => (prev ? { ...prev, user: e.target.value } : prev))}
+                  rows={12}
+                  className="w-full rounded border border-slate-300 bg-slate-50 p-2 font-mono text-[10px]"
+                />
+              </div>
+            </div>
+            <div className="flex items-center justify-end gap-2 border-t border-slate-200 px-4 py-2">
+              <span className="mr-auto text-[10px] text-slate-500">Model: {aiModel}</span>
+              <button
+                type="button"
+                onClick={() => setPreviewedPrompt(null)}
+                disabled={busy}
+                className="rounded border border-slate-300 bg-white px-2.5 py-1 text-[11px] text-slate-700 hover:bg-slate-50 disabled:opacity-40"
+              >
+                Anuluj
+              </button>
+              <button
+                type="button"
+                onClick={() => previewedPrompt && void runAutoEdit(previewedPrompt)}
+                disabled={busy}
+                className="rounded bg-emerald-700 px-3 py-1 text-[11px] font-semibold text-white hover:bg-emerald-800 disabled:opacity-40"
+              >
+                {busy ? "Wysyłam..." : "✨ Wyślij teraz (z edytowanym promptem)"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ─── Upload obrazka przypisanego do tej strony ─────────────────── */}
       <PageImageUpload

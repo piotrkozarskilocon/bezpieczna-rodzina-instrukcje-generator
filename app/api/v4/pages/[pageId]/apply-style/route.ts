@@ -2,9 +2,10 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
+import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { parseJsonFromAi } from "@/lib/v4Generate";
 import { replacePageElements } from "@/lib/v4Edit";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -50,8 +51,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const projectId = await ownPage(sb, targetPageId, auth.email);
   if (!projectId) return NextResponse.json({ error: "not found" }, { status: 404 });
 
-  const body = (await request.json().catch(() => null)) as { source_page_id?: string } | null;
+  const body = (await request.json().catch(() => null)) as
+    | { source_page_id?: string; model?: string; custom_system?: string; custom_user?: string }
+    | null;
   const sourcePageId = body?.source_page_id?.trim();
+  const chosenModel = resolveModel(body?.model, EDIT_MODEL);
   if (!sourcePageId) {
     return NextResponse.json({ error: "missing source_page_id" }, { status: 400 });
   }
@@ -174,20 +178,40 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "Zastosuj styl wzorca do strony docelowej. Zachowaj treść.",
   ].join("\n");
 
+  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : system;
+  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : user;
+  const promptEdited = !!(body?.custom_system || body?.custom_user);
+  const maxTokens = 12000;
+  const startedAt = Date.now();
+  const instructionDesc = `apply style from page ${srcPage.page_number} to page ${tgtPage.page_number}`;
+
   let ai;
   try {
     ai = await callClaude({
-      system,
-      user,
-      model: EDIT_MODEL,
-      maxTokens: 12000,
+      system: systemPrompt,
+      user: userPrompt,
+      model: chosenModel,
+      maxTokens,
       cacheSystemPrompt: true, // w pętli applyStyle systemy się powtarzają per target
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: `AI call failed: ${err instanceof Error ? err.message : "unknown"}` },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    void logAiCall({
+      project_id: projectId,
+      page_id: targetPageId,
+      endpoint: "apply-style",
+      context_type: "page",
+      user_instruction: instructionDesc,
+      system_prompt: systemPrompt,
+      user_prompt: userPrompt,
+      prompt_edited_by_user: promptEdited,
+      model: chosenModel,
+      max_tokens: maxTokens,
+      error: `AI call failed: ${msg}`,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
+    return NextResponse.json({ error: `AI call failed: ${msg}` }, { status: 502 });
   }
 
   let parsed: {
@@ -205,16 +229,52 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   try {
     parsed = parseJsonFromAi(ai.text);
   } catch (err) {
-    return NextResponse.json(
-      { error: `AI response parse failed: ${err instanceof Error ? err.message : "unknown"}` },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    void logAiCall({
+      project_id: projectId,
+      page_id: targetPageId,
+      endpoint: "apply-style",
+      context_type: "page",
+      user_instruction: instructionDesc,
+      system_prompt: systemPrompt,
+      user_prompt: userPrompt,
+      prompt_edited_by_user: promptEdited,
+      model: chosenModel,
+      max_tokens: maxTokens,
+      response_text: ai.text,
+      error: `AI response parse failed: ${msg}`,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
+    return NextResponse.json({ error: `AI response parse failed: ${msg}` }, { status: 502 });
   }
   if (!parsed.elements || !Array.isArray(parsed.elements)) {
     return NextResponse.json({ error: "AI didn't return elements array" }, { status: 502 });
   }
 
   const count = await replacePageElements(targetPageId, { elements: parsed.elements });
+
+  void logAiCall({
+    project_id: projectId,
+    page_id: targetPageId,
+    endpoint: "apply-style",
+    context_type: "page",
+    user_instruction: instructionDesc,
+    system_prompt: systemPrompt,
+    user_prompt: userPrompt,
+    prompt_edited_by_user: promptEdited,
+    model: chosenModel,
+    max_tokens: maxTokens,
+    response_text: ai.text,
+    tokens_in: ai.inputTokens,
+    tokens_out: ai.outputTokens,
+    cache_creation_tokens: ai.cacheCreationTokens ?? null,
+    cache_read_tokens: ai.cacheReadTokens ?? null,
+    duration_ms: Date.now() - startedAt,
+    user_email: auth.email,
+  });
 
   await sb
     .from("gen4_post_edit_log")

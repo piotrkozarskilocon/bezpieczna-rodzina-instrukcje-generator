@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callClaudeStream, EDIT_MODEL } from "@/lib/anthropic";
+import { callClaudeStream, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import {
   ownPage,
   buildPageEditPrompt,
@@ -9,6 +9,7 @@ import {
   replacePageElements,
 } from "@/lib/v4Edit";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -42,8 +43,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
   }
 
-  const body = (await request.json().catch(() => null)) as { instruction?: string } | null;
+  const body = (await request.json().catch(() => null)) as
+    | { instruction?: string; model?: string; custom_system?: string; custom_user?: string }
+    | null;
   const instruction = body?.instruction?.trim();
+  const chosenModel = resolveModel(body?.model, EDIT_MODEL);
   if (!instruction) {
     return new Response(JSON.stringify({ error: "missing instruction" }), {
       status: 400,
@@ -64,6 +68,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       headers: { "Content-Type": "application/json" },
     });
   }
+
+  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
+  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
+  const promptEdited = !!(body?.custom_system || body?.custom_user);
 
   const sb = getSupabaseAdmin();
   const { data: pageMeta } = await sb
@@ -86,13 +94,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const stream = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const startedAt = Date.now();
+      const maxTokens = 12000;
       try {
         const ai = await callClaudeStream(
           {
-            system: built.system,
-            user: built.user,
-            model: EDIT_MODEL,
-            maxTokens: 12000, // strony z 20+ elementami potrzebują wiecej; truncation = JSON parse fail
+            system: systemPrompt,
+            user: userPrompt,
+            model: chosenModel,
+            maxTokens, // strony z 20+ elementami potrzebują wiecej; truncation = JSON parse fail
             attachments: attachments.length > 0 ? attachments : undefined,
             cacheSystemPrompt: true,
           },
@@ -101,31 +111,49 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         // Parse + apply
         const parsed = parsePageEditResponse(ai.text);
         const count = await replacePageElements(pageId, parsed);
-        // Telemetria
+        // Debug log + telemetria
         if (pageMeta) {
-          await sb.from("gen4_ai_history").insert({
+          void logAiCall({
             project_id: pageMeta.project_id,
-            role: "assistant",
-            content: `ai-edit-stream page ${pageMeta.page_number}: ${instruction.slice(0, 200)}`,
-            structured: {
-              workflow_type: "ai_edit_stream",
-              page_id: pageId,
-              page_number: pageMeta.page_number,
-              template: pageMeta.template,
-              instruction,
-              elements_count: count,
-              cache_creation_tokens: ai.cacheCreationTokens,
-              cache_read_tokens: ai.cacheReadTokens,
-            },
-            model: ai.model,
-            input_tokens: ai.inputTokens,
-            output_tokens: ai.outputTokens,
-            latency_ms: ai.latencyMs,
+            page_id: pageId,
+            endpoint: "ai-edit-stream",
+            context_type: "page",
+            user_instruction: instruction,
+            system_prompt: systemPrompt,
+            user_prompt: userPrompt,
+            prompt_edited_by_user: promptEdited,
+            model: chosenModel,
+            max_tokens: maxTokens,
+            response_text: ai.text,
+            tokens_in: ai.inputTokens,
+            tokens_out: ai.outputTokens,
+            cache_creation_tokens: ai.cacheCreationTokens ?? null,
+            cache_read_tokens: ai.cacheReadTokens ?? null,
+            duration_ms: Date.now() - startedAt,
+            user_email: auth.email,
           });
         }
         emit(controller, { type: "done", elements: count, latency_ms: ai.latencyMs });
       } catch (err) {
-        emit(controller, { type: "error", error: err instanceof Error ? err.message : "stream failed" });
+        const msg = err instanceof Error ? err.message : "stream failed";
+        if (pageMeta) {
+          void logAiCall({
+            project_id: pageMeta.project_id,
+            page_id: pageId,
+            endpoint: "ai-edit-stream",
+            context_type: "page",
+            user_instruction: instruction,
+            system_prompt: systemPrompt,
+            user_prompt: userPrompt,
+            prompt_edited_by_user: promptEdited,
+            model: chosenModel,
+            max_tokens: maxTokens,
+            error: msg,
+            duration_ms: Date.now() - startedAt,
+            user_email: auth.email,
+          });
+        }
+        emit(controller, { type: "error", error: msg });
       } finally {
         controller.close();
       }

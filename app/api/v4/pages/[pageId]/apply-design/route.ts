@@ -2,10 +2,11 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
+import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { ownPage, parsePageEditResponse, replacePageElements } from "@/lib/v4Edit";
 import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -29,10 +30,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { ds_id?: string; instruction?: string }
+    | { ds_id?: string; instruction?: string; model?: string; custom_system?: string; custom_user?: string }
     | null;
   const dsId = body?.ds_id;
   if (!dsId) return NextResponse.json({ error: "missing ds_id" }, { status: 400 });
+  const chosenModel = resolveModel(body?.model, EDIT_MODEL);
 
   if (!process.env.ANTHROPIC_API_KEY) {
     return NextResponse.json(
@@ -53,12 +55,20 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
   const attachments = getAttachmentFileIds(refDocs);
 
+  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
+  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
+  const promptEdited = !!(body?.custom_system || body?.custom_user);
+  const maxTokens = 12000;
+  const startedAt = Date.now();
+  const instructionDesc = body?.instruction?.trim() || `apply DS "${built.dsName}" to page ${built.pageNumber}`;
+  const projectIdForLog = pageMeta?.project_id ?? null;
+
   try {
     const ai = await callClaude({
-      system: built.system,
-      user: built.user,
-      model: EDIT_MODEL,
-      maxTokens: 12000,
+      system: systemPrompt,
+      user: userPrompt,
+      model: chosenModel,
+      maxTokens,
       attachments: attachments.length > 0 ? attachments : undefined,
       // Caching — w pętli apply-DS per page (typowo 14× w wizardzie 'Zastosuj DS
       // do projektu') system prompt jest identyczny (DS content + notes + ref).
@@ -68,32 +78,25 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);
 
-    const sb = getSupabaseAdmin();
-    const { data: page } = await sb
-      .from("gen4_pages")
-      .select("project_id, page_number, template")
-      .eq("id", pageId)
-      .single();
-    if (page) {
-      await sb.from("gen4_ai_history").insert({
-        project_id: page.project_id,
-        role: "assistant",
-        content: `apply-design page ${page.page_number} → DS "${built.dsName}": ${count} elementów`,
-        structured: {
-          workflow_type: "apply_design_page",
-          page_id: pageId,
-          page_number: page.page_number,
-          template: page.template,
-          ds_id: dsId,
-          ds_name: built.dsName,
-          elements_count: count,
-          cache_creation_tokens: ai.cacheCreationTokens,
-          cache_read_tokens: ai.cacheReadTokens,
-        },
-        model: ai.model,
-        input_tokens: ai.inputTokens,
-        output_tokens: ai.outputTokens,
-        latency_ms: ai.latencyMs,
+    if (projectIdForLog) {
+      void logAiCall({
+        project_id: projectIdForLog,
+        page_id: pageId,
+        endpoint: "apply-design",
+        context_type: "page",
+        user_instruction: instructionDesc,
+        system_prompt: systemPrompt,
+        user_prompt: userPrompt,
+        prompt_edited_by_user: promptEdited,
+        model: chosenModel,
+        max_tokens: maxTokens,
+        response_text: ai.text,
+        tokens_in: ai.inputTokens,
+        tokens_out: ai.outputTokens,
+        cache_creation_tokens: ai.cacheCreationTokens ?? null,
+        cache_read_tokens: ai.cacheReadTokens ?? null,
+        duration_ms: Date.now() - startedAt,
+        user_email: auth.email,
       });
     }
 
@@ -105,6 +108,23 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
+    if (projectIdForLog) {
+      void logAiCall({
+        project_id: projectIdForLog,
+        page_id: pageId,
+        endpoint: "apply-design",
+        context_type: "page",
+        user_instruction: instructionDesc,
+        system_prompt: systemPrompt,
+        user_prompt: userPrompt,
+        prompt_edited_by_user: promptEdited,
+        model: chosenModel,
+        max_tokens: maxTokens,
+        error: msg,
+        duration_ms: Date.now() - startedAt,
+        user_email: auth.email,
+      });
+    }
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

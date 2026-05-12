@@ -2,8 +2,9 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
+import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { parseJsonFromAi } from "@/lib/v4Generate";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -60,11 +61,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  const body = (await request.json().catch(() => null)) as { instruction?: string } | null;
+  const body = (await request.json().catch(() => null)) as
+    | { instruction?: string; model?: string; custom_system?: string; custom_user?: string }
+    | null;
   const instruction = body?.instruction?.trim();
   if (!instruction) {
     return NextResponse.json({ error: "missing instruction" }, { status: 400 });
   }
+  const chosenModel = resolveModel(body?.model, EDIT_MODEL);
 
   // Pobierz target element + kontekst (pozostałe elementy strony) + page meta.
   const { data: page } = await sb
@@ -173,29 +177,67 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .filter(Boolean)
     .join("\n");
 
+  // Override promptu przez usera (debug "Edytuj prompt przed uruchomieniem").
+  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : system;
+  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : user;
+  const promptEdited = !!(body?.custom_system || body?.custom_user);
+  const maxTokens = 1500;
+  const startedAt = Date.now();
+
   let ai;
   try {
     ai = await callClaude({
-      system,
-      user,
-      model: EDIT_MODEL,
-      maxTokens: 1500, // jeden element = max ~500 tokenów JSON-a
+      system: systemPrompt,
+      user: userPrompt,
+      model: chosenModel,
+      maxTokens, // jeden element = max ~500 tokenów JSON-a
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: `AI call failed: ${err instanceof Error ? err.message : "unknown"}` },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    void logAiCall({
+      project_id: page.project_id,
+      page_id: pageId,
+      element_id: elementId,
+      endpoint: "ai-fix-element",
+      context_type: "element",
+      user_instruction: instruction,
+      system_prompt: systemPrompt,
+      user_prompt: userPrompt,
+      prompt_edited_by_user: promptEdited,
+      model: chosenModel,
+      max_tokens: maxTokens,
+      error: `AI call failed: ${msg}`,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
+    return NextResponse.json({ error: `AI call failed: ${msg}` }, { status: 502 });
   }
 
   let parsed: { element?: Record<string, unknown> };
   try {
     parsed = parseJsonFromAi<{ element?: Record<string, unknown> }>(ai.text);
   } catch (err) {
-    return NextResponse.json(
-      { error: `AI response parse failed: ${err instanceof Error ? err.message : "unknown"}` },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : "unknown";
+    void logAiCall({
+      project_id: page.project_id,
+      page_id: pageId,
+      element_id: elementId,
+      endpoint: "ai-fix-element",
+      context_type: "element",
+      user_instruction: instruction,
+      system_prompt: systemPrompt,
+      user_prompt: userPrompt,
+      prompt_edited_by_user: promptEdited,
+      model: chosenModel,
+      max_tokens: maxTokens,
+      response_text: ai.text,
+      error: `AI response parse failed: ${msg}`,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
+    return NextResponse.json({ error: `AI response parse failed: ${msg}` }, { status: 502 });
   }
   const updated = parsed.element;
   if (!updated || typeof updated !== "object") {
@@ -217,6 +259,28 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   if (error || !saved) {
     return NextResponse.json({ error: error?.message ?? "update failed" }, { status: 500 });
   }
+
+  // Debug log — pelna konwersacja z AI dla panelu debug.
+  void logAiCall({
+    project_id: page.project_id,
+    page_id: pageId,
+    element_id: elementId,
+    endpoint: "ai-fix-element",
+    context_type: "element",
+    user_instruction: instruction,
+    system_prompt: systemPrompt,
+    user_prompt: userPrompt,
+    prompt_edited_by_user: promptEdited,
+    model: chosenModel,
+    max_tokens: maxTokens,
+    response_text: ai.text,
+    tokens_in: ai.inputTokens,
+    tokens_out: ai.outputTokens,
+    cache_creation_tokens: ai.cacheCreationTokens ?? null,
+    cache_read_tokens: ai.cacheReadTokens ?? null,
+    duration_ms: Date.now() - startedAt,
+    user_email: auth.email,
+  });
 
   // Zapisz w edit log (jeśli tabela istnieje — fire-and-forget, ignoruj błędy).
   await sb

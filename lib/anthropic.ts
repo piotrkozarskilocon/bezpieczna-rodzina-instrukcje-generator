@@ -20,6 +20,47 @@ export const INITIAL_MODEL = "claude-haiku-4-5-20251001";
 export const EDIT_MODEL = "claude-haiku-4-5-20251001";
 export const PREMIUM_MODEL = "claude-sonnet-4-6";
 
+/** Lista modeli dostepnych przez UI (picker per-call). Klucz to wartość
+ *  którą user wybiera w dropdown; value to ID modelu Anthropic. Etykieta i
+ *  opis pomagają usera zorientowac sie ktory wybrac.
+ *
+ *  WAZNE: dla Vercel Hobby (60s cap) Opus i Sonnet z większym max_tokens mogą
+ *  przekroczyć timeout. Generator zwraca wtedy 504 — user zobaczy w panelu
+ *  debug i moze przelaczyc na Haiku.
+ */
+export const AVAILABLE_MODELS = [
+  {
+    id: "claude-haiku-4-5-20251001",
+    label: "Haiku 4.5",
+    description: "Najszybszy i najtanszy. Domyslnie. Dobry do prostych edycji, layout, kontrastu.",
+    speed: "fast",
+    cost: "low",
+  },
+  {
+    id: "claude-sonnet-4-6",
+    label: "Sonnet 4.6",
+    description: "Najlepszy do generacji tresci i bardziej zlozonych transformacji. ~5x drozszy od Haiku.",
+    speed: "medium",
+    cost: "medium",
+  },
+  {
+    id: "claude-opus-4-7",
+    label: "Opus 4.7",
+    description: "Najwyzsza jakosc rozumowania. Najdrozszy. Dla trudnych przypadkow gdzie inne modele nie radza sobie.",
+    speed: "slow",
+    cost: "high",
+  },
+] as const;
+
+export type AvailableModelId = (typeof AVAILABLE_MODELS)[number]["id"];
+
+/** Walidacja modelu z user inputu — pozwalamy tylko na te z listy. */
+export function resolveModel(requested: string | undefined | null, fallback: string): string {
+  if (!requested) return fallback;
+  const match = AVAILABLE_MODELS.find((m) => m.id === requested);
+  return match ? match.id : fallback;
+}
+
 export function getAnthropicClient(): Anthropic {
   const apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error("ANTHROPIC_API_KEY is not configured");
