@@ -73,8 +73,19 @@ export default function Gen4AiDebugPanel({ projectId, pageId }: Props): React.Re
       if (filterEndpoint) params.set("endpoint", filterEndpoint);
       if (filterPageOnly && pageId) params.set("page_id", pageId);
       const res = await fetch(`${API}/projects/${projectId}/ai-calls?${params.toString()}`, { cache: "no-store" });
-      if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      const j = (await res.json()) as { calls: AiCall[] };
+      const text = await res.text();
+      if (!res.ok) {
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        const e = parsed.error ?? `HTTP ${res.status}`;
+        if (/relation|does not exist|gen4_ai_calls/i.test(e)) {
+          throw new Error(
+            "Tabela gen4_ai_calls nie istnieje — wykonaj migrację 0019_v4_ai_calls.sql w Supabase Dashboard (SQL Editor).",
+          );
+        }
+        throw new Error(e);
+      }
+      const j = JSON.parse(text) as { calls: AiCall[] };
       setCalls(j.calls ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : "fetch failed");

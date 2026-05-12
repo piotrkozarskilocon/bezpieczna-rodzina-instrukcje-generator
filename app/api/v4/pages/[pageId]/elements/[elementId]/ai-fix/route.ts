@@ -184,6 +184,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const maxTokens = 1500;
   const startedAt = Date.now();
 
+  console.log(`[ai-fix-element] start model=${chosenModel} element=${elementId} system_len=${systemPrompt.length} user_len=${userPrompt.length}`);
+
   let ai;
   try {
     ai = await callClaude({
@@ -192,8 +194,10 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       model: chosenModel,
       maxTokens, // jeden element = max ~500 tokenów JSON-a
     });
+    console.log(`[ai-fix-element] AI ok in ${Date.now() - startedAt}ms, response_len=${ai.text.length}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
+    console.error(`[ai-fix-element] AI call failed after ${Date.now() - startedAt}ms:`, msg);
     void logAiCall({
       project_id: page.project_id,
       page_id: pageId,

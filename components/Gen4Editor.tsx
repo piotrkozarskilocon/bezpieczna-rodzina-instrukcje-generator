@@ -2062,21 +2062,43 @@ function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied
     if (!pageId || !aiInstr.trim()) return;
     setAiBusy(true);
     setAiErr(null);
+    // Vercel Hobby ma 60s function cap — Sonnet/Opus z dluga odpowiedzia
+    // czasem podchodzi pod ten limit. Dajemy 75s na klienta, potem
+    // explicit abort + jasny komunikat (zeby user nie patrzyl w infinitnie
+    // krecace sie "AI poprawia...").
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 75_000);
+    const reqStart = Date.now();
+    console.log("[ai-fix-element] POST", { pageId, elementId: element.id, model: aiModel, instruction: aiInstr.trim() });
     try {
       const res = await fetch(`${API}/pages/${pageId}/elements/${element.id}/ai-fix/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ instruction: aiInstr.trim(), model: aiModel }),
+        signal: controller.signal,
       });
+      console.log("[ai-fix-element] response", res.status, `${Date.now() - reqStart}ms`);
       if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(j.error ?? `HTTP ${res.status}`);
+        const text = await res.text();
+        let parsed: { error?: string } = {};
+        try { parsed = JSON.parse(text); } catch { /* ignore */ }
+        throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 300)}`);
       }
+      const data = (await res.json()) as { element?: unknown };
+      console.log("[ai-fix-element] success, applied element", data);
       setAiInstr("");
       if (onAiFixApplied) await onAiFixApplied();
     } catch (err) {
-      setAiErr(err instanceof Error ? err.message : "AI fix failed");
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const msg = isAbort
+        ? `Timeout 75s (Vercel Hobby ma 60s cap dla funkcji). Spróbuj Haiku zamiast ${aiModel.includes("opus") ? "Opus" : "Sonnet"}.`
+        : err instanceof Error
+          ? err.message
+          : "AI fix failed";
+      console.error("[ai-fix-element] FAILED:", msg);
+      setAiErr(msg);
     } finally {
+      clearTimeout(t);
       setAiBusy(false);
     }
   };
@@ -2462,17 +2484,25 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
     setBusy(true);
     setError(null);
     setInfo(null);
+    // Vercel Hobby ma 60s function cap — Sonnet/Opus moga go ocierac.
+    // Frontend timeout 75s, potem abort z czytelnym komunikatem.
+    const controller = new AbortController();
+    const t = setTimeout(() => controller.abort(), 75_000);
+    const reqStart = Date.now();
     try {
       const reqBody: Record<string, unknown> = { instruction: instruction.trim(), model: aiModel };
       if (override) {
         reqBody.custom_system = override.system;
         reqBody.custom_user = override.user;
       }
+      console.log("[ai-edit] POST", { pageId, model: aiModel, instruction: instruction.trim(), promptEdited: !!override });
       const res = await fetch(`${API}/pages/${pageId}/ai-edit/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reqBody),
+        signal: controller.signal,
       });
+      console.log("[ai-edit] response", res.status, `${Date.now() - reqStart}ms`);
       const text = await res.text();
       if (!res.ok) {
         if (text.startsWith("<")) throw new Error(`HTTP ${res.status}: serwer zwrócił HTML`);
@@ -2489,8 +2519,16 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
       setPreviewedPrompt(null);
       await onApplied();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "ai-edit failed");
+      const isAbort = err instanceof DOMException && err.name === "AbortError";
+      const msg = isAbort
+        ? `Timeout 75s (Vercel Hobby 60s function cap). Sonnet/Opus dla duzych stron moga nie zdazyc — sprobuj Haiku.`
+        : err instanceof Error
+          ? err.message
+          : "ai-edit failed";
+      console.error("[ai-edit] FAILED:", msg);
+      setError(msg);
     } finally {
+      clearTimeout(t);
       setBusy(false);
     }
   };
