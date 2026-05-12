@@ -78,6 +78,14 @@ const expectations = [
   ["gen4_ai_notes", "content"],
   ["gen4_ai_notes", "is_active"],
   ["gen4_ai_notes", "used_count"],
+  // 0012 — reference docs
+  ["gen4_reference_docs", "id"],
+  ["gen4_reference_docs", "project_id"],
+  ["gen4_reference_docs", "kind"],
+  ["gen4_reference_docs", "name"],
+  ["gen4_reference_docs", "file_path"],
+  ["gen4_reference_docs", "anthropic_file_id"],
+  ["gen4_reference_docs", "extracted_summary"],
 ];
 
 async function checkColumn(table, column) {

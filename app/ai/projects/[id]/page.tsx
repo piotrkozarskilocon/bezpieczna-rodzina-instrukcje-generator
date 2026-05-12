@@ -9,6 +9,7 @@ import Gen4ExportPanel from "@/components/Gen4ExportPanel";
 import Gen4ImagePanel from "@/components/Gen4ImagePanel";
 import Gen4CostDashboard from "@/components/Gen4CostDashboard";
 import Gen4NotesPanel from "@/components/Gen4NotesPanel";
+import Gen4ReferenceDocsPanel from "@/components/Gen4ReferenceDocsPanel";
 
 const PAGE_API_BASE = "/generator-instrukcji/api/v4";
 
@@ -169,6 +170,10 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
                   documentType={project.document_type ?? null}
                   deviceType={project.device_type ?? null}
                 />
+              </div>
+
+              <div className="mb-4">
+                <Gen4ReferenceDocsPanel projectId={id} />
               </div>
 
               <div className="mb-4">

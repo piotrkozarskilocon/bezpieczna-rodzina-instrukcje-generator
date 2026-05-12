@@ -42,24 +42,44 @@ export interface AiResponse {
  *  Używa streamingu (`messages.stream(...).finalMessage()`), bo Anthropic
  *  od końca 2025 wymusza streaming dla operacji potencjalnie > 10 min
  *  (large max_tokens + wolniejsze modele jak Sonnet 4.6). API zwraca
- *  ten sam typ Message co .create(), więc reszta kodu nie wymaga zmian. */
+ *  ten sam typ Message co .create(), więc reszta kodu nie wymaga zmian.
+ *
+ *  attachments — opcjonalne PDF file_id z Anthropic Files API. Trafiają
+ *  jako document blocks razem z tekstem user message, dzięki czemu Claude
+ *  czyta zawartość plików bezpośrednio (np. raport SAR -> wartości w wpisach). */
 export async function callClaude(opts: {
   system: string;
   user: string;
   model?: string;
   maxTokens?: number;
+  attachments?: string[]; // Anthropic file_id list
 }): Promise<AiResponse> {
   const client = getAnthropicClient();
   const model = opts.model ?? INITIAL_MODEL;
   const start = Date.now();
-  const message = await client.messages
-    .stream({
-      model,
-      max_tokens: opts.maxTokens ?? 16000,
-      system: opts.system,
-      messages: [{ role: "user", content: opts.user }],
-    })
-    .finalMessage();
+
+  // Buduj content array: tekst + opcjonalne document blocks (PDF attachments).
+  // TS SDK Anthropic jeszcze nie ma stabilnej deklaracji dla document blocks z
+  // file_id (beta files API), więc używamy `unknown` cast — runtime jest OK.
+  const userContent: unknown[] = [{ type: "text", text: opts.user }];
+  for (const fileId of opts.attachments ?? []) {
+    userContent.unshift({
+      type: "document",
+      source: { type: "file", file_id: fileId },
+    });
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const streamParams: any = {
+    model,
+    max_tokens: opts.maxTokens ?? 16000,
+    system: opts.system,
+    messages: [{ role: "user", content: opts.attachments?.length ? userContent : opts.user }],
+  };
+  if (opts.attachments?.length) {
+    streamParams.betas = ["files-api-2025-04-14"];
+  }
+  const message = await client.messages.stream(streamParams).finalMessage();
   const latencyMs = Date.now() - start;
 
   // Concatenate any text blocks from the structured response.

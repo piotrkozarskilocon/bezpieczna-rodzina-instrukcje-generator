@@ -5,6 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { ownPage, parsePageEditResponse, replacePageElements } from "@/lib/v4Edit";
 import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
+import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -43,12 +44,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const built = await buildApplyDsToPagePrompt(pageId, dsId, body?.instruction);
   if (!built) return NextResponse.json({ error: "page or DS not found" }, { status: 404 });
 
+  const sbForRef = getSupabaseAdmin();
+  const { data: pageMeta } = await sbForRef
+    .from("gen4_pages")
+    .select("project_id")
+    .eq("id", pageId)
+    .single();
+  const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
+  const attachments = getAttachmentFileIds(refDocs);
+
   try {
     const ai = await callClaude({
       system: built.system,
       user: built.user,
       model: EDIT_MODEL,
       maxTokens: 4000,
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);

@@ -52,6 +52,7 @@ export default function AiNewProjectPage(): React.ReactElement {
   const [error, setError] = useState<string | null>(null);
   const [stage, setStage] = useState<string | null>(null);
   const [mode, setMode] = useState<"auto" | "manual" | "unknown">("unknown");
+  const [refFiles, setRefFiles] = useState<Array<{ file: File; kind: string; lang: string }>>([]);
 
   useEffect(() => {
     let cancelled = false;
@@ -107,6 +108,27 @@ export default function AiNewProjectPage(): React.ReactElement {
       if (json.mode === "manual" || !json.skeleton || !json.id || !json.page_list) {
         window.location.href = `/generator-instrukcji/ai/projects/${json.id}`;
         return;
+      }
+
+      // Wgraj pliki referencyjne (jeśli były) ZANIM ruszymy populate —
+      // dzięki temu AI w generowaniu treści ma do nich dostęp.
+      if (refFiles.length > 0) {
+        for (let i = 0; i < refFiles.length; i++) {
+          const { file, kind, lang } = refFiles[i];
+          setStage(`Wgrywam i synchronizuję plik referencyjny ${i + 1}/${refFiles.length}: ${file.name}...`);
+          const form = new FormData();
+          form.append("file", file);
+          form.append("kind", kind);
+          form.append("source_lang", lang);
+          try {
+            await fetch(`${API_BASE}/projects/${json.id}/reference-docs/`, {
+              method: "POST",
+              body: form,
+            });
+          } catch {
+            /* ignoruj — user może doupload-ować w panelu projektu */
+          }
+        }
       }
 
       // Auto mode (chunked) → pętla per-strona z progress UI.
@@ -290,6 +312,83 @@ export default function AiNewProjectPage(): React.ReactElement {
             Wskazówka dla AI ile podkroków rozłożyć w sekcji „Pierwsze uruchomienie".
             Reszta sekcji (gwarancja, kontakt, deklaracja CE…) wynika z typu dokumentu.
           </p>
+        </div>
+
+        {/* Opcjonalne pliki referencyjne — AI wyciągnie z nich konkretne wartości */}
+        <div>
+          <label className="block text-xs font-medium text-slate-700">
+            📎 Pliki referencyjne (opcjonalnie)
+          </label>
+          <p className="mt-1 mb-2 text-[11px] text-slate-500">
+            Wgraj PDF-y z raportem SAR, specyfikacją techniczną, instrukcją producenta —
+            AI wyciągnie z nich konkretne wartości (SAR head/body, normy, częstotliwości,
+            IP rating) i wstawi je w generowanej instrukcji zamiast placeholderów{" "}
+            <em>DO UZUPEŁNIENIA</em>. Maksymalnie 25 MB na plik.
+          </p>
+          {refFiles.length > 0 && (
+            <ul className="mb-2 space-y-1">
+              {refFiles.map((rf, idx) => (
+                <li key={idx} className="flex items-center gap-2 rounded border border-slate-200 bg-slate-50 px-2 py-1 text-xs">
+                  <span className="flex-1 truncate" title={rf.file.name}>
+                    📄 {rf.file.name} <span className="text-slate-400">({Math.round(rf.file.size / 1024)} KB)</span>
+                  </span>
+                  <select
+                    value={rf.kind}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRefFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, kind: v } : f)));
+                    }}
+                    className="rounded border border-slate-300 px-1 py-0.5 text-[10px]"
+                  >
+                    <option value="sar_report">SAR</option>
+                    <option value="tech_spec">Spec</option>
+                    <option value="manufacturer_manual">Producent</option>
+                    <option value="declaration_ce">CE</option>
+                    <option value="other">Inne</option>
+                  </select>
+                  <select
+                    value={rf.lang}
+                    onChange={(e) => {
+                      const v = e.target.value;
+                      setRefFiles((prev) => prev.map((f, i) => (i === idx ? { ...f, lang: v } : f)));
+                    }}
+                    className="rounded border border-slate-300 px-1 py-0.5 text-[10px]"
+                  >
+                    <option value="pl">PL</option>
+                    <option value="en">EN</option>
+                    <option value="zh">ZH</option>
+                    <option value="de">DE</option>
+                  </select>
+                  <button
+                    type="button"
+                    onClick={() => setRefFiles((prev) => prev.filter((_, i) => i !== idx))}
+                    className="text-slate-400 hover:text-red-700"
+                    title="Usuń"
+                  >
+                    ×
+                  </button>
+                </li>
+              ))}
+            </ul>
+          )}
+          <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-purple-400 hover:bg-purple-50">
+            <span>+ Dodaj PDF</span>
+            <input
+              type="file"
+              accept="application/pdf"
+              multiple
+              className="hidden"
+              onChange={(e) => {
+                const files = Array.from(e.target.files ?? []);
+                setRefFiles((prev) => [
+                  ...prev,
+                  ...files.map((f) => ({ file: f, kind: "tech_spec", lang: "pl" })),
+                ]);
+                // reset input value żeby można było wgrać ten sam plik ponownie
+                e.target.value = "";
+              }}
+            />
+          </label>
         </div>
 
         {stage && (

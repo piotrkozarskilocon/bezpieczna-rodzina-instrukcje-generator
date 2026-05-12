@@ -7,6 +7,7 @@ import { ownPage, parsePageEditResponse, replacePageElements } from "@/lib/v4Edi
 import { loadProjectImages, renderImagesForPrompt } from "@/lib/v4Generate";
 import { getRequiredSections, type DocumentType, type DeviceType } from "@/lib/v4LegalTemplates";
 import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
+import { loadReferenceDocs, renderReferenceDocsForPrompt, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -167,7 +168,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   userLines.push("");
   userLines.push("Zwróć JSON z tablicą elementów (3-10 elementów dla większości stron).");
 
-  // Notatki AI dla tego kontekstu (global + per doc/dev/project).
+  // Notatki AI + pliki referencyjne dla tego kontekstu.
   const notes = await loadActiveNotes({
     owner_email: auth.email,
     document_type: docType ?? undefined,
@@ -175,13 +176,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     project_id: page.project_id,
   });
   const notesBlock = renderNotesForPrompt(notes);
+  const refDocs = await loadReferenceDocs(page.project_id);
+  const refBlock = renderReferenceDocsForPrompt(refDocs);
+  const attachments = getAttachmentFileIds(refDocs);
 
   try {
     const ai = await callClaude({
-      system: notesBlock ? `${notesBlock}\n\n${system}` : system,
+      system: [notesBlock, refBlock, system].filter(Boolean).join("\n\n"),
       user: userLines.join("\n"),
       model: EDIT_MODEL,
       maxTokens: 3000, // ~10 elementów = ~600-1200 tokenów output
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     void incrementUsedCount(notes.map((n) => n.id));
     const parsed = parsePageEditResponse(ai.text);

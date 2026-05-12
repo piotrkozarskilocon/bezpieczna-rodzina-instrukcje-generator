@@ -12,6 +12,7 @@ import {
   parseJsonFromAi,
 } from "@/lib/v4Generate";
 import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
+import { loadReferenceDocs, renderReferenceDocsForPrompt, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import {
   isValidDocumentType,
   isValidDeviceType,
@@ -115,16 +116,22 @@ export async function POST(request: NextRequest) {
     });
     const notesBlock = renderNotesForPrompt(notes);
 
+    // Pliki referencyjne projektu (uploaded podczas wizardu lub wcześniej).
+    const refDocs = await loadReferenceDocs(project.id);
+    const refBlock = renderReferenceDocsForPrompt(refDocs);
+    const attachments = getAttachmentFileIds(refDocs);
+
     const baseSystem = buildSkeletonSystemPrompt({
       document_type: input.document_type,
       device_type: input.device_type,
       step_count: input.step_count,
     });
     const ai = await callClaude({
-      system: notesBlock ? `${notesBlock}\n\n${baseSystem}` : baseSystem,
+      system: [notesBlock, refBlock, baseSystem].filter(Boolean).join("\n\n"),
       user: buildSkeletonUserPrompt(input),
       model: INITIAL_MODEL,
       maxTokens: 6000, // szkielet ~14-20 stron (multi-step = krok per strona)
+      attachments: attachments.length > 0 ? attachments : undefined,
     });
     // Fire-and-forget — bump used_count notatek których faktycznie użyliśmy.
     void incrementUsedCount(notes.map((n) => n.id));
