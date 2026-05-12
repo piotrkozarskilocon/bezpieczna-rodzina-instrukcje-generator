@@ -10,6 +10,8 @@ interface Project {
   pages_count: number;
   default_lang: string;
   created_at: string;
+  document_type?: string | null;
+  device_type?: string | null;
 }
 
 const API_BASE = "/generator-instrukcji/api/v4";
@@ -18,6 +20,8 @@ export default function AiHomePage(): React.ReactElement {
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [search, setSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<"all" | "ready" | "draft" | "generating" | "error">("all");
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -35,6 +39,19 @@ export default function AiHomePage(): React.ReactElement {
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
+
+  const filtered = projects.filter((p) => {
+    if (statusFilter !== "all" && p.status !== statusFilter) return false;
+    if (!search.trim()) return true;
+    const q = search.trim().toLowerCase();
+    const haystack = [
+      p.name,
+      p.document_type ?? "",
+      p.device_type ?? "",
+      p.default_lang,
+    ].join(" ").toLowerCase();
+    return haystack.includes(q);
+  });
 
   return (
     <div className="mx-auto max-w-6xl px-6 py-12">
@@ -82,8 +99,38 @@ export default function AiHomePage(): React.ReactElement {
       )}
 
       {!loading && !error && projects.length > 0 && (
-        <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-          {projects.map((p) => (
+        <>
+          <div className="mb-4 flex flex-wrap items-center gap-3 rounded-xl border border-slate-200 bg-white px-4 py-2.5">
+            <input
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="🔍 Szukaj po nazwie, typie dokumentu, urządzeniu…"
+              className="flex-1 min-w-[200px] rounded border border-slate-300 px-2 py-1 text-sm focus:border-purple-500 focus:outline-none"
+            />
+            <select
+              value={statusFilter}
+              onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
+              className="rounded border border-slate-300 px-2 py-1 text-sm"
+            >
+              <option value="all">Wszystkie statusy</option>
+              <option value="ready">Ready</option>
+              <option value="generating">Generating</option>
+              <option value="draft">Draft</option>
+              <option value="error">Error</option>
+            </select>
+            <span className="text-xs text-slate-500">
+              {filtered.length}/{projects.length}
+            </span>
+          </div>
+
+          {filtered.length === 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-300 bg-slate-50 p-8 text-center text-sm text-slate-500">
+              Nic nie pasuje do filtra. <button type="button" onClick={() => { setSearch(""); setStatusFilter("all"); }} className="underline hover:text-slate-700">Wyczyść filtr</button>
+            </div>
+          ) : (
+            <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {filtered.map((p) => (
             <li key={p.id}>
               <Link
                 href={`/ai/projects/${p.id}`}
@@ -107,12 +154,14 @@ export default function AiHomePage(): React.ReactElement {
                 </p>
               </Link>
             </li>
-          ))}
-        </ul>
+              ))}
+            </ul>
+          )}
+        </>
       )}
 
       <p className="mt-10 text-xs uppercase tracking-[0.16em] text-slate-400">
-        Generator AI · v4 · model Claude Sonnet 4.6 (initial) + Haiku 4.5 (edycja)
+        Generator AI · v4 · Claude Haiku 4.5 (skeleton + per-page) · Sonnet 4.6 (premium)
       </p>
     </div>
   );

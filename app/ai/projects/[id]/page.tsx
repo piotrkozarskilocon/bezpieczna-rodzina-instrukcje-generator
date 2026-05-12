@@ -7,6 +7,7 @@ import Gen4TranslationsPanel from "@/components/Gen4TranslationsPanel";
 import Gen4DesignSystemPanel from "@/components/Gen4DesignSystemPanel";
 import Gen4ExportPanel from "@/components/Gen4ExportPanel";
 import Gen4ImagePanel from "@/components/Gen4ImagePanel";
+import Gen4CostDashboard from "@/components/Gen4CostDashboard";
 
 const PAGE_API_BASE = "/generator-instrukcji/api/v4";
 
@@ -176,6 +177,10 @@ export default function AiProjectPage({ params }: ProjectPageProps): React.React
                   defaultLang={project.default_lang}
                   totalTextElements={project.text_element_count ?? 0}
                 />
+              </div>
+
+              <div className="mb-4">
+                <Gen4CostDashboard projectId={id} />
               </div>
 
               <Gen4Editor projectId={id} defaultLang={project.default_lang} />

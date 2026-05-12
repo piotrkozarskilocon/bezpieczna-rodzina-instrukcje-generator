@@ -11,7 +11,7 @@
  * bottom-left of the page. We convert in `mmYTopToPdf`.
  */
 
-import { PDFDocument, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
+import { PDFDocument, degrees, rgb, StandardFonts, type PDFFont, type PDFPage } from "pdf-lib";
 // fontkit must be registered via PDFDocument.registerFontkit before embedding TTFs.
 import fontkit from "@pdf-lib/fontkit";
 import QRCode from "qrcode";
@@ -49,6 +49,7 @@ interface ProjectExportData {
   default_lang: string;
   pages: PageRow[];
   translations: Map<string, string>; // element_id → translated text
+  imageBytes: Map<string, { bytes: Uint8Array; mime: string }>; // image_id → fetched data
 }
 
 /** Loads everything needed to render a PDF for one language.
@@ -109,6 +110,40 @@ export async function loadProjectForExport(
     }
   }
 
+  // Preload images: zbieramy wszystkie image_id z elementów typu 'image',
+  // pobieramy bytes z bucket (storage admin client — bez signed URL bo to
+  // server-side). pdf-lib obsługuje natywnie PNG i JPG. WebP/GIF idą jako
+  // placeholder z ramką (nie wspierane przez pdf-lib).
+  const imageBytes = new Map<string, { bytes: Uint8Array; mime: string }>();
+  const imageIdsFromElements: string[] = [];
+  for (const el of elements ?? []) {
+    if (el.type !== "image") continue;
+    const props = el.properties as Record<string, unknown> | null;
+    const id = typeof props?.image_id === "string" ? props.image_id : null;
+    if (id && !imageBytes.has(id)) imageIdsFromElements.push(id);
+  }
+  if (imageIdsFromElements.length > 0) {
+    const { data: images } = await sb
+      .from("gen4_images")
+      .select("id, path, mime_type")
+      .in("id", imageIdsFromElements);
+    for (const img of images ?? []) {
+      try {
+        const { data: blob, error } = await sb.storage
+          .from("gen4-images")
+          .download(img.path);
+        if (error || !blob) continue;
+        const buf = new Uint8Array(await blob.arrayBuffer());
+        imageBytes.set(img.id, {
+          bytes: buf,
+          mime: img.mime_type ?? blob.type ?? "image/png",
+        });
+      } catch (err) {
+        console.warn(`[v4 export] failed to download image ${img.id}:`, err);
+      }
+    }
+  }
+
   return {
     id: project.id,
     name: project.name,
@@ -118,6 +153,7 @@ export async function loadProjectForExport(
       elements: elementsByPage.get(p.id) ?? [],
     })),
     translations,
+    imageBytes,
   };
 }
 
@@ -184,6 +220,7 @@ interface DrawContext {
   pageNumber: number;
   totalPages: number;
   lang: string;
+  imageBytes: Map<string, { bytes: Uint8Array; mime: string }>;
 }
 
 /** Render one element. Returns nothing — direct draw on the page. */
@@ -249,12 +286,22 @@ async function drawElement(
     const strokeWidthMm = typeof (props as Record<string, unknown>).stroke_width === "number"
       ? ((props as Record<string, number>).stroke_width as number)
       : 0.5;
-    // h_mm typically 0 → horizontal line at top edge of box. Otherwise diagonal.
-    const yTop = ctx.pageHeightPt - el.y_mm * PT_PER_MM;
-    const yBottom = ctx.pageHeightPt - (el.y_mm + el.h_mm) * PT_PER_MM;
+    // Linia rysowana między dwoma punktami procentowymi wewnątrz bounding boxa
+    // (faza 2c — pozwala na pion/skos/poziom). Fallback dla starych linii bez
+    // x1_pct/y1_pct: pozioma na środku bounding boxa.
+    const p = props as Record<string, unknown>;
+    const x1Pct = typeof p.x1_pct === "number" ? p.x1_pct : 0;
+    const y1Pct = typeof p.y1_pct === "number" ? p.y1_pct : 50;
+    const x2Pct = typeof p.x2_pct === "number" ? p.x2_pct : 100;
+    const y2Pct = typeof p.y2_pct === "number" ? p.y2_pct : 50;
+    // Konwersja procentów na px w bounding boxie, z mm w punktach PDF.
+    const x1Pt = xPt + (x1Pct / 100) * wPt;
+    const y1Pt = ctx.pageHeightPt - (el.y_mm + (y1Pct / 100) * el.h_mm) * PT_PER_MM;
+    const x2Pt = xPt + (x2Pct / 100) * wPt;
+    const y2Pt = ctx.pageHeightPt - (el.y_mm + (y2Pct / 100) * el.h_mm) * PT_PER_MM;
     ctx.page.drawLine({
-      start: { x: xPt, y: yTop },
-      end: { x: xPt + wPt, y: yBottom },
+      start: { x: x1Pt, y: y1Pt },
+      end: { x: x2Pt, y: y2Pt },
       thickness: strokeWidthMm * PT_PER_MM,
       color: stroke,
     });
@@ -296,18 +343,98 @@ async function drawElement(
   }
 
   if (el.type === "image") {
-    // Image library not yet wired into v4 — render a neutral placeholder so
-    // the spot is visible but doesn't break the document.
-    ctx.page.drawRectangle({
-      x: xPt,
-      y: yPdfBottom,
-      width: wPt,
-      height: hPt,
-      borderWidth: 0.3,
-      borderColor: rgb(0.7, 0.7, 0.7),
-    });
+    const imageId = typeof (props as Record<string, unknown>).image_id === "string"
+      ? ((props as Record<string, string>).image_id as string)
+      : null;
+    const imgData = imageId ? ctx.imageBytes.get(imageId) : null;
+    const fitMode = typeof (props as Record<string, unknown>).fit_mode === "string"
+      ? ((props as Record<string, string>).fit_mode as string)
+      : "contain";
+
+    // Brak image_id lub nie udało się pobrać → placeholder z ramką (jak dotąd).
+    if (!imgData) {
+      ctx.page.drawRectangle({
+        x: xPt,
+        y: yPdfBottom,
+        width: wPt,
+        height: hPt,
+        borderWidth: 0.3,
+        borderColor: rgb(0.7, 0.7, 0.7),
+      });
+      // Krótki opis placeholderu jeśli AI go wpisał — żeby na druku
+      // było widać czego brakuje.
+      const placeholderDesc = (props as Record<string, unknown>).placeholder_description;
+      if (typeof placeholderDesc === "string" && placeholderDesc.trim()) {
+        const labelSize = 4.5;
+        ctx.page.drawText(`📷 ${placeholderDesc}`, {
+          x: xPt + 1,
+          y: yPdfBottom + hPt / 2 - labelSize / 2,
+          size: labelSize,
+          font: ctx.fontRegular,
+          color: rgb(0.5, 0.5, 0.5),
+        });
+      }
+      return;
+    }
+
+    try {
+      // pdf-lib obsługuje PNG i JPG natywnie. WebP/GIF → konwersja niewspierana,
+      // próba embedJpg może paść — wtedy fallback do placeholderu.
+      const mime = imgData.mime.toLowerCase();
+      let img;
+      if (mime.includes("png")) {
+        img = await ctx.page.doc.embedPng(imgData.bytes);
+      } else if (mime.includes("jpeg") || mime.includes("jpg")) {
+        img = await ctx.page.doc.embedJpg(imgData.bytes);
+      } else {
+        // Niewspierany format → placeholder + tekst z mime
+        ctx.page.drawRectangle({
+          x: xPt, y: yPdfBottom, width: wPt, height: hPt,
+          borderWidth: 0.3, borderColor: rgb(0.7, 0.7, 0.7),
+        });
+        ctx.page.drawText(`(format ${mime} niewspierany w PDF — przeglądnij obrazek do PNG/JPG)`, {
+          x: xPt + 1, y: yPdfBottom + 1, size: 3.5,
+          font: ctx.fontRegular, color: rgb(0.7, 0.4, 0.4),
+        });
+        return;
+      }
+
+      // fit_mode contain — dopasuj zachowując proporcje, wycentruj.
+      // fit_mode cover — wypełnij box, możliwe przycięcie (pdf-lib nie ma
+      // natywnego cropping, więc fallback do contain).
+      const imgRatio = img.width / img.height;
+      const boxRatio = wPt / hPt;
+      let drawW = wPt;
+      let drawH = hPt;
+      let drawX = xPt;
+      let drawY = yPdfBottom;
+      if (fitMode === "contain" || fitMode === "cover") {
+        if (imgRatio > boxRatio) {
+          drawW = wPt;
+          drawH = wPt / imgRatio;
+          drawY = yPdfBottom + (hPt - drawH) / 2;
+        } else {
+          drawH = hPt;
+          drawW = hPt * imgRatio;
+          drawX = xPt + (wPt - drawW) / 2;
+        }
+      }
+      ctx.page.drawImage(img, { x: drawX, y: drawY, width: drawW, height: drawH });
+    } catch (err) {
+      console.warn(`[v4 export] embed image ${imageId} failed:`, err);
+      ctx.page.drawRectangle({
+        x: xPt, y: yPdfBottom, width: wPt, height: hPt,
+        borderWidth: 0.3, borderColor: rgb(0.7, 0.7, 0.7),
+      });
+    }
     return;
   }
+}
+
+export interface ExportOptions {
+  /** Gdy true, każda strona dostaje semi-transparent watermark 'DRAFT'
+   *  przekątnie — chroni przed wysłaniem niezatwierdzonego dokumentu do drukarni. */
+  watermarkDraft?: boolean;
 }
 
 /** Builds the PDF and returns its bytes (Uint8Array, ready for response).
@@ -315,6 +442,7 @@ async function drawElement(
 export async function exportProjectToPdf(
   data: ProjectExportData,
   lang: string,
+  options?: ExportOptions,
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.create();
   pdfDoc.registerFontkit(fontkit);
@@ -355,6 +483,7 @@ export async function exportProjectToPdf(
       pageNumber: p.page_number,
       totalPages,
       lang,
+      imageBytes: data.imageBytes,
     };
     // Sort by z_index ascending so later-drawn elements layer on top.
     const sorted = [...p.elements].sort((a, b) => a.z_index - b.z_index);
@@ -371,6 +500,24 @@ export async function exportProjectToPdf(
       } catch (err) {
         console.warn(`[v4 export] failed to draw element ${el.id} (${el.type}):`, err);
       }
+    }
+
+    // Watermark DRAFT po wszystkich elementach (na wierzchu). Tekst przekątnie
+    // 45° w bladoszarym kolorze, żeby był widoczny ale nie blokował druku
+    // korekt podczas review.
+    if (options?.watermarkDraft) {
+      const text = "DRAFT";
+      const wmSize = Math.min(widthPt, heightPt) * 0.25;
+      const textW = fontBold.widthOfTextAtSize(text, wmSize);
+      page.drawText(text, {
+        x: (widthPt - textW * Math.cos(Math.PI / 4)) / 2,
+        y: heightPt / 2 - wmSize / 2,
+        size: wmSize,
+        font: fontBold,
+        color: rgb(0.85, 0.4, 0.4),
+        opacity: 0.18,
+        rotate: degrees(45),
+      });
     }
   }
 

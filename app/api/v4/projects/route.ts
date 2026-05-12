@@ -11,6 +11,8 @@ interface ProjectRow {
   default_lang: string;
   status: string;
   ai_input: Record<string, unknown> | null;
+  document_type: string | null;
+  device_type: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -23,7 +25,7 @@ export async function GET(request: NextRequest) {
   const sb = getSupabaseAdmin();
   const { data, error } = await sb
     .from("gen4_projects")
-    .select("id, name, default_lang, status, ai_input, created_at, updated_at")
+    .select("id, name, default_lang, status, ai_input, document_type, device_type, created_at, updated_at")
     .eq("owner_email", auth.email)
     .order("created_at", { ascending: false });
 

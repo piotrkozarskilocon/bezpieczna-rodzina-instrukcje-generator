@@ -113,6 +113,19 @@ export default function Gen4Editor({
     return () => window.removeEventListener("keydown", handler);
   }, [drawingTool]);
 
+  /** Sprawdza czy fokus jest w polu edytowalnym — wtedy ignorujemy globalne
+   *  skróty (Del/Backspace usuwałyby tekst zamiast elementu). */
+  const isEditableTarget = (target: EventTarget | null): boolean => {
+    if (!(target instanceof HTMLElement)) return false;
+    const tag = target.tagName;
+    return (
+      tag === "INPUT" ||
+      tag === "TEXTAREA" ||
+      tag === "SELECT" ||
+      target.isContentEditable
+    );
+  };
+
   const currentPage = pages.find((p) => p.id === currentPageId);
   const selectedElement = elements.find((e) => e.id === selectedId);
   const totalPages = pages.length;
@@ -306,6 +319,36 @@ export default function Gen4Editor({
     }
   }, [pushHistory]);
 
+  /** Duplikuje zaznaczony element — POST nowego ze starym properties + offset 2mm
+   *  żeby kopia nie nakrywała się idealnie z oryginałem. */
+  const duplicateElement = useCallback(async (id: string) => {
+    const src = elements.find((e) => e.id === id);
+    if (!src || !currentPageId) return;
+    pushHistory(elements);
+    try {
+      const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: src.type,
+          x_mm: src.x_mm + 2,
+          y_mm: src.y_mm + 2,
+          w_mm: src.w_mm,
+          h_mm: src.h_mm,
+          z_index: elements.length,
+          rotation_deg: src.rotation_deg,
+          properties: src.properties,
+        }),
+      });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const j = (await res.json()) as { element: ElementRow };
+      setElements((prev) => [...prev, j.element]);
+      setSelectedId(j.element.id);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "duplicate failed");
+    }
+  }, [elements, currentPageId, pushHistory]);
+
   const deleteElement = async (id: string) => {
     pushHistory(elements);
     setElements((prev) => prev.filter((e) => e.id !== id));
@@ -354,19 +397,46 @@ export default function Gen4Editor({
     }
   }, [currentPageId, history]);
 
-  // Ctrl+Z (lub Cmd+Z) na całej stronie — ale tylko gdy fokus NIE jest w
-  // textarea/input (żeby nie przeszkadzać natywnemu undo w edycji tekstu).
+  // Skróty klawiszowe — wszystkie aktywne tylko gdy fokus NIE jest w polu
+  // edytowalnym (textarea/input/contenteditable), żeby nie kolidować z
+  // natywnym zachowaniem przeglądarki w edycji tekstu.
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
-      if (!(e.ctrlKey || e.metaKey) || e.key.toLowerCase() !== "z") return;
-      const target = e.target as HTMLElement | null;
-      if (target && (target.tagName === "TEXTAREA" || target.tagName === "INPUT")) return;
-      e.preventDefault();
-      void undo();
+      if (isEditableTarget(e.target)) return;
+      const mod = e.ctrlKey || e.metaKey;
+      const key = e.key.toLowerCase();
+
+      // Ctrl+Z / Cmd+Z — cofnij
+      if (mod && key === "z" && !e.shiftKey) {
+        e.preventDefault();
+        void undo();
+        return;
+      }
+      // Ctrl+D / Cmd+D — duplicate
+      if (mod && key === "d") {
+        if (!selectedId) return;
+        e.preventDefault();
+        void duplicateElement(selectedId);
+        return;
+      }
+      // Ctrl+S / Cmd+S — auto-save info (wszystko już jest na bieżąco zapisywane)
+      if (mod && key === "s") {
+        e.preventDefault();
+        setError("✓ Zmiany są zapisywane automatycznie po każdej edycji.");
+        setTimeout(() => setError(null), 2500);
+        return;
+      }
+      // Del / Backspace — usuń zaznaczony element
+      if ((e.key === "Delete" || e.key === "Backspace") && selectedId) {
+        e.preventDefault();
+        void deleteElement(selectedId);
+        return;
+      }
     };
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
-  }, [undo]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [undo, duplicateElement, selectedId]);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
