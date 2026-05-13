@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
+import type { ZodSchema } from "zod";
+import { zodToJsonSchema } from "zod-to-json-schema";
 
 /**
  * Server-only Anthropic client. ANTHROPIC_API_KEY lives in the project env;
@@ -69,8 +71,16 @@ export function getAnthropicClient(): Anthropic {
 
 /** Result of an Anthropic call — exposed verbatim so we can persist token
  *  counts for telemetry / cost tracking in gen4_ai_history. */
-export interface AiResponse {
+export interface AiResponse<T = unknown> {
+  /** Text content from non-tool blocks. Gdy używamy outputSchema (tool_use),
+   *  tekst jest zwykle pusty bo cała odpowiedź jest w `parsed`. */
   text: string;
+  /** Sparsowany i zwalidowany Zod output. Wypełniony TYLKO gdy wywołanie
+   *  używało outputSchema (tool_use). Null/undefined dla wywołań tekstowych. */
+  parsed?: T;
+  /** Surowy `input` z tool_use bloku (przed walidacją Zod). Pomocne do
+   *  debugu gdy walidacja Zod się nie powiedzie. */
+  rawToolInput?: unknown;
   inputTokens: number;
   outputTokens: number;
   /** Tokeny które trafiły do CREATE cache (typowo system prompt długi + cache_control).
@@ -85,6 +95,17 @@ export interface AiResponse {
   temperature?: number;
 }
 
+/** Konfiguracja narzędzia (tool) dla strukturalnej odpowiedzi.
+ *  Anthropic używa pól `name`, `description`, `input_schema` w API tool_use. */
+export interface OutputSchemaConfig<T> {
+  /** Nazwa narzędzia — pojawi się w prompt'cie jako "submit_<name>". */
+  name: string;
+  /** Krótki opis dla AI co narzędzie robi. */
+  description: string;
+  /** Zod schema definiująca strukturę. Konwertowana do JSON Schema dla Anthropic. */
+  schema: ZodSchema<T>;
+}
+
 /** Calls Claude with a system prompt + user message, returns plain text.
  *  Throws on empty or non-text content blocks.
  *
@@ -96,7 +117,7 @@ export interface AiResponse {
  *  attachments — opcjonalne PDF file_id z Anthropic Files API. Trafiają
  *  jako document blocks razem z tekstem user message, dzięki czemu Claude
  *  czyta zawartość plików bezpośrednio (np. raport SAR -> wartości w wpisach). */
-export async function callClaude(opts: {
+export async function callClaude<T = unknown>(opts: {
   system: string;
   user: string;
   model?: string;
@@ -109,7 +130,11 @@ export async function callClaude(opts: {
   /** Temperature dla generacji. Default 1.0 (Anthropic default). A/B variants
    *  używają 0.7 i 0.9 dla różnicowania wyników. */
   temperature?: number;
-}): Promise<AiResponse> {
+  /** Structured output — wymusza zgodność odpowiedzi z Zod schema poprzez
+   *  Anthropic tool_use. Eliminuje błędy parsowania JSON i fence stripping.
+   *  Gdy podane, AiResponse.parsed zawiera sparsowany i zwalidowany obiekt. */
+  outputSchema?: OutputSchemaConfig<T>;
+}): Promise<AiResponse<T>> {
   const client = getAnthropicClient();
   const model = opts.model ?? INITIAL_MODEL;
   const start = Date.now();
@@ -145,6 +170,21 @@ export async function callClaude(opts: {
   if (opts.attachments?.length) {
     streamParams.betas = ["files-api-2025-04-14"];
   }
+  // Structured output via tool_use — wymuszamy zgodność z Zod schema.
+  // Anthropic zwróci content block typu "tool_use" z polem `input` które
+  // jest już sparsowanym i zwalidowanym JSON-em. Eliminuje to potrzebę
+  // parsowania tekstu (i wszystkie błędy "Unexpected token", "fence-strip" itd.).
+  if (opts.outputSchema) {
+    // zod-to-json-schema ma starszy generyk niż Zod 4, więc cast through unknown.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const jsonSchema = zodToJsonSchema(opts.outputSchema.schema as any, { target: "openApi3" });
+    streamParams.tools = [{
+      name: opts.outputSchema.name,
+      description: opts.outputSchema.description,
+      input_schema: jsonSchema,
+    }];
+    streamParams.tool_choice = { type: "tool", name: opts.outputSchema.name };
+  }
   // Gdy są attachments (Files API beta), trzeba uderzać w dedicated beta endpoint
   // żeby API zaakceptowało source.type='file'. SDK ignoruje `betas` na non-beta
   // messages.stream — beta endpoint sam dorzuca header `anthropic-beta`.
@@ -155,19 +195,36 @@ export async function callClaude(opts: {
   const message = await stream.finalMessage();
   const latencyMs = Date.now() - start;
 
-  // Concatenate any text blocks from the structured response.
-  // (BetaMessage/Message content shapes are runtime-compatible but TS unions
-  //  the parameter to `any` when stream is dynamic — explicit cast keeps lint happy.)
-  const text = (message.content as Array<{ type: string; text?: string }>)
-    .map((b) => (b.type === "text" ? b.text ?? "" : ""))
-    .join("");
-  if (!text) throw new Error("anthropic returned no text content");
+  // Wyciągamy text z bloków typu "text" oraz tool_input z bloku "tool_use".
+  // Gdy wymusiliśmy tool_choice, Anthropic zwraca głównie tool_use blok
+  // (i czasem pusty/krótki text przed nim).
+  const contentBlocks = message.content as Array<{ type: string; text?: string; input?: unknown; name?: string }>;
+  const text = contentBlocks.map((b) => (b.type === "text" ? b.text ?? "" : "")).join("");
+  let parsed: T | undefined;
+  let rawToolInput: unknown;
+  if (opts.outputSchema) {
+    const toolBlock = contentBlocks.find((b) => b.type === "tool_use" && b.name === opts.outputSchema!.name);
+    if (!toolBlock || toolBlock.input == null) {
+      throw new Error(`anthropic did not return tool_use block for "${opts.outputSchema.name}". Response text: ${text.slice(0, 200)}`);
+    }
+    rawToolInput = toolBlock.input;
+    const validation = opts.outputSchema.schema.safeParse(toolBlock.input);
+    if (!validation.success) {
+      throw new Error(`tool_use input failed Zod validation: ${JSON.stringify(validation.error.issues).slice(0, 500)}`);
+    }
+    parsed = validation.data;
+  } else {
+    // Tryb tekstowy (legacy) — wymuszamy obecność tekstu jak dotąd.
+    if (!text) throw new Error("anthropic returned no text content");
+  }
 
   // Cache tokens reporting — Anthropic zwraca cache_creation_input_tokens
   // i cache_read_input_tokens w usage gdy caching aktywny.
   const usage = message.usage as unknown as Record<string, unknown>;
   return {
     text,
+    parsed,
+    rawToolInput,
     inputTokens: message.usage.input_tokens,
     outputTokens: message.usage.output_tokens,
     cacheCreationTokens: typeof usage.cache_creation_input_tokens === "number"

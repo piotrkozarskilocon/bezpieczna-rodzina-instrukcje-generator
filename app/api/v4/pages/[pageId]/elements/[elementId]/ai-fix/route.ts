@@ -3,8 +3,8 @@ import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
-import { parseJsonFromAi } from "@/lib/v4Generate";
 import { logAiCall } from "@/lib/v4AiLog";
+import { SingleElementResponseSchema, type SingleElementResponse } from "@/lib/v4Schemas";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -142,15 +142,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "  jasne tło → ciemny tekst.",
     "- Zachowaj `type` (nie zmieniaj text→image itd. chyba że user wprost prosi).",
     "",
-    "Schemat odpowiedzi (zwróć WYŁĄCZNIE poprawny JSON, bez ``` fence, bez prozy):",
-    "{",
-    '  "element": {',
-    '    "type": "text|image|line|rect|qr|page_number|callout",',
-    '    "x_mm": number, "y_mm": number, "w_mm": number, "h_mm": number,',
-    '    "z_index": number, "rotation_deg": number,',
-    '    "properties": { ... }',
-    "  }",
-    "}",
+    "Strukturę odpowiedzi wymusza tool `submit_fixed_element` — zwróć dokładnie",
+    "jeden poprawiony element zgodny ze schemą tool_use.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -188,13 +181,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   let ai;
   try {
-    ai = await callClaude({
+    ai = await callClaude<SingleElementResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
       maxTokens, // jeden element = max ~500 tokenów JSON-a
+      outputSchema: {
+        name: "submit_fixed_element",
+        description: "Submit the corrected element with updated geometry and/or properties.",
+        schema: SingleElementResponseSchema,
+      },
     });
-    console.log(`[ai-fix-element] AI ok in ${Date.now() - startedAt}ms, response_len=${ai.text.length}`);
+    console.log(`[ai-fix-element] AI ok in ${Date.now() - startedAt}ms, parsed=${!!ai.parsed}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
     console.error(`[ai-fix-element] AI call failed after ${Date.now() - startedAt}ms:`, msg);
@@ -217,11 +215,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: `AI call failed: ${msg}` }, { status: 502 });
   }
 
-  let parsed: { element?: Record<string, unknown> };
-  try {
-    parsed = parseJsonFromAi<{ element?: Record<string, unknown> }>(ai.text);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
+  // Structured output via tool_use — `ai.parsed` jest już zwalidowanym
+  // SingleElementResponse (Zod sprawdził shape). Nie ma jak być błąd parsowania,
+  // chyba że Anthropic w ogóle nie zwrócił tool_use bloku (catch wyżej).
+  const parsed = ai.parsed;
+  if (!parsed) {
     void logAiCall({
       project_id: page.project_id,
       page_id: pageId,
@@ -235,15 +233,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       model: chosenModel,
       max_tokens: maxTokens,
       response_text: ai.text,
-      error: `AI response parse failed: ${msg}`,
+      error: "AI did not return parsed tool_use output",
       tokens_in: ai.inputTokens,
       tokens_out: ai.outputTokens,
       duration_ms: Date.now() - startedAt,
       user_email: auth.email,
     });
-    return NextResponse.json({ error: `AI response parse failed: ${msg}` }, { status: 502 });
+    return NextResponse.json({ error: "AI did not return structured output" }, { status: 502 });
   }
-  const updated = parsed.element;
+  const updated = parsed.element as Record<string, unknown>;
   if (!updated || typeof updated !== "object") {
     return NextResponse.json({ error: "AI didn't return an element" }, { status: 502 });
   }

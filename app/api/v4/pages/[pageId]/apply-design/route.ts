@@ -3,10 +3,11 @@ import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
-import { ownPage, parsePageEditResponse, replacePageElements } from "@/lib/v4Edit";
+import { ownPage, replacePageElements } from "@/lib/v4Edit";
 import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { logAiCall } from "@/lib/v4AiLog";
+import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -64,7 +65,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const projectIdForLog = pageMeta?.project_id ?? null;
 
   try {
-    const ai = await callClaude({
+    const ai = await callClaude<PageElementsResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
@@ -74,9 +75,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       // do projektu') system prompt jest identyczny (DS content + notes + ref).
       // Pierwsze wywołanie tworzy cache, kolejne 13 ~10% kosztu input.
       cacheSystemPrompt: true,
+      outputSchema: {
+        name: "submit_page_elements",
+        description: "Submit the complete new list of elements for this page after applying the design system.",
+        schema: PageElementsResponseSchema,
+      },
     });
-    const parsed = parsePageEditResponse(ai.text);
-    const count = await replacePageElements(pageId, parsed);
+    if (!ai.parsed) {
+      throw new Error("AI did not return structured output");
+    }
+    const count = await replacePageElements(pageId, ai.parsed);
 
     if (projectIdForLog) {
       void logAiCall({
@@ -90,7 +98,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         prompt_edited_by_user: promptEdited,
         model: chosenModel,
         max_tokens: maxTokens,
-        response_text: ai.text,
+        response_text: ai.text || JSON.stringify(ai.parsed ?? ai.rawToolInput ?? null),
         tokens_in: ai.inputTokens,
         tokens_out: ai.outputTokens,
         cache_creation_tokens: ai.cacheCreationTokens ?? null,

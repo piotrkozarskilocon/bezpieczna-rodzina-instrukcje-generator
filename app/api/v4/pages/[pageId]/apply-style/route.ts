@@ -3,9 +3,9 @@ import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
-import { parseJsonFromAi } from "@/lib/v4Generate";
 import { replacePageElements } from "@/lib/v4Edit";
 import { logAiCall } from "@/lib/v4AiLog";
+import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -187,12 +187,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   let ai;
   try {
-    ai = await callClaude({
+    ai = await callClaude<PageElementsResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
       maxTokens,
       cacheSystemPrompt: true, // w pętli applyStyle systemy się powtarzają per target
+      outputSchema: {
+        name: "submit_page_elements",
+        description: "Submit the complete new list of elements for the target page, styled to match the source page.",
+        schema: PageElementsResponseSchema,
+      },
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
@@ -214,22 +219,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: `AI call failed: ${msg}` }, { status: 502 });
   }
 
-  let parsed: {
-    elements?: Array<{
-      type: string;
-      x_mm: number;
-      y_mm: number;
-      w_mm: number;
-      h_mm: number;
-      z_index?: number;
-      rotation_deg?: number;
-      properties: Record<string, unknown>;
-    }>;
-  };
-  try {
-    parsed = parseJsonFromAi(ai.text);
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "unknown";
+  // Structured output via tool_use — ai.parsed jest już zwalidowane przez Zod.
+  if (!ai.parsed || !Array.isArray(ai.parsed.elements)) {
     void logAiCall({
       project_id: projectId,
       page_id: targetPageId,
@@ -241,20 +232,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       prompt_edited_by_user: promptEdited,
       model: chosenModel,
       max_tokens: maxTokens,
-      response_text: ai.text,
-      error: `AI response parse failed: ${msg}`,
+      response_text: ai.text || JSON.stringify(ai.rawToolInput ?? null),
+      error: "AI did not return structured elements array",
       tokens_in: ai.inputTokens,
       tokens_out: ai.outputTokens,
       duration_ms: Date.now() - startedAt,
       user_email: auth.email,
     });
-    return NextResponse.json({ error: `AI response parse failed: ${msg}` }, { status: 502 });
-  }
-  if (!parsed.elements || !Array.isArray(parsed.elements)) {
-    return NextResponse.json({ error: "AI didn't return elements array" }, { status: 502 });
+    return NextResponse.json({ error: "AI did not return structured output" }, { status: 502 });
   }
 
-  const count = await replacePageElements(targetPageId, { elements: parsed.elements });
+  const count = await replacePageElements(targetPageId, { elements: ai.parsed.elements });
 
   void logAiCall({
     project_id: projectId,
@@ -267,7 +255,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     prompt_edited_by_user: promptEdited,
     model: chosenModel,
     max_tokens: maxTokens,
-    response_text: ai.text,
+    response_text: ai.text || JSON.stringify(ai.parsed ?? ai.rawToolInput ?? null),
     tokens_in: ai.inputTokens,
     tokens_out: ai.outputTokens,
     cache_creation_tokens: ai.cacheCreationTokens ?? null,
