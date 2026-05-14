@@ -105,6 +105,36 @@ export interface OutputSchemaConfig<T> {
   schema: ZodSchema<T>;
 }
 
+/** Buduje content blocks dla attachments z Anthropic Files API.
+ *  Anthropic wymaga roznych typow bloku zaleznie od typu pliku:
+ *    - PDF / text/*  -> { type: "document", source: { type: "file", file_id }}
+ *    - image/*       -> { type: "image",    source: { type: "file", file_id }}
+ *  Document API uzyte na image zwraca 400 "Only PDF and plaintext supported".
+ *  Sprawdzamy mime_type przez Files API (1 retrieve per attachment, ~10ms).
+ *  Plus fallback po rozszerzeniu nazwy pliku, bo przegladarki czesto wysylaja
+ *  obrazki z mime "application/octet-stream" przy drag&drop. */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function buildAttachmentBlocks(client: any, fileIds: string[] | undefined): Promise<unknown[]> {
+  if (!fileIds?.length) return [];
+  const blocks: unknown[] = [];
+  for (const fileId of fileIds) {
+    let blockType: "document" | "image" = "document";
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const meta: any = await client.beta.files.retrieve(fileId);
+      const mt = (meta?.mime_type ?? "") as string;
+      const fname = (meta?.filename ?? "") as string;
+      const isImageByMime = mt.startsWith("image/");
+      const isImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fname);
+      if (isImageByMime || isImageByExt) blockType = "image";
+    } catch (err) {
+      console.warn(`[anthropic] files.retrieve ${fileId} failed, defaulting to document:`, err);
+    }
+    blocks.push({ type: blockType, source: { type: "file", file_id: fileId } });
+  }
+  return blocks;
+}
+
 /** Calls Claude with a system prompt + user message, returns plain text.
  *  Throws on empty or non-text content blocks.
  *
@@ -139,37 +169,10 @@ export async function callClaude<T = unknown>(opts: {
   const start = Date.now();
 
   // Buduj content array: tekst + opcjonalne attachments.
-  // Anthropic wymaga roznych blokow zaleznie od typu pliku:
-  //   - PDF / text/*  -> { type: "document", source: { type: "file", file_id }}
-  //   - image/*       -> { type: "image",    source: { type: "file", file_id }}
-  // Z document API uzyte na image dostalo 400 "Only PDF and plaintext supported".
-  // Sprawdzamy mime_type przez Files API (1 retrieve per attachment, ~10ms kazdy).
-  // TS SDK jeszcze nie ma stabilnej deklaracji dla document/file source, wiec
-  // wszedzie cast through unknown.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userContent: unknown[] = [{ type: "text", text: opts.user }];
-  for (const fileId of opts.attachments ?? []) {
-    let blockType: "document" | "image" = "document";
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const meta: any = await (client as any).beta.files.retrieve(fileId);
-      const mt = (meta?.mime_type ?? "") as string;
-      const fname = (meta?.filename ?? "") as string;
-      // mime_type bywa "application/octet-stream" (przegladarki drag&drop
-      // czasem tak wysylaja PNG/JPG) — wtedy mime nie pomoze. Fallback to
-      // sprawdzanie rozszerzenia nazwy pliku z metadata.
-      const isImageByMime = mt.startsWith("image/");
-      const isImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fname);
-      if (isImageByMime || isImageByExt) {
-        blockType = "image";
-      }
-    } catch (err) {
-      console.warn(`[anthropic] files.retrieve ${fileId} failed, defaulting to document:`, err);
-    }
-    userContent.unshift({
-      type: blockType,
-      source: { type: "file", file_id: fileId },
-    });
-  }
+  const attachmentBlocks = await buildAttachmentBlocks(client, opts.attachments);
+  for (const block of attachmentBlocks) userContent.unshift(block);
 
   // System prompt — jeśli włączony caching, owijamy w content block z cache_control.
   // Inaczej zwykły string (tańsza wersja gdy prompt krótki i się zmienia).
@@ -283,12 +286,8 @@ export async function callClaudeStream(
   const start = Date.now();
 
   const userContent: unknown[] = [{ type: "text", text: opts.user }];
-  for (const fileId of opts.attachments ?? []) {
-    userContent.unshift({
-      type: "document",
-      source: { type: "file", file_id: fileId },
-    });
-  }
+  const attachmentBlocks = await buildAttachmentBlocks(client, opts.attachments);
+  for (const block of attachmentBlocks) userContent.unshift(block);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const systemParam: any = opts.cacheSystemPrompt
     ? [{ type: "text", text: opts.system, cache_control: { type: "ephemeral" } }]
