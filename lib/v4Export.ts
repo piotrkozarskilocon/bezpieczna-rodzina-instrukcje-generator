@@ -426,9 +426,16 @@ async function drawElement(
         }
       }
       // Opacity dla watermarkow — pdf-lib obsluguje natywnie przez parametr
-      // opacity w drawImage. Bez tego watermark wychodzil na PDF na 100%.
+      // opacity w drawImage. Wczesniej typeof === "number" upadalo do 1 gdy AI
+      // zapisalo opacity jako string ("0.15") — watermark wychodzil na PDF
+      // nieprzezroczystym. Number() coerce + jawny fallback dla null/undefined/""
+      // (zeby nie wpadly w Number(null)=0 → niewidoczny).
       const rawOpacity = (props as Record<string, unknown>).opacity;
-      const opacity = typeof rawOpacity === "number" ? Math.max(0, Math.min(1, rawOpacity)) : 1;
+      const opacityNum =
+        rawOpacity === undefined || rawOpacity === null || rawOpacity === ""
+          ? 1
+          : Number(rawOpacity);
+      const opacity = Number.isFinite(opacityNum) ? Math.max(0, Math.min(1, opacityNum)) : 1;
       ctx.page.drawImage(img, {
         x: drawX,
         y: drawY,

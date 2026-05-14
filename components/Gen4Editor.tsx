@@ -1959,11 +1959,16 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
     const placeholderDesc = (props.placeholder_description as string | undefined) ?? null;
     const fitMode = (props.fit_mode as string | undefined) ?? "contain";
     // Opacity — gdy AI lub user oznaczy obrazek jako watermark (np. opacity 0.1-0.3),
-    // musi prześwitywać do elementów pod spodem. Wczesniej renderer to ignorowal,
-    // wiec watermark renderowal sie jakby mial pelne 100% — przykrywal niebieski
-    // pasek pod tekstem i robil "biale na bialym".
-    const rawOpacity = typeof props.opacity === "number" ? (props.opacity as number) : 1;
-    const opacity = Math.max(0, Math.min(1, rawOpacity));
+    // musi prześwitywać do elementów pod spodem. Wczesniej typeof === "number"
+    // upadalo do 1 gdy AI zapisalo opacity jako string ("0.15") — watermark
+    // renderowal sie nieprzezroczyscie. Number() coerce + jawny fallback dla
+    // null/undefined/"" (zeby nie wpadly w Number(null)=0 → niewidoczny).
+    const rawOpacity = props.opacity as unknown;
+    const opacityNum =
+      rawOpacity === undefined || rawOpacity === null || rawOpacity === ""
+        ? 1
+        : Number(rawOpacity);
+    const opacity = Number.isFinite(opacityNum) ? Math.max(0, Math.min(1, opacityNum)) : 1;
     const isWatermark = opacity < 1;
     return (
       <div
