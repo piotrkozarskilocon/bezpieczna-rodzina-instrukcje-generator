@@ -387,11 +387,30 @@ async function drawElement(
       // pdf-lib obsługuje PNG i JPG natywnie. WebP/GIF → konwersja niewspierana,
       // próba embedJpg może paść — wtedy fallback do placeholderu.
       const mime = imgData.mime.toLowerCase();
+
+      // grayscale: true → pre-process bytes przez sharp (desaturation).
+      // pdf-lib nie ma natywnego grayscale filtera, robimy to przed embed.
+      let processedBytes = imgData.bytes;
+      const grayscaleRaw = (props as Record<string, unknown>).grayscale;
+      const isGrayscale = grayscaleRaw === true || grayscaleRaw === "true" || grayscaleRaw === 1 || grayscaleRaw === "1";
+      if (isGrayscale && (mime.includes("png") || mime.includes("jpeg") || mime.includes("jpg"))) {
+        try {
+          // Dynamic import — sharp jest ciezki (~30MB native bindings), nie chcemy
+          // go ladowac przy kazdym imporcie v4Export.ts. Tylko gdy faktycznie
+          // potrzebny do grayscale processing.
+          const sharp = (await import("sharp")).default;
+          processedBytes = await sharp(Buffer.from(imgData.bytes)).grayscale().toBuffer();
+        } catch (sharpErr) {
+          console.warn(`[v4Export] sharp grayscale failed, fallback do oryginalu:`, sharpErr);
+          // Nie blokujemy exportu — gdy sharp padnie, lecimy z kolorowym obrazem.
+        }
+      }
+
       let img;
       if (mime.includes("png")) {
-        img = await ctx.page.doc.embedPng(imgData.bytes);
+        img = await ctx.page.doc.embedPng(processedBytes);
       } else if (mime.includes("jpeg") || mime.includes("jpg")) {
-        img = await ctx.page.doc.embedJpg(imgData.bytes);
+        img = await ctx.page.doc.embedJpg(processedBytes);
       } else {
         // Niewspierany format → placeholder + tekst z mime
         ctx.page.drawRectangle({
