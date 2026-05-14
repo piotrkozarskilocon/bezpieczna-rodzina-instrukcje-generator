@@ -8,7 +8,7 @@ import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 import { logAiCall } from "@/lib/v4AiLog";
-import { PageElementsPatchResponseSchema, type PageElementsPatchResponse } from "@/lib/v4Schemas";
+import { PageElementsPatchResponseSchema, type PageElementsPatchResponse, PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 import { applyPatch, type Operation } from "fast-json-patch";
 
 export const runtime = "nodejs";
@@ -106,13 +106,43 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       properties: e.properties,
     })) };
     let newElements;
+    let fallbackUsed = false;
     try {
       const result = applyPatch(currentDoc, patches, true, false);
       newElements = (result.newDocument as { elements: unknown[] }).elements;
     } catch (patchErr) {
-      const msg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
-      console.warn(`[apply-design] applyPatch failed: ${msg}, patches=`, JSON.stringify(patches).slice(0, 500));
-      throw new Error(`AI returned invalid patches: ${msg}`);
+      const patchMsg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
+      console.warn(`[apply-design] applyPatch failed: ${patchMsg}, fallback do full mode. patches=`, JSON.stringify(patches).slice(0, 500));
+
+      // FALLBACK do full mode — AI dostaje ten sam DS + state, ale ma zwrocic
+      // pelna liste elementow zamiast patches. Tracimy 85% token savings dla
+      // tej strony ale generujemy poprawnie. Strony ktore patches mode dziala
+      // poprawnie (zwykle 50-70%) nadal korzystaja z redukcji.
+      const builtFull = await buildApplyDsToPagePrompt(pageId, dsId, body?.instruction, { mode: "full" });
+      if (!builtFull) {
+        throw new Error(`AI returned invalid patches: ${patchMsg}; fallback build failed`);
+      }
+      const systemPromptFull = body?.custom_system?.trim() ? body.custom_system : builtFull.system;
+      const userPromptFull = body?.custom_user?.trim() ? body.custom_user : builtFull.user;
+      const aiFull = await callClaude<PageElementsResponse>({
+        system: systemPromptFull,
+        user: userPromptFull,
+        model: chosenModel,
+        maxTokens: 12000, // pelna lista potrzebuje wiecej output
+        attachments: attachments.length > 0 ? attachments : undefined,
+        cacheSystemPrompt: true,
+        outputSchema: {
+          name: "submit_page_elements",
+          description: "Submit complete new list of elements for this page (fallback after patches mode failed).",
+          schema: PageElementsResponseSchema,
+        },
+      });
+      if (!aiFull.parsed) {
+        throw new Error(`AI returned invalid patches: ${patchMsg}; full fallback also failed`);
+      }
+      newElements = aiFull.parsed.elements;
+      fallbackUsed = true;
+      console.log(`[apply-design] full mode fallback OK, ${newElements.length} elements`);
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const count = await replacePageElements(pageId, { elements: newElements as any });
@@ -144,6 +174,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       page_id: pageId,
       page_number: built.pageNumber,
       elements: count,
+      fallback_used: fallbackUsed,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
