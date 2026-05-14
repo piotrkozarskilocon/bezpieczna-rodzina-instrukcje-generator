@@ -38,7 +38,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   }
   const { data: docs } = await sb
     .from("gen4_reference_docs")
-    .select("id, kind, source_lang, name, file_path, size_bytes, mime_type, anthropic_file_id, extracted_summary, created_at")
+    .select("id, kind, source_lang, name, file_path, size_bytes, mime_type, anthropic_file_id, extracted_summary, extracted_structured, extracted_structured_at, extracted_structured_model, created_at")
     .eq("project_id", id)
     .order("created_at", { ascending: false });
 

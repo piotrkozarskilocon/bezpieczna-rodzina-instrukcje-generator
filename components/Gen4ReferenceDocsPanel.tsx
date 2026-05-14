@@ -23,6 +23,9 @@ interface ReferenceDoc {
   mime_type: string | null;
   anthropic_file_id: string | null;
   extracted_summary: string | null;
+  extracted_structured: Record<string, unknown> | null;
+  extracted_structured_at: string | null;
+  extracted_structured_model: string | null;
   download_url: string | null;
   created_at: string;
 }
@@ -54,6 +57,7 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
   const [docs, setDocs] = useState<ReferenceDoc[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [busyExtract, setBusyExtract] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Pending upload — user wybrał plik, jeszcze wybiera kind + lang
@@ -149,6 +153,45 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
       setError(err instanceof Error ? err.message : "upload failed");
     } finally {
       setBusy(false);
+    }
+  };
+
+  const extractStructured = async (docId: string) => {
+    setBusyExtract(docId);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/reference-docs/${docId}/extract-structured/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ kind: "sar" }),
+      });
+      if (!res.ok) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      const j = (await res.json()) as {
+        ok: boolean;
+        extracted: Record<string, unknown>;
+        model: string;
+        duration_ms: number;
+      };
+      // Update lokalny stan żeby user od razu widział wynik
+      setDocs((prev) =>
+        prev.map((d) =>
+          d.id === docId
+            ? {
+                ...d,
+                extracted_structured: j.extracted,
+                extracted_structured_at: new Date().toISOString(),
+                extracted_structured_model: j.model,
+              }
+            : d,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "extract failed");
+    } finally {
+      setBusyExtract(null);
     }
   };
 
@@ -270,6 +313,16 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
                       💡 AI streszczenie: {d.extracted_summary}
                     </p>
                   )}
+                  {d.extracted_structured && (
+                    <details className="mt-1 rounded border border-purple-200 bg-purple-50 px-1.5 py-1">
+                      <summary className="cursor-pointer text-[10px] font-semibold text-purple-900">
+                        🔢 Wartości strukturalne (Gemini Vision) — {Object.keys(d.extracted_structured).length} pól
+                      </summary>
+                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words text-[9px] text-purple-900">
+                        {JSON.stringify(d.extracted_structured, null, 2)}
+                      </pre>
+                    </details>
+                  )}
                   <p className="mt-0.5 text-[10px] text-slate-400">
                     {d.size_bytes ? `${Math.round(d.size_bytes / 1024)} KB · ` : ""}
                     Wgrany: {new Date(d.created_at).toLocaleString("pl-PL")}
@@ -282,6 +335,15 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
                       ↓ Pobierz
                     </a>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => void extractStructured(d.id)}
+                    disabled={busyExtract === d.id}
+                    className="rounded border border-purple-300 bg-purple-50 px-1.5 py-0.5 text-[10px] font-semibold text-purple-800 hover:bg-purple-100 disabled:opacity-40"
+                    title="Gemini 2.5 Pro Vision wyciaga wartosci SAR / IP / frequencies z PDF"
+                  >
+                    {busyExtract === d.id ? "Czytam (~30-60s)..." : d.extracted_structured ? "🔄 Re-extract AI" : "✨ Wyekstrahuj wartości AI"}
+                  </button>
                   <button type="button" onClick={() => void remove(d.id)}
                     className="rounded border border-red-200 bg-white px-1.5 py-0.5 text-[10px] text-red-700 hover:bg-red-50">
                     Usuń
