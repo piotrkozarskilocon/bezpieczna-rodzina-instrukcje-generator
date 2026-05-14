@@ -372,6 +372,72 @@ function ApplyDsModal({ state, projectId, pages, onClose }: ApplyDsModalProps): 
     return () => { cancelled = true; };
   }, []);
 
+  // Background job mode — uzywa Supabase Edge Function (worker) zamiast
+  // client-side petli. Stabilniejsze dla projektow >10 stron (chunking
+  // do 150s budgetu, re-invoke automatyczne). Polluje GET /jobs/[id] co 2s.
+  const runBackgroundApply = async () => {
+    if (!isProjectScope) return; // tylko dla calego projektu
+    setBusy(true);
+    setError(null);
+    setInfo(null);
+    setAutoProgress("Tworzę job w tle...");
+    try {
+      // 1. Stworz job
+      const createRes = await fetch(`${API}/jobs/`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "apply_ds_all",
+          project_id: projectId,
+          params: { ds_id: state.ds.id, instruction: instruction.trim() || undefined },
+        }),
+      });
+      if (!createRes.ok) {
+        const j = (await createRes.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${createRes.status}`);
+      }
+      const { job } = (await createRes.json()) as { job: { id: string } };
+      const jobId = job.id;
+      setAutoProgress(`Job utworzony, czekam na worker...`);
+
+      // 2. Pollu co 2s az status=completed/failed
+      const startedAt = Date.now();
+      const MAX_POLL_MS = 600_000; // 10 minut max (dla bardzo duzych projektow)
+      while (true) {
+        await new Promise((r) => setTimeout(r, 2000));
+        if (Date.now() - startedAt > MAX_POLL_MS) {
+          throw new Error("Polling timeout 10min — job nadal running, sprawdz w Supabase Dashboard");
+        }
+        const pollRes = await fetch(`${API}/jobs/${jobId}/`);
+        if (!pollRes.ok) continue;
+        const { job: jobNow } = (await pollRes.json()) as {
+          job: { status: string; progress: { done?: number; total?: number; current_step?: string; errors?: unknown[] }; error?: string };
+        };
+        const p = jobNow.progress ?? {};
+        const done = p.done ?? 0;
+        const total = p.total ?? pages.length;
+        const errCount = Array.isArray(p.errors) ? p.errors.length : 0;
+        setAutoProgress(
+          `${done}/${total}: ${p.current_step ?? "..."}${errCount > 0 ? ` (${errCount} błędów)` : ""}`,
+        );
+        if (jobNow.status === "completed") {
+          setAutoProgress(null);
+          setInfo(`✅ Zastosowano DS „${state.ds.name}" — ${done}/${total} stron${errCount > 0 ? ` (${errCount} błędów)` : ""}. Strona przeładuje się za 2 s.`);
+          setTimeout(() => window.location.reload(), 2000);
+          return;
+        }
+        if (jobNow.status === "failed") {
+          throw new Error(`Job failed: ${jobNow.error ?? "unknown"} (done ${done}/${total}, ${errCount} błędów)`);
+        }
+        // status='queued' lub 'running' (z chunking) → kontynuuj poll
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "background apply failed");
+      setBusy(false);
+      setAutoProgress(null);
+    }
+  };
+
   // Auto-tryb: chunked per-page apply DS.
   const runAutoApply = async () => {
     setBusy(true);
@@ -549,6 +615,17 @@ function ApplyDsModal({ state, projectId, pages, onClose }: ApplyDsModalProps): 
                     : isProjectScope
                       ? `✨ Zastosuj przez AI (${pages.length} stron)`
                       : "✨ Zastosuj przez AI"}
+                </button>
+              )}
+              {isProjectScope && (
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => void runBackgroundApply()}
+                  className="rounded-md bg-blue-700 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-800 disabled:opacity-50"
+                  title="Background worker (Supabase Edge Function) — stabilniejsze dla projektow >10 stron, chunking do 150s × N. Pollu progress co 2s."
+                >
+                  🔄 W tle (worker)
                 </button>
               )}
               <button
