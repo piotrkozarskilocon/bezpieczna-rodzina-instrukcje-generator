@@ -4,7 +4,8 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { logAiCall } from "@/lib/v4AiLog";
-import { SingleElementResponseSchema, type SingleElementResponse } from "@/lib/v4Schemas";
+import { SingleElementPatchResponseSchema, type SingleElementPatchResponse } from "@/lib/v4Schemas";
+import { applyPatch, type Operation } from "fast-json-patch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -142,8 +143,39 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "  jasne tło → ciemny tekst.",
     "- Zachowaj `type` (nie zmieniaj text→image itd. chyba że user wprost prosi).",
     "",
-    "Strukturę odpowiedzi wymusza tool `submit_fixed_element` — zwróć dokładnie",
-    "jeden poprawiony element zgodny ze schemą tool_use.",
+    "FORMAT ODPOWIEDZI — RFC 6902 JSON Patch (BARDZO WAZNE):",
+    "Zamiast zwracac caly element po zmianie, zwracasz LISTE OPERACJI ktore",
+    "trzeba na nim wykonac. To redukuje koszt o ~85% i pozwala na undo.",
+    "",
+    "Operacje (RFC 6902):",
+    "  - { op: 'replace', path: '/properties/color', value: '#FFFFFF' }",
+    "    → podmienia istniejaca wartosc w tym path",
+    "  - { op: 'add', path: '/properties/grayscale', value: true }",
+    "    → dodaje nowe pole gdy go nie ma",
+    "  - { op: 'remove', path: '/properties/opacity' }",
+    "    → usuwa pole calkowicie",
+    "",
+    "Path to JSON Pointer (RFC 6901):",
+    "  - '/x_mm'                       (pole top-level)",
+    "  - '/properties/color'           (zagniezdzone)",
+    "  - '/properties/font_size_pt'    (font size)",
+    "",
+    "PRZYKLAD — user mowi 'zmien kolor tego tekstu na bialy i zwieksz do 14pt':",
+    "  patches: [",
+    "    { op: 'replace', path: '/properties/color', value: '#FFFFFF' },",
+    "    { op: 'replace', path: '/properties/font_size_pt', value: 14 }",
+    "  ]",
+    "",
+    "REGUŁY:",
+    "- Zwracaj TYLKO te pola ktore SIE ZMIENIAJA. Nie kopiuj reszty.",
+    "- Uzywaj 'replace' gdy path istnieje, 'add' gdy nie istnieje.",
+    "- NIE generuj patches ktore nic nie zmieniaja (no-op).",
+    "- Jezeli zmieniasz typ elementu (type: text→image), wykonaj replace na",
+    "  '/type' + nadaj nowe properties (replace/add per pole).",
+    "- Pole 'rationale' (opcjonalne) — 1-2 zdania co i dlaczego zmieniles.",
+    "",
+    "Strukturę odpowiedzi wymusza tool `submit_element_patches` — zwroc liste",
+    "patches zgodna z RFC 6902.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -165,7 +197,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "POLECENIE UŻYTKOWNIKA:",
     instruction,
     "",
-    "Zwróć tylko ten jeden element po poprawce.",
+    "Zwroc LISTE PATCHES (RFC 6902) — tylko te pola ktore sie zmieniaja.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -181,18 +213,18 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   let ai;
   try {
-    ai = await callClaude<SingleElementResponse>({
+    ai = await callClaude<SingleElementPatchResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
-      maxTokens, // jeden element = max ~500 tokenów JSON-a
+      maxTokens, // patches: zwykle 1-5 operacji = ~100-300 tokenow output
       outputSchema: {
-        name: "submit_fixed_element",
-        description: "Submit the corrected element with updated geometry and/or properties.",
-        schema: SingleElementResponseSchema,
+        name: "submit_element_patches",
+        description: "Submit RFC 6902 JSON Patch operations to apply on the target element.",
+        schema: SingleElementPatchResponseSchema,
       },
     });
-    console.log(`[ai-fix-element] AI ok in ${Date.now() - startedAt}ms, parsed=${!!ai.parsed}`);
+    console.log(`[ai-fix-element] AI ok in ${Date.now() - startedAt}ms, parsed=${!!ai.parsed}, patches=${ai.parsed?.patches?.length ?? 0}`);
   } catch (err) {
     const msg = err instanceof Error ? err.message : "unknown";
     console.error(`[ai-fix-element] AI call failed after ${Date.now() - startedAt}ms:`, msg);
@@ -241,15 +273,37 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
     return NextResponse.json({ error: "AI did not return structured output" }, { status: 502 });
   }
-  const updated = parsed.element as Record<string, unknown>;
-  if (!updated || typeof updated !== "object") {
-    return NextResponse.json({ error: "AI didn't return an element" }, { status: 502 });
+  const patches = parsed.patches ?? [];
+  if (!Array.isArray(patches) || patches.length === 0) {
+    return NextResponse.json({ error: "AI did not return any patches (no changes)" }, { status: 502 });
   }
 
-  // Aplikuj — zachowujemy id i page_id, podmieniamy resztę.
+  // RFC 6902 apply na biezacy target element. validate=true rzuca gdy
+  // ktorys patch ma niepoprawny path lub op (np. replace na non-existent).
+  // Po apply mamy nowy obiekt z naniesionymi zmianami.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let updated: Record<string, unknown>;
+  try {
+    const result = applyPatch(
+      target as Record<string, unknown>,
+      patches as Operation[],
+      /* validateOperation */ true,
+      /* mutateDocument */ false,
+    );
+    updated = result.newDocument as Record<string, unknown>;
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : "unknown patch error";
+    console.warn(`[ai-fix-element] applyPatch failed: ${msg}, patches=`, patches);
+    return NextResponse.json(
+      { error: `AI patches invalid: ${msg}`, patches, rationale: parsed.rationale },
+      { status: 502 },
+    );
+  }
+
+  // Aplikuj do DB — zachowujemy id i page_id, podmieniamy reszte.
   const patch: Record<string, unknown> = {};
   for (const key of ["type", "x_mm", "y_mm", "w_mm", "h_mm", "z_index", "rotation_deg", "properties"]) {
-    if (key in updated) patch[key] = (updated as Record<string, unknown>)[key];
+    if (key in updated) patch[key] = updated[key];
   }
   patch.updated_at = new Date().toISOString();
   const { data: saved, error } = await sb
@@ -298,6 +352,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   return NextResponse.json({
     element: saved,
+    patches, // RFC 6902 list — frontend moze wyswietlic "co AI zmienilo"
+    rationale: parsed.rationale ?? null,
     tokens_in: ai.inputTokens,
     tokens_out: ai.outputTokens,
   });
