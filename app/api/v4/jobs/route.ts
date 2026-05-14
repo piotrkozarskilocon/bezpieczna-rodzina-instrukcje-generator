@@ -79,23 +79,28 @@ export async function POST(request: NextRequest) {
 
   // Wywolanie Supabase Edge Function (fire-and-forget — worker leci 150s).
   // Funkcja sama updateuje status na 'running' a potem 'completed'/'failed'.
+  // Edge Function akceptuje service_role lub anon w Authorization Bearer.
+  // Server-to-server call wiec service_role jest OK.
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const anonKey = process.env.SUPABASE_ANON_KEY ?? process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (supabaseUrl && anonKey) {
+  const apiKey =
+    process.env.SUPABASE_ANON_KEY ??
+    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
+    process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (supabaseUrl && apiKey) {
     // Fire-and-forget — nie blokujemy response na worker (ktory bierze 30-90s).
     // Worker leci w tle, frontend pollu GET /api/v4/jobs/[id].
     fetch(`${supabaseUrl}/functions/v1/v4-jobs-worker`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${anonKey}`,
+        Authorization: `Bearer ${apiKey}`,
       },
       body: JSON.stringify({ jobId: job.id }),
     }).catch((err) => {
       console.error(`[jobs] worker invoke failed for ${job.id}:`, err);
     });
   } else {
-    console.warn("[jobs] SUPABASE_URL / SUPABASE_ANON_KEY not set — worker NIE bedzie wywolany. Job pozostanie 'queued'.");
+    console.warn("[jobs] SUPABASE_URL or API key not set — worker NIE bedzie wywolany. Job pozostanie 'queued'.");
   }
 
   return NextResponse.json({ job });
