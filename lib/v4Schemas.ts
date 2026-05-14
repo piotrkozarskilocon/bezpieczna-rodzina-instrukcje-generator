@@ -95,6 +95,65 @@ export const SingleElementPatchResponseSchema = z.object({
 export type SingleElementPatchResponse = z.infer<typeof SingleElementPatchResponseSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────
+// Patches dla CALEJ STRONY (ai-edit, apply-design per-page).
+// Paths z indeksami w array elements: /elements/3/properties/color,
+// /elements/- dla append, /elements/0 dla replace whole element.
+// AI generuje patches sekwencyjnie — kolejne moga zalezec od dodanych
+// (RFC 6902 stosuje operacje w kolejnosci).
+// ─────────────────────────────────────────────────────────────────────────
+
+export const PageElementsPatchResponseSchema = z.object({
+  patches: z.array(PatchOpSchema).describe(
+    "Lista operacji RFC 6902 na dokumencie { elements: [...] }. Paths: '/elements/N/...' dla istniejacych, '/elements/-' dla append.",
+  ),
+  rationale: z.string().optional().describe("Krotkie wyjasnienie zmian (1-2 zdania)"),
+});
+export type PageElementsPatchResponse = z.infer<typeof PageElementsPatchResponseSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
+// Strukturalna ekstrakcja z raportow SAR (Faza 2 z deep research).
+// AI (Gemini 2.5 Pro vision) czyta caly raport SAR i wyciaga znormalizowane
+// wartosci do uzytku w generacji sekcji "Informacja SAR" w QSG/manualu.
+//
+// Dlaczego ten konkretnie shape: matches RED 2014/53/EU + FCC OET 65 typowe
+// pola w raportach SAR; pola opcjonalne bo ne kazdy raport zawiera kazda
+// kategorie (np. tablet vs smartwatch ma rozne pomiary).
+// ─────────────────────────────────────────────────────────────────────────
+
+export const SarMeasurementSchema = z.object({
+  value_w_per_kg: z.number().describe("Wartosc SAR w W/kg"),
+  averaging_mass: z.enum(["1g", "10g"]).describe("Standard usredniania (1g=FCC, 10g=ICNIRP/EU)"),
+  band: z.string().optional().describe("Pasmo radiowe np. 'GSM900', 'LTE Band 1', 'WiFi 2.4GHz'"),
+  frequency_mhz: z.number().optional().describe("Konkretna czestotliwosc pomiaru"),
+  separation_distance_mm: z.number().optional().describe("Odleglosc cialo-urzadzenie przy pomiarze"),
+});
+export type SarMeasurement = z.infer<typeof SarMeasurementSchema>;
+
+export const SarReportSchema = z.object({
+  device_model: z.string().describe("Model urzadzenia z raportu np. 'GJD.16' lub 'Locon Watch Slay AI'"),
+  manufacturer: z.string().optional().describe("Producent / autor raportu"),
+  test_lab: z.string().optional().describe("Nazwa laboratorium pomiarowego"),
+  test_date: z.string().optional().describe("Data badania YYYY-MM-DD"),
+  certificate_number: z.string().optional().describe("Numer certyfikatu / raport ID"),
+  sar_head_max: SarMeasurementSchema.optional().describe("Maksymalna wartosc SAR przy glowie"),
+  sar_body_max: SarMeasurementSchema.optional().describe("Maksymalna wartosc SAR przy ciele"),
+  sar_limb_max: SarMeasurementSchema.optional().describe("Maksymalna wartosc SAR konczyny (jezeli mierzone)"),
+  all_measurements: z.array(SarMeasurementSchema).optional().describe(
+    "Pelna lista pomiarow per pasmo/frekwencja (do detailed reporting)",
+  ),
+  frequencies_tested: z.array(z.object({
+    band: z.string(),
+    range_mhz: z.tuple([z.number(), z.number()]),
+  })).optional().describe("Pasma testowane w raporcie"),
+  applied_standards: z.array(z.string()).optional().describe(
+    "Normy do ktorych raport sie odnosi np. 'EN 62209-1', 'EN 62209-2', 'IEC 62209', 'FCC OET 65'",
+  ),
+  ip_rating: z.string().optional().describe("IP rating z raportu jezeli pomyslnie zalaczone np. 'IP67'"),
+  notes: z.string().optional().describe("Dodatkowe uwagi z raportu (krotko, 1-3 zdania)"),
+});
+export type SarReport = z.infer<typeof SarReportSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
 // Skeleton strony — używane przy /projects/generate
 // ─────────────────────────────────────────────────────────────────────────
 

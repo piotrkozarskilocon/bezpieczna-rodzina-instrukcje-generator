@@ -103,8 +103,13 @@ export interface CallGeminiOpts<T = unknown> {
   maxTokens?: number;
   temperature?: number;
   outputSchema?: { name: string; description: string; schema: ZodSchema<T> };
-  /** PNG/JPG bytes do inline image input. Dla wiekszosci use cases — vision. */
-  inlineImages?: Array<{ mimeType: string; data: string /* base64 */ }>;
+  /** Inline files do request (image/PDF/text). Dla PNG/JPG/PDF — vision input.
+   *  Limit Gemini: <20MB inline (large files = Gemini Files API, ale na razie
+   *  pomijamy bo Anthropic Files API i Gemini Files API to dwa rozne systemy
+   *  i management mapowan tu by sie skomplikowal). */
+  inlineFiles?: Array<{ mimeType: string; data: string /* base64 */ }>;
+  /** @deprecated use inlineFiles — alias dla backwards compat. */
+  inlineImages?: Array<{ mimeType: string; data: string }>;
 }
 
 export async function callGemini<T = unknown>(opts: CallGeminiOpts<T>): Promise<GeminiResponse<T>> {
@@ -132,8 +137,9 @@ export async function callGemini<T = unknown>(opts: CallGeminiOpts<T>): Promise<
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userParts: any[] = [{ text: opts.user }];
-  for (const img of opts.inlineImages ?? []) {
-    userParts.unshift({ inlineData: { mimeType: img.mimeType, data: img.data } });
+  const allInline = [...(opts.inlineFiles ?? []), ...(opts.inlineImages ?? [])];
+  for (const f of allInline) {
+    userParts.unshift({ inlineData: { mimeType: f.mimeType, data: f.data } });
   }
 
   const result = await model.generateContent({ contents: [{ role: "user", parts: userParts }] });
