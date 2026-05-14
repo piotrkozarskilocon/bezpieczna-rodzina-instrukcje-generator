@@ -134,49 +134,49 @@ function inferMediaType(filename: string): { mediaType: string; blockType: "imag
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function buildAttachmentBlocks(client: any, fileIds: string[] | undefined): Promise<unknown[]> {
   if (!fileIds?.length) return [];
-  const blocks: unknown[] = [];
-  for (const fileId of fileIds) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const meta: any = await client.beta.files.retrieveMetadata(fileId);
-      const fname = (meta?.filename ?? "") as string;
-      const apiMime = (meta?.mime_type ?? "") as string;
-      const inferred = inferMediaType(fname);
 
-      // Anthropic Files API zapisuje mime ZAWSZE jako application/octet-stream
-      // (bug w SDK toFile() multipart upload). Nawet jak Blob ma poprawny type,
-      // Files API zwraca octet-stream przy retrieve. Wtedy `source: {type:"file"}`
-      // failuje z 400 "Unsupported document file format: application/octet-stream"
-      // bo Anthropic Messages API patrzy na MIME Z FILES API, nie z nazwy.
-      //
-      // Workaround: gdy mime jest octet-stream a znamy extension, pobieramy bytes
-      // i wysylamy jako source: base64 z JAWNIE ustawionym media_type. To omija
-      // bug Anthropic Files API — base64 source bierze media_type z naszej requestu,
-      // nie z files metadata.
-      const mimeIsBroken = apiMime === "application/octet-stream" || apiMime === "";
-      if (mimeIsBroken && inferred) {
+  // Anthropic Files API zapisuje mime ZAWSZE jako application/octet-stream
+  // (bug w SDK toFile() multipart upload). Messages API odrzuca octet-stream
+  // file source z 400 "Unsupported document file format". Workaround: dla
+  // octet-stream pobieramy bytes i wysylamy jako source: base64 z jawnym
+  // media_type (z extension).
+  //
+  // KRYTYCZNE: Promise.all zamiast for-of. Bez tego 11 plikow leci
+  // sekwencyjnie (~10s narzutu) i Vercel middleware/function timeoutuje przy
+  // wolniejszych modelach (Opus 4.7) → 504 MIDDLEWARE_INVOCATION_TIMEOUT.
+  const blocks = await Promise.all(
+    fileIds.map(async (fileId): Promise<unknown | null> => {
+      try {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const downloaded: any = await client.beta.files.download(fileId);
-        const arrayBuf = downloaded.arrayBuffer ? await downloaded.arrayBuffer() : downloaded;
-        const base64 = Buffer.from(arrayBuf as ArrayBuffer).toString("base64");
-        console.log(`[anthropic] attachment ${fileId}: ${fname} → base64 source, media=${inferred.mediaType}, block=${inferred.blockType}`);
-        blocks.push({
-          type: inferred.blockType,
-          source: { type: "base64", media_type: inferred.mediaType, data: base64 },
-        });
-        continue;
-      }
+        const meta: any = await client.beta.files.retrieveMetadata(fileId);
+        const fname = (meta?.filename ?? "") as string;
+        const apiMime = (meta?.mime_type ?? "") as string;
+        const inferred = inferMediaType(fname);
 
-      // Sciezka happy: mime jest poprawny, mozemy uzyc lekkiego file source.
-      const blockType: "document" | "image" = apiMime.startsWith("image/") ? "image" : "document";
-      console.log(`[anthropic] attachment ${fileId}: ${fname} → file source, mime=${apiMime}, block=${blockType}`);
-      blocks.push({ type: blockType, source: { type: "file", file_id: fileId } });
-    } catch (err) {
-      console.warn(`[anthropic] attachment ${fileId} failed, skipping:`, err);
-      // Skip — lepiej brak attachmentu niz wywrocenie calego AI call.
-    }
-  }
-  return blocks;
+        const mimeIsBroken = apiMime === "application/octet-stream" || apiMime === "";
+        if (mimeIsBroken && inferred) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const downloaded: any = await client.beta.files.download(fileId);
+          const arrayBuf = downloaded.arrayBuffer ? await downloaded.arrayBuffer() : downloaded;
+          const base64 = Buffer.from(arrayBuf as ArrayBuffer).toString("base64");
+          console.log(`[anthropic] attachment ${fileId}: ${fname} → base64, media=${inferred.mediaType}, block=${inferred.blockType}`);
+          return {
+            type: inferred.blockType,
+            source: { type: "base64", media_type: inferred.mediaType, data: base64 },
+          };
+        }
+
+        // Sciezka happy: mime jest poprawny, lekki file source.
+        const blockType: "document" | "image" = apiMime.startsWith("image/") ? "image" : "document";
+        console.log(`[anthropic] attachment ${fileId}: ${fname} → file, mime=${apiMime}, block=${blockType}`);
+        return { type: blockType, source: { type: "file", file_id: fileId } };
+      } catch (err) {
+        console.warn(`[anthropic] attachment ${fileId} failed, skipping:`, err);
+        return null;
+      }
+    }),
+  );
+  return blocks.filter((b): b is NonNullable<typeof b> => b !== null);
 }
 
 /** Calls Claude with a system prompt + user message, returns plain text.
