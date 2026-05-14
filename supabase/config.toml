@@ -1,0 +1,15 @@
+# Supabase project config (zauważone tylko przez Supabase CLI).
+# Tu konfigurujemy Edge Functions — w szczególności wyłączamy JWT verify dla
+# v4-jobs-worker bo wywołujemy go z Vercel API (server-to-server, server zna
+# random jobId + worker sam waliduje ownership).
+
+project_id = "ceewqhcoztcdsfwkwgtx"
+
+[functions.v4-jobs-worker]
+# Bez JWT verify — invocation chronione przez:
+#   1. Random UUID jobId (nieprzewidywalny)
+#   2. Worker sam czyta gen4_jobs i sprawdza ze job exists w stanie 'queued'
+#   3. Worker uderza w Vercel API z INTERNAL_PROXY_SECRET header
+# Plus nowe Supabase API keys (sb_publishable_*, sb_secret_*) nie sa JWT,
+# wiec default verify_jwt=true odrzucalby je z UNAUTHORIZED_INVALID_JWT_FORMAT.
+verify_jwt = false

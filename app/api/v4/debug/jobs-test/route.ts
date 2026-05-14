@@ -96,32 +96,19 @@ export async function GET(request: NextRequest) {
   const jobId = job.id;
   const insertedAt = Date.now();
 
-  // Krok 2: invokuj Edge Function (jak w jobs route — fire-and-forget)
+  // Krok 2: invokuj Edge Function — verify_jwt=false wiec bez Authorization
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL ?? process.env.SUPABASE_URL;
-  const apiKey =
-    process.env.SUPABASE_ANON_KEY ??
-    process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ??
-    process.env.SUPABASE_SERVICE_ROLE_KEY;
   const edgeUrl = supabaseUrl ? `${supabaseUrl}/functions/v1/v4-jobs-worker` : null;
   let edgeInvokeOk = false;
   let edgeInvokeError: string | null = null;
-  if (edgeUrl && apiKey) {
+  if (edgeUrl) {
     try {
-      // Czekamy synchronicznie na response Edge Function — gdy jest osiagalna,
-      // odpowie szybko (worker pracuje w tle, ale handler zwraca status 200 od razu
-      // po przyjeciu? nie — nasz Deno handler czeka az job sie wykona. To znaczy
-      // ze ta linia bedzie blokowac do max 150s).
-      // Dla smoke testu — uzyjemy AbortController 2s timeout. Worker poleci dalej
-      // w tle Supabase, my tylko sprawdzamy ze sie podjal.
       const ctl = new AbortController();
       const t = setTimeout(() => ctl.abort(), 3000);
       try {
         const res = await fetch(edgeUrl, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
+          headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ jobId }),
           signal: ctl.signal,
         });
@@ -144,7 +131,7 @@ export async function GET(request: NextRequest) {
       edgeInvokeError = err instanceof Error ? err.message : "unknown error";
     }
   } else {
-    edgeInvokeError = `missing config: supabaseUrl=${!!supabaseUrl} apiKey=${!!apiKey}`;
+    edgeInvokeError = `missing config: supabaseUrl=${!!supabaseUrl}`;
   }
 
   // Krok 3: polluj job status
