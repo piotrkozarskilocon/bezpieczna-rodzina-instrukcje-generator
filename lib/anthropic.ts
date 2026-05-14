@@ -153,7 +153,13 @@ export async function callClaude<T = unknown>(opts: {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const meta: any = await (client as any).beta.files.retrieve(fileId);
       const mt = (meta?.mime_type ?? "") as string;
-      if (mt.startsWith("image/")) {
+      const fname = (meta?.filename ?? "") as string;
+      // mime_type bywa "application/octet-stream" (przegladarki drag&drop
+      // czasem tak wysylaja PNG/JPG) — wtedy mime nie pomoze. Fallback to
+      // sprawdzanie rozszerzenia nazwy pliku z metadata.
+      const isImageByMime = mt.startsWith("image/");
+      const isImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fname);
+      if (isImageByMime || isImageByExt) {
         blockType = "image";
       }
     } catch (err) {
