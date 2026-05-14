@@ -11,7 +11,8 @@ import {
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 import { logAiCall } from "@/lib/v4AiLog";
-import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
+import { PageElementsPatchResponseSchema, type PageElementsPatchResponse } from "@/lib/v4Schemas";
+import { applyPatch, type Operation } from "fast-json-patch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -62,7 +63,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  const built = await buildPageEditPrompt(pageId, instruction);
+  const built = await buildPageEditPrompt(pageId, instruction, { mode: "patches" });
   if (!built) return NextResponse.json({ error: "page not found" }, { status: 404 });
 
   const sb = getSupabaseAdmin();
@@ -84,10 +85,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
   const promptEdited = !!(body?.custom_system || body?.custom_user);
 
-  const maxTokens = skipAttachments ? 6000 : 12000;
+  // Patches output schema — output tokeny ~85% mniejsze niz pelna lista.
+  const maxTokens = skipAttachments ? 3000 : 6000;
   const startedAt = Date.now();
   try {
-    const ai = await callClaude<PageElementsResponse>({
+    const ai = await callClaude<PageElementsPatchResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
@@ -95,15 +97,42 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       attachments: attachments.length > 0 ? attachments : undefined,
       cacheSystemPrompt: true,
       outputSchema: {
-        name: "submit_page_elements",
-        description: "Submit the complete new list of elements for this page.",
-        schema: PageElementsResponseSchema,
+        name: "submit_page_patches",
+        description: "Submit RFC 6902 JSON Patch operations on document {elements:[...]}.",
+        schema: PageElementsPatchResponseSchema,
       },
     });
     if (!ai.parsed) {
       throw new Error("AI did not return structured output");
     }
-    const count = await replacePageElements(pageId, ai.parsed);
+
+    // Apply RFC 6902 patches na biezacy stan strony. Mutate=false zeby zachowac
+    // oryginal jako fallback do logu.
+    const patches = (ai.parsed.patches ?? []) as Operation[];
+    if (patches.length === 0) {
+      throw new Error("AI returned 0 patches (no changes proposed)");
+    }
+    const currentDoc = { elements: built.elements.map((e) => ({
+      type: e.type,
+      x_mm: e.x_mm,
+      y_mm: e.y_mm,
+      w_mm: e.w_mm,
+      h_mm: e.h_mm,
+      z_index: e.z_index,
+      rotation_deg: e.rotation_deg,
+      properties: e.properties,
+    })) };
+    let newElements;
+    try {
+      const result = applyPatch(currentDoc, patches, /* validate */ true, /* mutate */ false);
+      newElements = (result.newDocument as { elements: unknown[] }).elements;
+    } catch (patchErr) {
+      const msg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
+      console.warn(`[ai-edit] applyPatch failed: ${msg}, patches=`, JSON.stringify(patches).slice(0, 500));
+      throw new Error(`AI returned invalid patches: ${msg}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const count = await replacePageElements(pageId, { elements: newElements as any });
 
     // Debug log — zapisz dokladnie co poszlo do AI i co wrocilo.
     if (pageMeta) {

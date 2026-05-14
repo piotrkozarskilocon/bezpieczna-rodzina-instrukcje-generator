@@ -90,7 +90,16 @@ export async function ownPage(pageId: string, email: string): Promise<boolean> {
 export async function buildPageEditPrompt(
   pageId: string,
   instruction: string,
-): Promise<{ system: string; user: string; combined: string; elementCount: number } | null> {
+  options?: { mode?: "full" | "patches" },
+): Promise<{
+  system: string;
+  user: string;
+  combined: string;
+  elementCount: number;
+  elements: ElementRow[];
+  mode: "full" | "patches";
+} | null> {
+  const mode = options?.mode ?? "full";
   const data = await loadPageWithElements(pageId);
   if (!data) return null;
   const { page, elements } = data;
@@ -215,16 +224,50 @@ export async function buildPageEditPrompt(
     "",
     renderImagesForPrompt(projectImages, page.page_number),
     "",
-    "Format odpowiedzi:",
-    "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",
-    `\`strona-${page.page_number}.json\` zawierający WYŁĄCZNIE poprawny JSON wg schematu:`,
-    "{",
-    '  "elements": [',
-    "    { ...element1... },",
-    "    { ...element2... }",
-    "  ]",
-    "}",
-    "Bez komentarzy, bez ``` fence.",
+    ...(mode === "patches"
+      ? [
+          "Format odpowiedzi — RFC 6902 JSON PATCH (BARDZO WAZNE):",
+          "Zamiast zwracac kompletna liste elementow, zwracasz LISTE OPERACJI",
+          "do wykonania na dokumencie `{elements: [...]}`. To redukuje koszt o ~85%.",
+          "",
+          "Operacje (RFC 6902):",
+          "  - replace: zmiana wartosci w istniejacej sciezce",
+          "    { op: 'replace', path: '/elements/3/properties/color', value: '#FFFFFF' }",
+          "  - add: dodanie nowej wartosci lub elementu",
+          "    { op: 'add', path: '/elements/-', value: {...nowy element...} }   // append",
+          "    { op: 'add', path: '/elements/2/properties/grayscale', value: true }",
+          "  - remove: usuniecie",
+          "    { op: 'remove', path: '/elements/5' }",
+          "",
+          "Sciezki (JSON Pointer, RFC 6901):",
+          "  /elements/N         — N-ty element (indeks 0-based!)",
+          "  /elements/N/x_mm    — pole top-level elementu",
+          "  /elements/N/properties/color    — zagniezdzona property",
+          "  /elements/-         — append (TYLKO dla 'add' operacji)",
+          "",
+          "WAZNE:",
+          "- Indeksy odnosza sie do AKTUALNEGO stanu strony (patrz JSON ponizej).",
+          "- Operacje stosowane SEKWENCYJNIE — po 'remove /elements/3' kolejne indeksy",
+          "  sie zmieniaja. NIE generuj patches ktore odwoluja sie do indeksow PO",
+          "  jakims remove jezeli nie chcesz tych indeksow przesuwac. Bezpieczniej:",
+          "  najpierw remove (od najwiekszego indeksu w dol), potem add/replace.",
+          "- Zwracaj TYLKO te pola ktore SIE ZMIENIAJA. Nie kopiuj reszty.",
+          "- Pole 'rationale' (opcjonalne) — 1-2 zdania co i dlaczego zmieniles.",
+          "",
+          "Strukture odpowiedzi wymusza tool `submit_page_patches` — zwroc patches.",
+        ]
+      : [
+          "Format odpowiedzi:",
+          "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",
+          `\`strona-${page.page_number}.json\` zawierający WYŁĄCZNIE poprawny JSON wg schematu:`,
+          "{",
+          '  "elements": [',
+          "    { ...element1... },",
+          "    { ...element2... }",
+          "  ]",
+          "}",
+          "Bez komentarzy, bez ``` fence.",
+        ]),
   ].join("\n");
 
   const titleLine =
@@ -261,7 +304,9 @@ export async function buildPageEditPrompt(
     "Polecenie użytkownika:",
     instruction,
     "",
-    "Zwróć kompletną nową listę elementów dla tej strony.",
+    mode === "patches"
+      ? "Zwroc LISTE PATCHES (RFC 6902) — tylko te pola ktore sie zmieniaja."
+      : "Zwróć kompletną nową listę elementów dla tej strony.",
   ];
 
   const user = userLines.join("\n");
@@ -275,7 +320,7 @@ export async function buildPageEditPrompt(
     user,
   ].join("\n");
 
-  return { system, user, combined, elementCount: elements.length };
+  return { system, user, combined, elementCount: elements.length, elements, mode };
 }
 
 interface ParsedElements {
