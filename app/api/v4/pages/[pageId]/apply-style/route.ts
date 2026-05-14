@@ -5,7 +5,8 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { replacePageElements } from "@/lib/v4Edit";
 import { logAiCall } from "@/lib/v4AiLog";
-import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
+import { PageElementsPatchResponseSchema, type PageElementsPatchResponse } from "@/lib/v4Schemas";
+import { applyPatch, type Operation } from "fast-json-patch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -152,12 +153,19 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "- Strona docelowa może mieć INNĄ liczbę elementów niż wzorzec — odbuduj",
     "  na bazie potrzeb treści, ale stylując wg wzorca.",
     "",
-    "Format odpowiedzi (WYŁĄCZNIE poprawny JSON, bez ``` fence, bez prozy):",
-    "{",
-    '  "elements": [',
-    "    { ...element... }",
-    "  ]",
-    "}",
+    "Format odpowiedzi — RFC 6902 JSON PATCH (BARDZO WAZNE):",
+    "Zamiast zwracac pelna nowa liste elementow, zwracasz LISTE OPERACJI na",
+    "STRONIE DOCELOWEJ (target). Redukuje koszt o ~85%.",
+    "",
+    "Operacje:",
+    "  - { op: 'replace', path: '/elements/N/properties/color', value: '#FFFFFF' }",
+    "  - { op: 'replace', path: '/elements/N/font_size_pt', value: 12 }",
+    "  - { op: 'add', path: '/elements/-', value: {...nowy element zgodny ze wzorcem...} }",
+    "  - { op: 'remove', path: '/elements/N' }   // gdy wzorzec ma mniej element",
+    "",
+    "Indeksy odnosza sie do STRONY DOCELOWEJ (target — pkty 'Elementy docelowej' ponizej).",
+    "Po remove indeksy sie zmieniaja — bezpieczniej najpierw remove od najwiekszego w dol.",
+    "Zwracaj TYLKO zmiany. Strukture wymusza tool `submit_page_patches`.",
   ]
     .filter(Boolean)
     .join("\n");
@@ -181,22 +189,23 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : system;
   const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : user;
   const promptEdited = !!(body?.custom_system || body?.custom_user);
-  const maxTokens = 12000;
+  // Patches mode — output tokeny ~85% mniejsze niz pelna lista.
+  const maxTokens = 6000;
   const startedAt = Date.now();
   const instructionDesc = `apply style from page ${srcPage.page_number} to page ${tgtPage.page_number}`;
 
   let ai;
   try {
-    ai = await callClaude<PageElementsResponse>({
+    ai = await callClaude<PageElementsPatchResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
       maxTokens,
       cacheSystemPrompt: true, // w pętli applyStyle systemy się powtarzają per target
       outputSchema: {
-        name: "submit_page_elements",
-        description: "Submit the complete new list of elements for the target page, styled to match the source page.",
-        schema: PageElementsResponseSchema,
+        name: "submit_page_patches",
+        description: "Submit RFC 6902 JSON Patch operations on the target page document {elements:[...]}.",
+        schema: PageElementsPatchResponseSchema,
       },
     });
   } catch (err) {
@@ -219,8 +228,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: `AI call failed: ${msg}` }, { status: 502 });
   }
 
-  // Structured output via tool_use — ai.parsed jest już zwalidowane przez Zod.
-  if (!ai.parsed || !Array.isArray(ai.parsed.elements)) {
+  // Structured output via tool_use — ai.parsed.patches zwalidowane przez Zod.
+  if (!ai.parsed || !Array.isArray(ai.parsed.patches)) {
     void logAiCall({
       project_id: projectId,
       page_id: targetPageId,
@@ -233,7 +242,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       model: chosenModel,
       max_tokens: maxTokens,
       response_text: ai.text || JSON.stringify(ai.rawToolInput ?? null),
-      error: "AI did not return structured elements array",
+      error: "AI did not return patches array",
       tokens_in: ai.inputTokens,
       tokens_out: ai.outputTokens,
       duration_ms: Date.now() - startedAt,
@@ -242,7 +251,34 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "AI did not return structured output" }, { status: 502 });
   }
 
-  const count = await replacePageElements(targetPageId, { elements: ai.parsed.elements });
+  const patches = ai.parsed.patches as Operation[];
+  if (patches.length === 0) {
+    return NextResponse.json({ error: "AI returned 0 patches (no style changes proposed)" }, { status: 502 });
+  }
+
+  // Apply RFC 6902 patches na strone DOCELOWA (tgtElements jest bazowym stanem).
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const currentDoc = { elements: (tgtElements ?? []).map((e: any) => ({
+    type: e.type,
+    x_mm: e.x_mm,
+    y_mm: e.y_mm,
+    w_mm: e.w_mm,
+    h_mm: e.h_mm,
+    z_index: e.z_index,
+    rotation_deg: e.rotation_deg,
+    properties: e.properties,
+  })) };
+  let newElements;
+  try {
+    const result = applyPatch(currentDoc, patches, true, false);
+    newElements = (result.newDocument as { elements: unknown[] }).elements;
+  } catch (patchErr) {
+    const msg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
+    console.warn(`[apply-style] applyPatch failed: ${msg}, patches=`, JSON.stringify(patches).slice(0, 500));
+    return NextResponse.json({ error: `AI returned invalid patches: ${msg}` }, { status: 502 });
+  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const count = await replacePageElements(targetPageId, { elements: newElements as any });
 
   void logAiCall({
     project_id: projectId,
