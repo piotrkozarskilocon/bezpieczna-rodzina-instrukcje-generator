@@ -6,6 +6,7 @@ import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { ownPage, replacePageElements } from "@/lib/v4Edit";
 import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 import { logAiCall } from "@/lib/v4AiLog";
 import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 
@@ -54,9 +55,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .eq("id", pageId)
     .single();
   const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
-  const attachments = getAttachmentFileIds(refDocs);
+  const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
+  const attachments = [...getAttachmentFileIds(refDocs), ...getImageAttachmentFileIds(galleryImages)];
 
-  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
+  const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
+  const baseSystem = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
+  const systemPrompt = galleryBlock ? `${galleryBlock}\n\n${baseSystem}` : baseSystem;
   const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
   const promptEdited = !!(body?.custom_system || body?.custom_user);
   const maxTokens = 12000;

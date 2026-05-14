@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
+import { getAnthropicClient } from "@/lib/anthropic";
+import { toFile } from "@anthropic-ai/sdk/core/uploads";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -106,6 +108,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: `storage upload failed: ${uploadErr.message}` }, { status: 500 });
   }
 
+  // Proactive sync do Anthropic Files — zeby pierwszy AI call po uploadzie
+  // nie musial dopiero teraz uploadowac (lazy sync). Failure nie blokuje
+  // odpowiedzi — lazy sync w lib/v4Images.ts wykryje brak file_id i sprobuje
+  // ponownie przy nastepnym AI call.
+  let anthropicFileId: string | null = null;
+  if (process.env.ANTHROPIC_API_KEY) {
+    try {
+      const client = getAnthropicClient();
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const upload: any = await (client as any).beta.files.upload({
+        file: await toFile(new Blob([new Uint8Array(buf)], { type: file.type }), file.name),
+      });
+      anthropicFileId = upload?.id ?? null;
+    } catch (err) {
+      console.warn("[images] Anthropic Files sync failed (will retry lazily):", err);
+    }
+  }
+
   const { data: row, error: insertErr } = await sb
     .from("gen4_images")
     .insert({
@@ -117,8 +137,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       description: description || null,
       preferred_page_id: preferredPageId,
       uploaded_by: auth.email,
+      anthropic_file_id: anthropicFileId,
     })
-    .select("id, name, path, size_bytes, mime_type, description, preferred_page_id, created_at")
+    .select("id, name, path, size_bytes, mime_type, description, preferred_page_id, anthropic_file_id, created_at")
     .single();
   if (insertErr || !row) {
     // Cleanup: usuń plik z bucket żeby nie zostawić orphana.

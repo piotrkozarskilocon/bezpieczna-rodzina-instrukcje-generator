@@ -9,6 +9,7 @@ import {
   parsePageEditResponse,
 } from "@/lib/v4Edit";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -48,14 +49,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .eq("id", pageId)
     .single();
   const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
-  const attachments = getAttachmentFileIds(refDocs);
+  const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
+  const attachments = [...getAttachmentFileIds(refDocs), ...getImageAttachmentFileIds(galleryImages)];
+  const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
+  const systemPrompt = galleryBlock ? `${galleryBlock}\n\n${built.system}` : built.system;
 
   // Generujemy obie wersje równolegle — caching system prompt sprawia że
   // druga jest 90% tańsza (cache_read).
   try {
     const [aiA, aiB] = await Promise.all([
       callClaude({
-        system: built.system,
+        system: systemPrompt,
         user: built.user,
         model: EDIT_MODEL,
         maxTokens: 4000,
@@ -64,7 +68,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         temperature: 0.7,
       }),
       callClaude({
-        system: built.system,
+        system: systemPrompt,
         user: built.user,
         model: EDIT_MODEL,
         maxTokens: 4000,

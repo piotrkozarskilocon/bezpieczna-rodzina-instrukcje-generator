@@ -9,6 +9,7 @@ import {
   replacePageElements,
 } from "@/lib/v4Edit";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 import { logAiCall } from "@/lib/v4AiLog";
 import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 
@@ -64,11 +65,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const built = await buildPageEditPrompt(pageId, instruction);
   if (!built) return NextResponse.json({ error: "page not found" }, { status: 404 });
 
-  // Override promptu przez usera (debug "Edytuj prompt przed uruchomieniem").
-  const systemPrompt = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
-  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
-  const promptEdited = !!(body?.custom_system || body?.custom_user);
-
   const sb = getSupabaseAdmin();
   const { data: pageMeta } = await sb
     .from("gen4_pages")
@@ -76,7 +72,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .eq("id", pageId)
     .single();
   const refDocs = pageMeta && !skipAttachments ? await loadReferenceDocs(pageMeta.project_id) : [];
-  const attachments = getAttachmentFileIds(refDocs);
+  // Gallery images zawsze (jesli sa) — sa lekkie i czesto potrzebne do user-
+  // visible operacji. skip_attachments dotyczy tylko duzych ref docs (PDF SAR).
+  const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
+  const attachments = [...getAttachmentFileIds(refDocs), ...getImageAttachmentFileIds(galleryImages)];
+
+  // Override promptu przez usera (debug "Edytuj prompt przed uruchomieniem").
+  const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
+  const baseSystem = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;
+  const systemPrompt = galleryBlock ? `${galleryBlock}\n\n${baseSystem}` : baseSystem;
+  const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
+  const promptEdited = !!(body?.custom_system || body?.custom_user);
 
   const maxTokens = skipAttachments ? 6000 : 12000;
   const startedAt = Date.now();

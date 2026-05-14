@@ -8,6 +8,7 @@ import { loadProjectImages, renderImagesForPrompt } from "@/lib/v4Generate";
 import { getRequiredSections, type DocumentType, type DeviceType } from "@/lib/v4LegalTemplates";
 import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
 import { loadReferenceDocs, renderReferenceDocsForPrompt, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -178,11 +179,13 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const notesBlock = renderNotesForPrompt(notes);
   const refDocs = await loadReferenceDocs(page.project_id);
   const refBlock = renderReferenceDocsForPrompt(refDocs);
-  const attachments = getAttachmentFileIds(refDocs);
+  const galleryImages = await loadProjectImagesForAi(page.project_id);
+  const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
+  const attachments = [...getAttachmentFileIds(refDocs), ...getImageAttachmentFileIds(galleryImages)];
 
   try {
     const ai = await callClaude({
-      system: [notesBlock, refBlock, system].filter(Boolean).join("\n\n"),
+      system: [notesBlock, refBlock, galleryBlock, system].filter(Boolean).join("\n\n"),
       user: userLines.join("\n"),
       model: EDIT_MODEL,
       maxTokens: 3000, // ~10 elementów = ~600-1200 tokenów output
