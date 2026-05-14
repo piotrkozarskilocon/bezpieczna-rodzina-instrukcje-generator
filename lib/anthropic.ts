@@ -119,17 +119,26 @@ async function buildAttachmentBlocks(client: any, fileIds: string[] | undefined)
   const blocks: unknown[] = [];
   for (const fileId of fileIds) {
     let blockType: "document" | "image" = "document";
+    let resolvedMime = "";
+    let resolvedFname = "";
     try {
+      // SDK: client.beta.files.retrieveMetadata(id) — NIE `retrieve(id)`.
+      // Wczesniejsze wywolanie retrieve() rzucalo i zawsze szlo do catch
+      // → default document → 400 dla PNG.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const meta: any = await client.beta.files.retrieve(fileId);
-      const mt = (meta?.mime_type ?? "") as string;
-      const fname = (meta?.filename ?? "") as string;
-      const isImageByMime = mt.startsWith("image/");
-      const isImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(fname);
-      if (isImageByMime || isImageByExt) blockType = "image";
+      const meta: any = await client.beta.files.retrieveMetadata(fileId);
+      resolvedMime = (meta?.mime_type ?? "") as string;
+      resolvedFname = (meta?.filename ?? "") as string;
+      const isImageByMime = resolvedMime.startsWith("image/");
+      const isImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(resolvedFname);
+      // application/octet-stream w Anthropic Files = drag&drop image (po
+      // konwersji DOCX/XLSX wszystkie inne typy maja jednoznaczne mime).
+      const isOctetStream = resolvedMime === "application/octet-stream";
+      if (isImageByMime || isImageByExt || isOctetStream) blockType = "image";
     } catch (err) {
-      console.warn(`[anthropic] files.retrieve ${fileId} failed, defaulting to document:`, err);
+      console.warn(`[anthropic] files.retrieveMetadata ${fileId} failed, defaulting to document:`, err);
     }
+    console.log(`[anthropic] attachment ${fileId}: mime=${resolvedMime}, filename=${resolvedFname}, blockType=${blockType}`);
     blocks.push({ type: blockType, source: { type: "file", file_id: fileId } });
   }
   return blocks;
