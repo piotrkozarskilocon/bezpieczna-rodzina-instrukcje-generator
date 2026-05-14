@@ -129,6 +129,35 @@ export const SarMeasurementSchema = z.object({
 });
 export type SarMeasurement = z.infer<typeof SarMeasurementSchema>;
 
+// ─────────────────────────────────────────────────────────────────────────
+// Auto-callouts z Bounding Boxes (Faza 3 z deep research).
+// Gemini 2.5 Pro Vision identyfikuje hardware interface points na zdjeciu
+// produktu (smartwatch, opaska, tracker) — przyciski, porty, czujniki,
+// wskazniki — i zwraca bounding boxy + labele. Frontend konwertuje na
+// elementy strony: image (zdjecie) + N callouts (line + text label).
+// ─────────────────────────────────────────────────────────────────────────
+
+export const CalloutSchema = z.object({
+  label_pl: z.string().describe("Krotki label po polsku, 1-3 slowa np. 'Przycisk SOS', 'Port USB-C', 'Czujnik tetna'"),
+  label_en: z.string().optional().describe("Angielska wersja (gdy multilang generation)"),
+  description: z.string().optional().describe("Dluzsze wyjasnienie do uzycia w treści instrukcji (1-2 zdania)"),
+  // Bounding box jako 4 osobne pola — Gemini structured output lepiej radzi sobie
+  // z plain numerami niz z z.tuple. Normalized [0-1000] per Gemini Vision standard.
+  bbox_ymin: z.number().describe("Top edge bbox, 0-1000 (0=top of image)"),
+  bbox_xmin: z.number().describe("Left edge bbox, 0-1000 (0=left of image)"),
+  bbox_ymax: z.number().describe("Bottom edge bbox, 0-1000"),
+  bbox_xmax: z.number().describe("Right edge bbox, 0-1000"),
+});
+export type Callout = z.infer<typeof CalloutSchema>;
+
+export const CalloutsResponseSchema = z.object({
+  product_description: z.string().optional().describe(
+    "Krotka identyfikacja produktu na zdjeciu (1 zdanie) — pomaga w prompcie pozniej",
+  ),
+  callouts: z.array(CalloutSchema).describe("Lista hardware interface points zidentyfikowanych na zdjeciu"),
+});
+export type CalloutsResponse = z.infer<typeof CalloutsResponseSchema>;
+
 export const SarReportSchema = z.object({
   device_model: z.string().describe("Model urzadzenia z raportu np. 'GJD.16' lub 'Locon Watch Slay AI'"),
   manufacturer: z.string().optional().describe("Producent / autor raportu"),
