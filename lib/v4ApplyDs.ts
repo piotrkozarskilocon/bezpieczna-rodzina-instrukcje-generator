@@ -224,7 +224,19 @@ export async function buildApplyDsToPagePrompt(
   pageId: string,
   dsId: string,
   extraInstruction?: string,
-): Promise<{ system: string; user: string; combined: string; elementCount: number; dsName: string; pageNumber: number } | null> {
+  options?: { mode?: "full" | "patches" },
+): Promise<{
+  system: string;
+  user: string;
+  combined: string;
+  elementCount: number;
+  dsName: string;
+  pageNumber: number;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  elements: any[];
+  mode: "full" | "patches";
+} | null> {
+  const mode = options?.mode ?? "full";
   const sb = getSupabaseAdmin();
   const { data: page } = await sb
     .from("gen4_pages")
@@ -281,15 +293,35 @@ export async function buildApplyDsToPagePrompt(
     "",
     renderImagesForPrompt(projectImages, page.page_number),
     "",
-    "Format odpowiedzi:",
-    "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",
-    `\`strona-${page.page_number}-z-ds.json\` - WYŁĄCZNIE poprawny JSON wg schematu:`,
-    "{",
-    '  "elements": [',
-    "    { ...element1... },",
-    "    { ...element2... }",
-    "  ]",
-    "}",
+    ...(mode === "patches"
+      ? [
+          "Format odpowiedzi — RFC 6902 JSON PATCH (BARDZO WAZNE):",
+          "Zamiast zwracac pelna liste elementow, zwracasz LISTE OPERACJI na",
+          "dokumencie `{elements: [...]}`. Redukuje koszt o ~85%.",
+          "",
+          "Operacje:",
+          "  - { op: 'replace', path: '/elements/N/properties/color', value: '#FFFFFF' }",
+          "  - { op: 'add', path: '/elements/-', value: {...nowy element...} }",
+          "  - { op: 'remove', path: '/elements/N' }",
+          "",
+          "Sciezki uzywaja indeksow z aktualnego stanu (patrz JSON ponizej).",
+          "Po remove indeksy sie zmieniaja — bezpieczniej najpierw remove od najwiekszego",
+          "indeksu w dol, potem add/replace.",
+          "",
+          "Zwracaj TYLKO zmiany. Nie kopiuj reszty.",
+          "Strukture wymusza tool `submit_page_patches`.",
+        ]
+      : [
+          "Format odpowiedzi:",
+          "ZAPISZ wynik jako ARTEFAKT (artifact) typu `application/json` o nazwie",
+          `\`strona-${page.page_number}-z-ds.json\` - WYŁĄCZNIE poprawny JSON wg schematu:`,
+          "{",
+          '  "elements": [',
+          "    { ...element1... },",
+          "    { ...element2... }",
+          "  ]",
+          "}",
+        ]),
   ].join("\n");
 
   const titleLine =
@@ -313,7 +345,11 @@ export async function buildApplyDsToPagePrompt(
     userLines.push(extraInstruction.trim());
   }
   userLines.push("");
-  userLines.push(`Zastosuj design system "${ds.name}" do tej strony i zwróć kompletny nowy JSON elementów.`);
+  userLines.push(
+    mode === "patches"
+      ? `Zastosuj design system "${ds.name}" do tej strony — zwroc LISTE PATCHES (RFC 6902).`
+      : `Zastosuj design system "${ds.name}" do tej strony i zwróć kompletny nowy JSON elementów.`,
+  );
 
   const user = userLines.join("\n");
   const combined = [
@@ -333,5 +369,7 @@ export async function buildApplyDsToPagePrompt(
     elementCount: elements?.length ?? 0,
     dsName: ds.name,
     pageNumber: page.page_number,
+    elements: elements ?? [],
+    mode,
   };
 }

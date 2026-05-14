@@ -4,6 +4,7 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { parseJsonFromAi } from "@/lib/v4Generate";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -114,6 +115,7 @@ export async function POST(request: NextRequest) {
 
   const user = `Logi edycji manualnych (${edits.length} ostatnich):\n\n${editsRendered}\n\nZnajdź wzorce i zaproponuj regułki.`;
 
+  const startedAt = Date.now();
   try {
     const ai = await callClaude({
       system,
@@ -122,14 +124,43 @@ export async function POST(request: NextRequest) {
       maxTokens: 2000,
     });
     const parsed = parseJsonFromAi<{ suggestions: Suggestion[] }>(ai.text);
+
+    // logAiCall z project_id=null (cross-project endpoint, analizuje wzorce
+    // niezalezne od pojedynczego projektu). Wymaga migracji 0022.
+    void logAiCall({
+      project_id: null,
+      endpoint: "ai-notes/suggest",
+      context_type: "global",
+      user_instruction: `suggest notes patterns from ${edits.length} manual edits`,
+      system_prompt: system,
+      user_prompt: user,
+      model: ai.model,
+      max_tokens: 2000,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
+
     return NextResponse.json({
       suggestions: parsed.suggestions ?? [],
       analyzed_edits: edits.length,
     });
   } catch (err) {
-    return NextResponse.json(
-      { error: err instanceof Error ? err.message : "AI call failed" },
-      { status: 502 },
-    );
+    const msg = err instanceof Error ? err.message : "AI call failed";
+    void logAiCall({
+      project_id: null,
+      endpoint: "ai-notes/suggest",
+      context_type: "global",
+      system_prompt: system,
+      user_prompt: user,
+      model: EDIT_MODEL,
+      max_tokens: 2000,
+      error: msg,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
+    return NextResponse.json({ error: msg }, { status: 502 });
   }
 }

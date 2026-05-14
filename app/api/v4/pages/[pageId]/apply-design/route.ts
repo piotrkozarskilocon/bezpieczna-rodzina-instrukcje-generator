@@ -8,7 +8,8 @@ import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 import { logAiCall } from "@/lib/v4AiLog";
-import { PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
+import { PageElementsPatchResponseSchema, type PageElementsPatchResponse } from "@/lib/v4Schemas";
+import { applyPatch, type Operation } from "fast-json-patch";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -45,7 +46,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
-  const built = await buildApplyDsToPagePrompt(pageId, dsId, body?.instruction);
+  const built = await buildApplyDsToPagePrompt(pageId, dsId, body?.instruction, { mode: "patches" });
   if (!built) return NextResponse.json({ error: "page or DS not found" }, { status: 404 });
 
   const sbForRef = getSupabaseAdmin();
@@ -63,13 +64,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const systemPrompt = galleryBlock ? `${galleryBlock}\n\n${baseSystem}` : baseSystem;
   const userPrompt = body?.custom_user && body.custom_user.trim() ? body.custom_user : built.user;
   const promptEdited = !!(body?.custom_system || body?.custom_user);
-  const maxTokens = 12000;
+  // Patches mode — output tokeny ~85% mniejsze niz pelna lista.
+  const maxTokens = 6000;
   const startedAt = Date.now();
   const instructionDesc = body?.instruction?.trim() || `apply DS "${built.dsName}" to page ${built.pageNumber}`;
   const projectIdForLog = pageMeta?.project_id ?? null;
 
   try {
-    const ai = await callClaude<PageElementsResponse>({
+    const ai = await callClaude<PageElementsPatchResponse>({
       system: systemPrompt,
       user: userPrompt,
       model: chosenModel,
@@ -80,15 +82,40 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       // Pierwsze wywołanie tworzy cache, kolejne 13 ~10% kosztu input.
       cacheSystemPrompt: true,
       outputSchema: {
-        name: "submit_page_elements",
-        description: "Submit the complete new list of elements for this page after applying the design system.",
-        schema: PageElementsResponseSchema,
+        name: "submit_page_patches",
+        description: "Submit RFC 6902 JSON Patch operations on document {elements:[...]} for the applied design system.",
+        schema: PageElementsPatchResponseSchema,
       },
     });
     if (!ai.parsed) {
       throw new Error("AI did not return structured output");
     }
-    const count = await replacePageElements(pageId, ai.parsed);
+    const patches = (ai.parsed.patches ?? []) as Operation[];
+    if (patches.length === 0) {
+      throw new Error("AI returned 0 patches (no changes proposed for design system)");
+    }
+    // Apply RFC 6902 patches na biezacy stan strony.
+    const currentDoc = { elements: built.elements.map((e: Record<string, unknown>) => ({
+      type: e.type,
+      x_mm: e.x_mm,
+      y_mm: e.y_mm,
+      w_mm: e.w_mm,
+      h_mm: e.h_mm,
+      z_index: e.z_index,
+      rotation_deg: e.rotation_deg,
+      properties: e.properties,
+    })) };
+    let newElements;
+    try {
+      const result = applyPatch(currentDoc, patches, true, false);
+      newElements = (result.newDocument as { elements: unknown[] }).elements;
+    } catch (patchErr) {
+      const msg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
+      console.warn(`[apply-design] applyPatch failed: ${msg}, patches=`, JSON.stringify(patches).slice(0, 500));
+      throw new Error(`AI returned invalid patches: ${msg}`);
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const count = await replacePageElements(pageId, { elements: newElements as any });
 
     if (projectIdForLog) {
       void logAiCall({

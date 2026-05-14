@@ -8,7 +8,10 @@
 import { getSupabaseAdmin } from "@/lib/supabase";
 
 export interface AiCallLogEntry {
-  project_id: string;
+  /** Project context. Null tylko dla cross-project endpointow (np. ai-notes/suggest
+   *  ktory analizuje wzorce w edycjach usera niezalezne od pojedynczego projektu).
+   *  Wymaga migracji 0022 (DROP NOT NULL). */
+  project_id: string | null;
   page_id?: string | null;
   element_id?: string | null;
   endpoint: string;
@@ -45,7 +48,7 @@ export async function logAiCall(entry: AiCallLogEntry): Promise<void> {
   try {
     const sb = getSupabaseAdmin();
     await sb.from("gen4_ai_calls").insert({
-      project_id: entry.project_id,
+      project_id: entry.project_id ?? null,
       page_id: entry.page_id ?? null,
       element_id: entry.element_id ?? null,
       endpoint: entry.endpoint,
