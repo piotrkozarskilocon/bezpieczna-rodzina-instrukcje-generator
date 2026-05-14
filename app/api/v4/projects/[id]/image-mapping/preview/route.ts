@@ -4,6 +4,7 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { parseJsonFromAi } from "@/lib/v4Generate";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -121,14 +122,32 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   userLines.push("");
   userLines.push("Zwróć JSON z rekomendacjami dla każdego obrazka z listy.");
 
+  const mappingUser = userLines.join("\n");
+  const mappingStartedAt = Date.now();
   try {
     const ai = await callClaude({
       system,
-      user: userLines.join("\n"),
+      user: mappingUser,
       model: EDIT_MODEL,
       maxTokens: 3000,
     });
     const parsed = parseJsonFromAi<{ mappings: Array<{ image_id: string; suggested_page_id: string | null; confidence: string; reason: string }> }>(ai.text);
+
+    void logAiCall({
+      project_id: id,
+      endpoint: "image-mapping/preview",
+      context_type: "project",
+      user_instruction: `map ${images.length} images to ${pages.length} pages`,
+      system_prompt: system,
+      user_prompt: mappingUser,
+      model: ai.model,
+      max_tokens: 3000,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - mappingStartedAt,
+      user_email: auth.email,
+    });
     const pageById = new Map(pages.map((p) => [p.id, p]));
 
     const mappings: Mapping[] = images.map((img) => {

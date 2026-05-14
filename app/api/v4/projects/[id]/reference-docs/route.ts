@@ -9,6 +9,7 @@ import {
   normalizeMime,
   prepareFileForAi,
 } from "@/lib/v4FileExtract";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 90;
@@ -204,14 +205,32 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       const convertedNote = prepared.converted
         ? ` (oryginalnie ${fileMime.includes("word") ? "DOCX" : "XLSX"} — skonwertowany do tekstu)`
         : "";
+      const summarySystem = "Jesteś asystentem analizującym dokumenty techniczne dla generatora instrukcji obsługi smartwatchy Locon. Streszczasz pliki referencyjne w 1-3 zdaniach po POLSKU. Wyciągaj konkretne wartości techniczne (np. SAR head/body w W/kg, normy, częstotliwości, IP rating, pojemność baterii, wymiary). Bez fence, bez prozy poza treścią.";
+      const summaryUser = `Streść zawartość załączonego pliku${convertedNote} ${kind === "sar_report" ? "(raport SAR)" : kind === "tech_spec" ? "(specyfikacja techniczna)" : kind === "manufacturer_manual" ? "(instrukcja producenta — może być w obcym języku, przetłumacz kluczowe terminy)" : ""} w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`;
+      const summaryStartedAt = Date.now();
       const summaryAi = await callClaude({
-        system: "Jesteś asystentem analizującym dokumenty techniczne dla generatora instrukcji obsługi smartwatchy Locon. Streszczasz pliki referencyjne w 1-3 zdaniach po POLSKU. Wyciągaj konkretne wartości techniczne (np. SAR head/body w W/kg, normy, częstotliwości, IP rating, pojemność baterii, wymiary). Bez fence, bez prozy poza treścią.",
-        user: `Streść zawartość załączonego pliku${convertedNote} ${kind === "sar_report" ? "(raport SAR)" : kind === "tech_spec" ? "(specyfikacja techniczna)" : kind === "manufacturer_manual" ? "(instrukcja producenta — może być w obcym języku, przetłumacz kluczowe terminy)" : ""} w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`,
+        system: summarySystem,
+        user: summaryUser,
         model: EDIT_MODEL,
         maxTokens: 500,
         attachments: [anthropicFileId],
       });
       extractedSummary = summaryAi.text.trim().slice(0, 2000);
+      void logAiCall({
+        project_id: id,
+        endpoint: "reference-docs/summary",
+        context_type: "project",
+        user_instruction: `summary of uploaded ${kind ?? "document"}: ${fileName.slice(0, 100)}`,
+        system_prompt: summarySystem,
+        user_prompt: summaryUser,
+        model: summaryAi.model,
+        max_tokens: 500,
+        response_text: summaryAi.text,
+        tokens_in: summaryAi.inputTokens,
+        tokens_out: summaryAi.outputTokens,
+        duration_ms: Date.now() - summaryStartedAt,
+        user_email: auth.email,
+      });
     } catch (err) {
       console.warn("[reference-docs] Anthropic Files sync failed:", err);
       // Nie blokuj uploadu — plik jest w storage, sync można powtórzyć później.

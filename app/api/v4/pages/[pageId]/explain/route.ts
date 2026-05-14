@@ -6,6 +6,7 @@ import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { ownPage, loadPageWithElements } from "@/lib/v4Edit";
 import { getRequiredSections, type DocumentType, type DeviceType } from "@/lib/v4LegalTemplates";
 import { loadActiveNotes } from "@/lib/v4Notes";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 30;
@@ -144,12 +145,30 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   userLines.push("");
   userLines.push("Wytłumacz tę stronę zgodnie z formatem opisanym w prompcie systemowym.");
 
+  const explainUser = userLines.join("\n");
+  const explainStartedAt = Date.now();
   try {
     const ai = await callClaude({
       system,
-      user: userLines.join("\n"),
+      user: explainUser,
       model: EDIT_MODEL,
       maxTokens: 2000,
+    });
+    void logAiCall({
+      project_id: page.project_id,
+      page_id: pageId,
+      endpoint: "explain",
+      context_type: "page",
+      user_instruction: "explain page decisions",
+      system_prompt: system,
+      user_prompt: explainUser,
+      model: ai.model,
+      max_tokens: 2000,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - explainStartedAt,
+      user_email: auth.email,
     });
     return NextResponse.json({ explanation: ai.text, model: ai.model });
   } catch (err) {

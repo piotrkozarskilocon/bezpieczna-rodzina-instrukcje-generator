@@ -13,6 +13,7 @@ import {
 } from "@/lib/v4Generate";
 import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
 import { loadReferenceDocs, renderReferenceDocsForPrompt, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
+import { logAiCall } from "@/lib/v4AiLog";
 import {
   isValidDocumentType,
   isValidDeviceType,
@@ -161,12 +162,31 @@ export async function POST(request: NextRequest) {
       device_type: input.device_type,
       step_count: input.step_count,
     });
+    const skeletonSystem = [notesBlock, refBlock, baseSystem].filter(Boolean).join("\n\n");
+    const skeletonUser = buildSkeletonUserPrompt(input);
+    const skeletonMaxTokens = 6000;
+    const skeletonStartedAt = Date.now();
     const ai = await callClaude({
-      system: [notesBlock, refBlock, baseSystem].filter(Boolean).join("\n\n"),
-      user: buildSkeletonUserPrompt(input),
+      system: skeletonSystem,
+      user: skeletonUser,
       model: INITIAL_MODEL,
-      maxTokens: 6000, // szkielet ~14-20 stron (multi-step = krok per strona)
+      maxTokens: skeletonMaxTokens, // szkielet ~14-20 stron (multi-step = krok per strona)
       attachments: attachments.length > 0 ? attachments : undefined,
+    });
+    void logAiCall({
+      project_id: project.id,
+      endpoint: "projects/generate",
+      context_type: "project",
+      user_instruction: `skeleton generation: ${input.document_type} / ${input.device_type} / ${input.model_name ?? "?"}`,
+      system_prompt: skeletonSystem,
+      user_prompt: skeletonUser,
+      model: ai.model,
+      max_tokens: skeletonMaxTokens,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - skeletonStartedAt,
+      user_email: auth.email,
     });
     // Fire-and-forget — bump used_count notatek których faktycznie użyliśmy.
     void incrementUsedCount(notes.map((n) => n.id));

@@ -9,6 +9,7 @@ import {
   type DocumentType,
   type DeviceType,
 } from "@/lib/v4LegalTemplates";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -126,6 +127,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "Przeanalizuj i zwróć listę uchybień.",
   ].join("\n");
 
+  const complianceStartedAt = Date.now();
   try {
     const ai = await callClaude({
       system,
@@ -134,6 +136,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       maxTokens: 4000,
     });
     const parsed = parseJsonFromAi<{ issues: ComplianceIssue[] }>(ai.text);
+
+    void logAiCall({
+      project_id: id,
+      endpoint: "compliance-check",
+      context_type: "project",
+      user_instruction: "compliance check",
+      system_prompt: system,
+      user_prompt: user,
+      model: ai.model,
+      max_tokens: 4000,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - complianceStartedAt,
+      user_email: auth.email,
+    });
 
     // Telemetria
     await sb.from("gen4_ai_history").insert({
