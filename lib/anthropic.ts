@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk";
-import type { ZodSchema } from "zod";
-import { zodToJsonSchema } from "zod-to-json-schema";
+import { z, type ZodSchema } from "zod";
 
 /**
  * Server-only Anthropic client. ANTHROPIC_API_KEY lives in the project env;
@@ -175,9 +174,11 @@ export async function callClaude<T = unknown>(opts: {
   // jest już sparsowanym i zwalidowanym JSON-em. Eliminuje to potrzebę
   // parsowania tekstu (i wszystkie błędy "Unexpected token", "fence-strip" itd.).
   if (opts.outputSchema) {
-    // zod-to-json-schema ma starszy generyk niż Zod 4, więc cast through unknown.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const jsonSchema = zodToJsonSchema(opts.outputSchema.schema as any, { target: "openApi3" });
+    // Zod 4 ma natywne z.toJSONSchema() — produkuje schema z `type: "object"`
+    // na root, czego Anthropic API wymaga (input_schema.type: required).
+    // Wczesniej uzywany `zod-to-json-schema` jest niekompatybilny z Zod 4
+    // (zwraca pusty obiekt {} → 400 "input_schema.type: Field required").
+    const jsonSchema = z.toJSONSchema(opts.outputSchema.schema);
     streamParams.tools = [{
       name: opts.outputSchema.name,
       description: opts.outputSchema.description,
