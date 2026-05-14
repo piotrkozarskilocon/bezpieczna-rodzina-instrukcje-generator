@@ -56,7 +56,7 @@ export async function GET(request: NextRequest) {
 
   // 2. Minimalna generacja — Flash, "say hi", structured output sanity check
   const genUrl = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(key)}`;
-  let genResult: { ok: boolean; status: number; text?: string; tokensIn?: number; tokensOut?: number; error?: unknown } = {
+  let genResult: { ok: boolean; status: number; text?: string | null; tokensIn?: number; tokensOut?: number; error?: unknown } = {
     ok: false,
     status: 0,
   };
