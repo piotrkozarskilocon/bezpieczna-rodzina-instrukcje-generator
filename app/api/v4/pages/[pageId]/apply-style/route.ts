@@ -5,7 +5,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
 import { replacePageElements } from "@/lib/v4Edit";
 import { logAiCall } from "@/lib/v4AiLog";
-import { PageElementsPatchResponseSchema, type PageElementsPatchResponse } from "@/lib/v4Schemas";
+import { PageElementsPatchResponseSchema, type PageElementsPatchResponse, PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 import { applyPatch, type Operation } from "fast-json-patch";
 
 export const runtime = "nodejs";
@@ -106,7 +106,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .eq("id", projectId)
     .single();
 
-  const system = [
+  // System prompt jako funkcja mode → albo patches mode (default), albo full
+  // (fallback). Identyczna lista zasad, tylko sekcja "Format odpowiedzi" rozne.
+  const buildSystem = (mode: "patches" | "full"): string => [
     "Jesteś asystentem AI ujednolicającym wygląd stron drukowanej instrukcji",
     `obsługi smartwatcha Locon. Format ${tgtPage.width_mm}x${tgtPage.height_mm} mm.`,
     "",
@@ -153,22 +155,29 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "- Strona docelowa może mieć INNĄ liczbę elementów niż wzorzec — odbuduj",
     "  na bazie potrzeb treści, ale stylując wg wzorca.",
     "",
-    "Format odpowiedzi — RFC 6902 JSON PATCH (BARDZO WAZNE):",
-    "Zamiast zwracac pelna nowa liste elementow, zwracasz LISTE OPERACJI na",
-    "STRONIE DOCELOWEJ (target). Redukuje koszt o ~85%.",
-    "",
-    "Operacje:",
-    "  - { op: 'replace', path: '/elements/N/properties/color', value: '#FFFFFF' }",
-    "  - { op: 'replace', path: '/elements/N/font_size_pt', value: 12 }",
-    "  - { op: 'add', path: '/elements/-', value: {...nowy element zgodny ze wzorcem...} }",
-    "  - { op: 'remove', path: '/elements/N' }   // gdy wzorzec ma mniej element",
-    "",
-    "Indeksy odnosza sie do STRONY DOCELOWEJ (target — pkty 'Elementy docelowej' ponizej).",
-    "Po remove indeksy sie zmieniaja — bezpieczniej najpierw remove od najwiekszego w dol.",
-    "Zwracaj TYLKO zmiany. Strukture wymusza tool `submit_page_patches`.",
+    ...(mode === "patches" ? [
+      "Format odpowiedzi — RFC 6902 JSON PATCH (BARDZO WAZNE):",
+      "Zamiast zwracac pelna nowa liste elementow, zwracasz LISTE OPERACJI na",
+      "STRONIE DOCELOWEJ (target). Redukuje koszt o ~85%.",
+      "",
+      "Operacje:",
+      "  - { op: 'replace', path: '/elements/N/properties/color', value: '#FFFFFF' }",
+      "  - { op: 'replace', path: '/elements/N/font_size_pt', value: 12 }",
+      "  - { op: 'add', path: '/elements/-', value: {...nowy element zgodny ze wzorcem...} }",
+      "  - { op: 'remove', path: '/elements/N' }   // gdy wzorzec ma mniej element",
+      "",
+      "Indeksy odnosza sie do STRONY DOCELOWEJ (target — pkty 'Elementy docelowej' ponizej).",
+      "Po remove indeksy sie zmieniaja — bezpieczniej najpierw remove od najwiekszego w dol.",
+      "Zwracaj TYLKO zmiany. Strukture wymusza tool `submit_page_patches`.",
+    ] : [
+      "Format odpowiedzi: zwroc PELNA NOWA LISTE elementow strony docelowej",
+      "(po zastosowaniu stylu wzorca). Strukture wymusza tool `submit_page_elements`.",
+    ]),
   ]
     .filter(Boolean)
     .join("\n");
+
+  const system = buildSystem("patches");
 
   const user = [
     `STRONA WZORCOWA (źródło stylu) — strona ${srcPage.page_number}, template: ${srcPage.template ?? "blank"}, tytuł: ${srcPage.title ?? "(brak)"}.`,
@@ -269,13 +278,35 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     properties: e.properties,
   })) };
   let newElements;
+  let fallbackUsed = false;
   try {
     const result = applyPatch(currentDoc, patches, true, false);
     newElements = (result.newDocument as { elements: unknown[] }).elements;
   } catch (patchErr) {
-    const msg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
-    console.warn(`[apply-style] applyPatch failed: ${msg}, patches=`, JSON.stringify(patches).slice(0, 500));
-    return NextResponse.json({ error: `AI returned invalid patches: ${msg}` }, { status: 502 });
+    const patchMsg = patchErr instanceof Error ? patchErr.message : "patch apply failed";
+    console.warn(`[apply-style] applyPatch failed: ${patchMsg}, fallback do full mode. patches=`, JSON.stringify(patches).slice(0, 500));
+
+    // FALLBACK do full mode — buildSystem("full") robi prompt ktory mowi AI
+    // zeby zwrocil pelna liste elementow zamiast patches.
+    const systemFull = buildSystem("full");
+    const aiFull = await callClaude<PageElementsResponse>({
+      system: body?.custom_system?.trim() ? body.custom_system : systemFull,
+      user: userPrompt,
+      model: chosenModel,
+      maxTokens: 12000,
+      cacheSystemPrompt: true,
+      outputSchema: {
+        name: "submit_page_elements",
+        description: "Submit complete new list of elements for target page (fallback after patches failed).",
+        schema: PageElementsResponseSchema,
+      },
+    });
+    if (!aiFull.parsed) {
+      return NextResponse.json({ error: `AI returned invalid patches: ${patchMsg}; full fallback also failed` }, { status: 502 });
+    }
+    newElements = aiFull.parsed.elements;
+    fallbackUsed = true;
+    console.log(`[apply-style] full fallback OK, ${newElements.length} elements`);
   }
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const count = await replacePageElements(targetPageId, { elements: newElements as any });
@@ -315,5 +346,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     count,
     tokens_in: ai.inputTokens,
     tokens_out: ai.outputTokens,
+    fallback_used: fallbackUsed,
   });
 }
