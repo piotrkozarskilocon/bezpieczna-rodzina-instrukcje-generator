@@ -2277,6 +2277,22 @@ function ElementProperties({ element, onUpdate, onDelete, pageId, onAiFixApplied
                     : "Niemal pelny obrazek."}
             </p>
           )}
+          <Row label="Czarno-biały">
+            <label className="flex items-center gap-1.5 text-[11px] text-slate-700">
+              <input
+                type="checkbox"
+                checked={(() => {
+                  const g = props.grayscale as unknown;
+                  return g === true || g === "true" || g === 1 || g === "1";
+                })()}
+                onChange={(e) => {
+                  // onUpdate bezposrednio bo setProp typuje values jako string|number
+                  onUpdate({ properties: { ...props, grayscale: e.target.checked } });
+                }}
+              />
+              <span>Wymuś grayscale (canvas + PDF)</span>
+            </label>
+          </Row>
         </div>
       )}
 
