@@ -16,6 +16,10 @@ export interface ReferenceDoc {
   source_lang: string | null;
   anthropic_file_id: string | null;
   extracted_summary: string | null;
+  /** Strukturalna ekstrakcja przez Gemini Vision (Faza 2) — wartosci numeryczne
+   *  SAR / IP / frequencies / certifications. Wstrzykujemy do system prompt
+   *  zeby AI uzywal konkretnych liczb zamiast placeholderow. */
+  extracted_structured: Record<string, unknown> | null;
 }
 
 const KIND_LABELS: Record<string, string> = {
@@ -33,7 +37,7 @@ export async function loadReferenceDocs(projectId: string): Promise<ReferenceDoc
   const sb = getSupabaseAdmin();
   const { data } = await sb
     .from("gen4_reference_docs")
-    .select("id, kind, name, source_lang, anthropic_file_id, extracted_summary")
+    .select("id, kind, name, source_lang, anthropic_file_id, extracted_summary, extracted_structured")
     .eq("project_id", projectId)
     .not("anthropic_file_id", "is", null)
     .order("created_at", { ascending: true });
@@ -41,8 +45,9 @@ export async function loadReferenceDocs(projectId: string): Promise<ReferenceDoc
 }
 
 /** Renderuje sekcję promptu o plikach referencyjnych — krótki opis każdego
- *  pliku z jego streszczeniem, żeby Claude wiedział czego się spodziewać
- *  zanim zacznie czytać PDF. */
+ *  pliku z jego streszczeniem ORAZ strukturalne wartości (jezeli wyekstrahowane
+ *  przez Gemini Vision), żeby Claude mial konkretne liczby do uzycia zamiast
+ *  wymyslania placeholderow. */
 export function renderReferenceDocsForPrompt(docs: ReferenceDoc[]): string {
   if (docs.length === 0) return "";
   const lines: string[] = [
@@ -62,10 +67,23 @@ export function renderReferenceDocsForPrompt(docs: ReferenceDoc[]): string {
     if (d.extracted_summary) {
       lines.push(`    streszczenie: ${d.extracted_summary}`);
     }
+    // Strukturalne wartosci — najmocniejsze zrodlo (Gemini Vision juz przemielilo
+    // raport, mamy gotowe liczby). Format: niewielka sekcja JSON-podobna inline
+    // zeby Claude od razu widzial co moze uzyc.
+    if (d.extracted_structured && Object.keys(d.extracted_structured).length > 0) {
+      lines.push(`    🔢 WYEKSTRAHOWANE WARTOŚCI (uzywaj BEZPOSREDNIO w treści):`);
+      const json = JSON.stringify(d.extracted_structured, null, 2)
+        .split("\n")
+        .map((l) => `      ${l}`)
+        .join("\n");
+      lines.push(json);
+    }
   }
   lines.push("");
   lines.push("Jeśli plik jest w innym języku niż polski (np. chiński, angielski) —");
   lines.push("PRZETŁUMACZ wyciągnięte wartości i wpisz po polsku.");
+  lines.push("Gdy strukturalne WYEKSTRAHOWANE WARTOŚCI są podane (sekcja 🔢) —");
+  lines.push("ZAWSZE preferuj je nad surowy PDF (są juz znormalizowane).");
   return lines.join("\n");
 }
 
