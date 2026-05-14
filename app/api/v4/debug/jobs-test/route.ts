@@ -47,7 +47,10 @@ export async function GET(request: NextRequest) {
   if (!projectId) {
     return NextResponse.json({ error: "missing ?projectId=<uuid>" }, { status: 400 });
   }
-  const pollSeconds = Math.min(parseInt(request.nextUrl.searchParams.get("pollSeconds") ?? "20", 10) || 20, 50);
+  // Max 15s — hub Edge middleware ma ~25s timeout, plus invoke + insert
+  // zjadaja ~3-5s. Wiecej i dostajemy MIDDLEWARE_INVOCATION_TIMEOUT 504.
+  // Gdy job nie skonczy sie w 15s, zwracamy poll_url do osobnego sprawdzenia.
+  const pollSeconds = Math.min(parseInt(request.nextUrl.searchParams.get("pollSeconds") ?? "15", 10) || 15, 18);
   const explicitDsId = request.nextUrl.searchParams.get("dsId");
 
   const sb = getSupabaseAdmin();
@@ -167,6 +170,7 @@ export async function GET(request: NextRequest) {
     finalStatus === "running" ? `WORKER STILL RUNNING after ${pollSeconds}s poll (probably OK, just slow)` :
     `unexpected status: ${finalStatus}`;
 
+  const stillRunning = finalStatus === "running" || finalStatus === "queued";
   return NextResponse.json({
     verdict,
     job_id: jobId,
@@ -183,10 +187,15 @@ export async function GET(request: NextRequest) {
     },
     final_job_state: lastJob,
     insert_to_first_transition_ms: transitions[0]?.at_ms ?? null,
+    poll_url: stillRunning
+      ? `https://bezpieczna-rodzina-prototypy.vercel.app/generator-instrukcji/api/v4/jobs/${jobId}/`
+      : null,
     tip: finalStatus === "queued"
       ? "Job 'queued' przez caly poll oznacza ze Edge Function NIE odpalila joba. Sprawdz Supabase Functions logs: https://supabase.com/dashboard/project/ceewqhcoztcdsfwkwgtx/functions/v4-jobs-worker/logs"
       : finalStatus === "failed"
         ? "Job 'failed' — sprawdz final_job_state.error + Edge Function logs"
-        : "Sprawdz progress.errors w final_job_state jezeli jakies stronki padly",
+        : finalStatus === "running"
+          ? "Job still running — otworz poll_url w nowej karcie zeby sledzic. 14 stron × ~5s typowo = ~70s total."
+          : "Sprawdz progress.errors w final_job_state jezeli jakies stronki padly",
   });
 }
