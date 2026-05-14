@@ -138,13 +138,29 @@ export async function callClaude<T = unknown>(opts: {
   const model = opts.model ?? INITIAL_MODEL;
   const start = Date.now();
 
-  // Buduj content array: tekst + opcjonalne document blocks (PDF attachments).
-  // TS SDK Anthropic jeszcze nie ma stabilnej deklaracji dla document blocks z
-  // file_id (beta files API), więc używamy `unknown` cast — runtime jest OK.
+  // Buduj content array: tekst + opcjonalne attachments.
+  // Anthropic wymaga roznych blokow zaleznie od typu pliku:
+  //   - PDF / text/*  -> { type: "document", source: { type: "file", file_id }}
+  //   - image/*       -> { type: "image",    source: { type: "file", file_id }}
+  // Z document API uzyte na image dostalo 400 "Only PDF and plaintext supported".
+  // Sprawdzamy mime_type przez Files API (1 retrieve per attachment, ~10ms kazdy).
+  // TS SDK jeszcze nie ma stabilnej deklaracji dla document/file source, wiec
+  // wszedzie cast through unknown.
   const userContent: unknown[] = [{ type: "text", text: opts.user }];
   for (const fileId of opts.attachments ?? []) {
+    let blockType: "document" | "image" = "document";
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const meta: any = await (client as any).beta.files.retrieve(fileId);
+      const mt = (meta?.mime_type ?? "") as string;
+      if (mt.startsWith("image/")) {
+        blockType = "image";
+      }
+    } catch (err) {
+      console.warn(`[anthropic] files.retrieve ${fileId} failed, defaulting to document:`, err);
+    }
     userContent.unshift({
-      type: "document",
+      type: blockType,
       source: { type: "file", file_id: fileId },
     });
   }
