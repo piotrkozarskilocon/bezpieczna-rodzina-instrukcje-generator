@@ -2556,13 +2556,14 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
 
   // Auto-tryb: jedno wywołanie API, bez krok-po-kroku copy/paste.
   // Opcjonalne `override` z modalu "Edytuj prompt przed wysłaniem".
+  // Uzywamy ai-edit-stream zamiast ai-edit zeby ominac timeout hub middleware
+  // (30s Edge). Stream pisze pierwszy bajt natychmiast, middleware passuje
+  // body przez, total time = function maxDuration (60s) zamiast middleware (30s).
   const runAutoEdit = async (override?: { system: string; user: string }) => {
     if (!instruction.trim()) return;
     setBusy(true);
     setError(null);
     setInfo(null);
-    // Vercel Hobby ma 60s function cap — Sonnet/Opus moga go ocierac.
-    // Frontend timeout 75s, potem abort z czytelnym komunikatem.
     const controller = new AbortController();
     const t = setTimeout(() => controller.abort(), 75_000);
     const reqStart = Date.now();
@@ -2572,24 +2573,50 @@ function PageAiAssistant({ pageId, pageNumber, projectId, onApplied, onImagesCha
         reqBody.custom_system = override.system;
         reqBody.custom_user = override.user;
       }
-      console.log("[ai-edit] POST", { pageId, model: aiModel, instruction: instruction.trim(), promptEdited: !!override });
-      const res = await fetch(`${API}/pages/${pageId}/ai-edit/`, {
+      console.log("[ai-edit] POST (stream)", { pageId, model: aiModel, instruction: instruction.trim(), promptEdited: !!override });
+      const res = await fetch(`${API}/pages/${pageId}/ai-edit-stream/`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(reqBody),
         signal: controller.signal,
       });
-      console.log("[ai-edit] response", res.status, `${Date.now() - reqStart}ms`);
-      const text = await res.text();
-      if (!res.ok) {
+      console.log("[ai-edit] response headers", res.status, `${Date.now() - reqStart}ms`);
+      if (!res.ok || !res.body) {
+        const text = await res.text();
         if (text.startsWith("<")) throw new Error(`HTTP ${res.status}: serwer zwrócił HTML`);
         let parsed: { error?: string } = {};
         try { parsed = JSON.parse(text); } catch { /* ignore */ }
         throw new Error(parsed.error ?? `HTTP ${res.status}: ${text.slice(0, 200)}`);
       }
-      const j = JSON.parse(text) as { elements: number };
+      // NDJSON streaming — parsujemy linia-po-linii, finalna ma type="done".
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let elementsCount = 0;
+      let streamErr: string | null = null;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split("\n");
+        buffer = lines.pop() ?? "";
+        for (const line of lines) {
+          if (!line.trim()) continue;
+          try {
+            const evt = JSON.parse(line) as
+              | { type: "delta"; text: string }
+              | { type: "done"; elements: number; latency_ms?: number }
+              | { type: "error"; error: string };
+            if (evt.type === "done") elementsCount = evt.elements;
+            else if (evt.type === "error") streamErr = evt.error;
+          } catch {
+            // niepelna linia — bedzie scalona w nastepnej iteracji
+          }
+        }
+      }
+      if (streamErr) throw new Error(streamErr);
       const modelLabel = aiModel.includes("haiku") ? "Haiku 4.5" : aiModel.includes("sonnet") ? "Sonnet 4.6" : "Opus 4.7";
-      setInfo(`Zastąpiono ${j.elements} elementów (${modelLabel}${override ? ", prompt edytowany" : ""}).`);
+      setInfo(`Zastąpiono ${elementsCount} elementów (${modelLabel}${override ? ", prompt edytowany" : ""}).`);
       setInstruction("");
       setPrompt(null);
       setImportJson("");
