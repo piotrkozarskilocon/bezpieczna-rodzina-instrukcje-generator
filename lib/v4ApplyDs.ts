@@ -63,13 +63,16 @@ function commonRules(doNotTranslate: string[], modelName?: string | null, modelC
     "  line/rect:    { stroke_width, color, fill (rect only) }",
     "  qr:           { url }",
     "  page_number:  { format: '{LANG} {n}/{N}', font_size_pt }",
-    "  image:        { image_id, fit_mode, opacity }",
+    "  image:        { image_id, fit_mode, opacity, grayscale? }",
     "",
-    "WATERMARK / TLO (opacity dla image):",
+    "WATERMARK / TLO (opacity + grayscale dla image):",
     "Gdy obrazek pelni role TLA strony pod elementami tekstowymi, ustaw opacity",
-    "0.10-0.20 (NIE 0.03 bo byloby niemal niewidoczne). Pelne obrazki (logo, foto)",
-    "bez opacity albo z opacity 1.0. Pamietaj — opacity jest realnie renderowane,",
-    "wiec tlo musi byc na tyle widoczne ile ma byc widoczne.",
+    "0.10-0.20. Pelne obrazki (logo, foto) bez opacity albo z opacity 1.0.",
+    "",
+    "CZARNO-BIALY — gdy user prosi o watermark/obrazek 'w czerni i bieli',",
+    "'czarno-bialy', 'bez kolorow', 'grayscale' — dodaj `\"grayscale\": true`",
+    "do properties. Renderer wymusi desaturacje. Bez tej flagi obrazek leci",
+    "w oryginalnych kolorach. Default: false.",
   ];
 }
 

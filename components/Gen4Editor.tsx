@@ -1970,6 +1970,10 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
         : Number(rawOpacity);
     const opacity = Number.isFinite(opacityNum) ? Math.max(0, Math.min(1, opacityNum)) : 1;
     const isWatermark = opacity < 1;
+    // grayscale: true → CSS filter:grayscale(100%). Uzywane przez AI dla
+    // watermarkow czarno-bialych ("wstaw znak wodny w czerni i bieli").
+    const gsRaw = props.grayscale as unknown;
+    const isGrayscale = gsRaw === true || gsRaw === "true" || gsRaw === 1 || gsRaw === "1";
     return (
       <div
         data-el-id={el.id}
@@ -2005,7 +2009,8 @@ function ElementView({ el, selected, onClick, onUpdate, zoom, defaultLang, pageN
               objectFit: fitMode === "cover" ? "cover" : "contain",
               display: "block",
               pointerEvents: "none",
-              opacity, // bug fix — props.opacity teraz dziala (watermark, fade itd.)
+              opacity,
+              filter: isGrayscale ? "grayscale(100%)" : undefined,
             }}
           />
         ) : (
