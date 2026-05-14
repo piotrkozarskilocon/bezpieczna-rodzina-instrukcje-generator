@@ -9,6 +9,7 @@ import { getRequiredSections, type DocumentType, type DeviceType } from "@/lib/v
 import { loadActiveNotes, renderNotesForPrompt, incrementUsedCount } from "@/lib/v4Notes";
 import { loadReferenceDocs, renderReferenceDocsForPrompt, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -183,12 +184,16 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
   const attachments = [...getAttachmentFileIds(refDocs), ...getImageAttachmentFileIds(galleryImages)];
 
+  const finalSystem = [notesBlock, refBlock, galleryBlock, system].filter(Boolean).join("\n\n");
+  const finalUser = userLines.join("\n");
+  const maxTokens = 3000;
+  const startedAt = Date.now();
   try {
     const ai = await callClaude({
-      system: [notesBlock, refBlock, galleryBlock, system].filter(Boolean).join("\n\n"),
-      user: userLines.join("\n"),
+      system: finalSystem,
+      user: finalUser,
       model: EDIT_MODEL,
-      maxTokens: 3000, // ~10 elementów = ~600-1200 tokenów output
+      maxTokens,
       attachments: attachments.length > 0 ? attachments : undefined,
       // Caching system prompt — w pętli auto-populate ~14 wywołań z identycznym
       // systemem (notes + reference summary + design rules). Pierwsze tworzy cache,
@@ -198,6 +203,25 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     void incrementUsedCount(notes.map((n) => n.id));
     const parsed = parsePageEditResponse(ai.text);
     const count = await replacePageElements(pageId, parsed);
+
+    // Pelna konwersacja AI dla panelu debug — gen4_ai_calls.
+    void logAiCall({
+      project_id: page.project_id,
+      page_id: pageId,
+      endpoint: "auto-populate",
+      context_type: "page",
+      system_prompt: finalSystem,
+      user_prompt: finalUser,
+      model: ai.model,
+      max_tokens: maxTokens,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      cache_creation_tokens: ai.cacheCreationTokens ?? null,
+      cache_read_tokens: ai.cacheReadTokens ?? null,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
 
     // Telemetria — dopisujemy do gen4_ai_history.
     await sb.from("gen4_ai_history").insert({
@@ -227,6 +251,19 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
+    void logAiCall({
+      project_id: page.project_id,
+      page_id: pageId,
+      endpoint: "auto-populate",
+      context_type: "page",
+      system_prompt: finalSystem,
+      user_prompt: finalUser,
+      model: EDIT_MODEL,
+      max_tokens: maxTokens,
+      error: msg,
+      duration_ms: Date.now() - startedAt,
+      user_email: auth.email,
+    });
     return NextResponse.json({ error: msg, page_id: pageId }, { status: 502 });
   }
 }

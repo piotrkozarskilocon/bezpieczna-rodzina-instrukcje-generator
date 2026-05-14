@@ -14,6 +14,7 @@ import {
   saveTranslations,
   incrementMemoryUseCount,
 } from "@/lib/v4TranslationMemory";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -109,11 +110,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       userLines.push(`PL: ${JSON.stringify(s.text)}`);
       userLines.push("");
     }
+    const translateMaxTokens = Math.min(16000, 200 + fromAi.length * 60);
+    const translateUserPrompt = userLines.join("\n");
+    const translateStartedAt = Date.now();
     const ai = await callClaude({
       system: built.system,
-      user: userLines.join("\n"),
+      user: translateUserPrompt,
       model: EDIT_MODEL,
-      maxTokens: Math.min(16000, 200 + fromAi.length * 60),
+      maxTokens: translateMaxTokens,
     });
     aiTranslations = parseTranslationResponse(ai.text);
     aiLog = {
@@ -122,6 +126,23 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       output_tokens: ai.outputTokens,
       latency_ms: ai.latencyMs,
     };
+
+    // Pelna konwersacja AI — gen4_ai_calls.
+    void logAiCall({
+      project_id: id,
+      endpoint: "translate",
+      context_type: "project",
+      user_instruction: `auto-translate ${fromAi.length} strings to ${lang.toUpperCase()}`,
+      system_prompt: built.system,
+      user_prompt: translateUserPrompt,
+      model: ai.model,
+      max_tokens: translateMaxTokens,
+      response_text: ai.text,
+      tokens_in: ai.inputTokens,
+      tokens_out: ai.outputTokens,
+      duration_ms: Date.now() - translateStartedAt,
+      user_email: auth.email,
+    });
 
     // Zapisz do memory + log.
     const memEntries: Array<{ source_text: string; target_text: string }> = [];

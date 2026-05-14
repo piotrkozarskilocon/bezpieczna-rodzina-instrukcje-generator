@@ -10,6 +10,7 @@ import {
 } from "@/lib/v4Edit";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
+import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -81,6 +82,47 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     const parsedA = parsePageEditResponse(aiA.text);
     const parsedB = parsePageEditResponse(aiB.text);
 
+    // Pelna konwersacja per wariant — gen4_ai_calls. Dwa osobne wpisy zeby
+    // mozna bylo porownac w panelu debug.
+    if (pageMeta) {
+      void logAiCall({
+        project_id: pageMeta.project_id,
+        page_id: pageId,
+        endpoint: "ab-variants",
+        context_type: "page",
+        user_instruction: `${instruction} [variant A, temp 0.7]`,
+        system_prompt: systemPrompt,
+        user_prompt: built.user,
+        model: aiA.model,
+        temperature: 0.7,
+        response_text: aiA.text,
+        tokens_in: aiA.inputTokens,
+        tokens_out: aiA.outputTokens,
+        cache_creation_tokens: aiA.cacheCreationTokens ?? null,
+        cache_read_tokens: aiA.cacheReadTokens ?? null,
+        duration_ms: aiA.latencyMs,
+        user_email: auth.email,
+      });
+      void logAiCall({
+        project_id: pageMeta.project_id,
+        page_id: pageId,
+        endpoint: "ab-variants",
+        context_type: "page",
+        user_instruction: `${instruction} [variant B, temp 1.0]`,
+        system_prompt: systemPrompt,
+        user_prompt: built.user,
+        model: aiB.model,
+        temperature: 1.0,
+        response_text: aiB.text,
+        tokens_in: aiB.inputTokens,
+        tokens_out: aiB.outputTokens,
+        cache_creation_tokens: aiB.cacheCreationTokens ?? null,
+        cache_read_tokens: aiB.cacheReadTokens ?? null,
+        duration_ms: aiB.latencyMs,
+        user_email: auth.email,
+      });
+    }
+
     // Telemetria
     if (pageMeta) {
       await sb.from("gen4_ai_history").insert({
@@ -117,6 +159,21 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";
+    if (pageMeta) {
+      void logAiCall({
+        project_id: pageMeta.project_id,
+        page_id: pageId,
+        endpoint: "ab-variants",
+        context_type: "page",
+        user_instruction: instruction,
+        system_prompt: systemPrompt,
+        user_prompt: built.user,
+        model: EDIT_MODEL,
+        max_tokens: 4000,
+        error: msg,
+        user_email: auth.email,
+      });
+    }
     return NextResponse.json({ error: msg }, { status: 502 });
   }
 }
