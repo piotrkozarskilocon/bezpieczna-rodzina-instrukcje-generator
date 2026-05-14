@@ -113,42 +113,68 @@ export interface OutputSchemaConfig<T> {
  *  Sprawdzamy mime_type przez Files API (1 retrieve per attachment, ~10ms).
  *  Plus fallback po rozszerzeniu nazwy pliku, bo przegladarki czesto wysylaja
  *  obrazki z mime "application/octet-stream" przy drag&drop. */
+/** Mapuje rozszerzenie pliku na poprawny media_type dla Anthropic content blocks. */
+function inferMediaType(filename: string): { mediaType: string; blockType: "image" | "document" } | null {
+  const ext = filename.toLowerCase().match(/\.([a-z0-9]+)$/)?.[1];
+  switch (ext) {
+    case "pdf": return { mediaType: "application/pdf", blockType: "document" };
+    case "csv": return { mediaType: "text/csv", blockType: "document" };
+    case "txt": return { mediaType: "text/plain", blockType: "document" };
+    case "md": return { mediaType: "text/markdown", blockType: "document" };
+    case "json": return { mediaType: "application/json", blockType: "document" };
+    case "png": return { mediaType: "image/png", blockType: "image" };
+    case "jpg":
+    case "jpeg": return { mediaType: "image/jpeg", blockType: "image" };
+    case "gif": return { mediaType: "image/gif", blockType: "image" };
+    case "webp": return { mediaType: "image/webp", blockType: "image" };
+    default: return null;
+  }
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function buildAttachmentBlocks(client: any, fileIds: string[] | undefined): Promise<unknown[]> {
   if (!fileIds?.length) return [];
   const blocks: unknown[] = [];
   for (const fileId of fileIds) {
-    let blockType: "document" | "image" = "document";
-    let resolvedMime = "";
-    let resolvedFname = "";
     try {
-      // SDK: client.beta.files.retrieveMetadata(id) — NIE `retrieve(id)`.
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const meta: any = await client.beta.files.retrieveMetadata(fileId);
-      resolvedMime = (meta?.mime_type ?? "") as string;
-      resolvedFname = (meta?.filename ?? "") as string;
-      // Extension w nazwie pliku to NAJBARDZIEJ wiarygodny sygnal — bywa ze
-      // mime=application/octet-stream nawet dla PDF/CSV (Anthropic Files API
-      // tak czasem zwraca metadata gdy upload szedl ze zlym Content-Type).
-      // Wczesniejszy "isOctetStream → image" byl bledny — klasyfikowal PDF/CSV
-      // jako image i dawal 400 "Only PDF and plaintext supported" dla document
-      // blocks. Teraz priorytet ma extension, mime tylko jako fallback.
-      const isImageByExt = /\.(png|jpe?g|gif|webp|bmp|svg)$/i.test(resolvedFname);
-      const isDocByExt = /\.(pdf|csv|txt|md|json|docx?|xlsx?)$/i.test(resolvedFname);
-      const isImageByMime = resolvedMime.startsWith("image/");
-      if (isImageByExt) {
-        blockType = "image";
-      } else if (isDocByExt) {
-        blockType = "document";
-      } else if (isImageByMime) {
-        blockType = "image";
+      const fname = (meta?.filename ?? "") as string;
+      const apiMime = (meta?.mime_type ?? "") as string;
+      const inferred = inferMediaType(fname);
+
+      // Anthropic Files API zapisuje mime ZAWSZE jako application/octet-stream
+      // (bug w SDK toFile() multipart upload). Nawet jak Blob ma poprawny type,
+      // Files API zwraca octet-stream przy retrieve. Wtedy `source: {type:"file"}`
+      // failuje z 400 "Unsupported document file format: application/octet-stream"
+      // bo Anthropic Messages API patrzy na MIME Z FILES API, nie z nazwy.
+      //
+      // Workaround: gdy mime jest octet-stream a znamy extension, pobieramy bytes
+      // i wysylamy jako source: base64 z JAWNIE ustawionym media_type. To omija
+      // bug Anthropic Files API — base64 source bierze media_type z naszej requestu,
+      // nie z files metadata.
+      const mimeIsBroken = apiMime === "application/octet-stream" || apiMime === "";
+      if (mimeIsBroken && inferred) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const downloaded: any = await client.beta.files.download(fileId);
+        const arrayBuf = downloaded.arrayBuffer ? await downloaded.arrayBuffer() : downloaded;
+        const base64 = Buffer.from(arrayBuf as ArrayBuffer).toString("base64");
+        console.log(`[anthropic] attachment ${fileId}: ${fname} → base64 source, media=${inferred.mediaType}, block=${inferred.blockType}`);
+        blocks.push({
+          type: inferred.blockType,
+          source: { type: "base64", media_type: inferred.mediaType, data: base64 },
+        });
+        continue;
       }
-      // else: defaultuje do "document" (init value)
+
+      // Sciezka happy: mime jest poprawny, mozemy uzyc lekkiego file source.
+      const blockType: "document" | "image" = apiMime.startsWith("image/") ? "image" : "document";
+      console.log(`[anthropic] attachment ${fileId}: ${fname} → file source, mime=${apiMime}, block=${blockType}`);
+      blocks.push({ type: blockType, source: { type: "file", file_id: fileId } });
     } catch (err) {
-      console.warn(`[anthropic] files.retrieveMetadata ${fileId} failed, defaulting to document:`, err);
+      console.warn(`[anthropic] attachment ${fileId} failed, skipping:`, err);
+      // Skip — lepiej brak attachmentu niz wywrocenie calego AI call.
     }
-    console.log(`[anthropic] attachment ${fileId}: mime=${resolvedMime}, filename=${resolvedFname}, blockType=${blockType}`);
-    blocks.push({ type: blockType, source: { type: "file", file_id: fileId } });
   }
   return blocks;
 }
