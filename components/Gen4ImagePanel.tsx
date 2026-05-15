@@ -229,10 +229,57 @@ export default function Gen4ImagePanel({ projectId, pages }: Props): React.React
                 ? "Wgraj najpierw obrazki"
                 : pages.length === 0
                   ? "Projekt nie ma stron"
-                  : "AI zaproponuje na której stronie umieścić każdy obrazek"
+                  : "AI zaproponuje na której stronie umieścić każdy obrazek (z review przed apply)"
             }
           >
-            {mappingBusy ? "AI analizuje..." : "🔮 Zaproponuj rozmieszczenie przez AI"}
+            {mappingBusy ? "AI analizuje..." : "🔮 Zaproponuj przez AI (review)"}
+          </button>
+          <button
+            type="button"
+            disabled={mappingBusy || images.length === 0 || pages.length === 0}
+            onClick={async () => {
+              if (!confirm("AI Gemini Vision automatycznie przypisze obrazki bez okna review. Kontynuuj?")) return;
+              try {
+                const res = await fetch(`${API}/projects/${projectId}/auto-categorize-images`, {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                });
+                if (!res.ok || !res.body) {
+                  const j = (await res.json().catch(() => ({}))) as { error?: string };
+                  alert(`Failed: ${j.error ?? `HTTP ${res.status}`}`);
+                  return;
+                }
+                // Stream — wait for done event then refresh
+                const reader = res.body.getReader();
+                const decoder = new TextDecoder();
+                let buf = "";
+                let doneOk = 0;
+                while (true) {
+                  const { done, value } = await reader.read();
+                  if (done) break;
+                  buf += decoder.decode(value, { stream: true });
+                  const events = buf.split("\n\n");
+                  buf = events.pop() ?? "";
+                  for (const evt of events) {
+                    const m = evt.match(/data:\s*(.+)/);
+                    if (m) {
+                      try {
+                        const d = JSON.parse(m[1]) as Record<string, unknown>;
+                        if (d.status === "done") doneOk++;
+                      } catch { /* */ }
+                    }
+                  }
+                }
+                await refresh();
+                alert(`✅ Auto-przypisano ${doneOk} obrazków.`);
+              } catch (err) {
+                alert(`Auto-categorize failed: ${err instanceof Error ? err.message : "unknown"}`);
+              }
+            }}
+            className="rounded-md border border-purple-300 bg-purple-50 px-3 py-1.5 text-xs font-semibold text-purple-800 hover:bg-purple-100 disabled:opacity-40"
+            title="AI Vision automatycznie przypisze obrazki + uzupełni opisy. Bez okna review."
+          >
+            🤖 Auto-przypisz
           </button>
           <label className="cursor-pointer rounded-md bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white hover:bg-slate-700">
             {busy ? "Wgrywam..." : "+ Wgraj obrazki"}
