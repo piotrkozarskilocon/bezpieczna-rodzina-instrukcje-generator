@@ -1222,6 +1222,48 @@ export default function Gen4Editor({
     void updateElement(selectedId, { z_index: newZ });
   }, [selectedId, elements, updateElement]);
 
+  // Image paste — Ctrl+V z obrazkiem w schowku → upload do gen4_images,
+  // automatic add do biblioteki obrazków projektu.
+  useEffect(() => {
+    const handler = async (e: ClipboardEvent) => {
+      // Pomiń jeśli paste idzie do textarea/input — niech natywny paste tekstu zadziała
+      if (isEditableTarget(e.target)) return;
+      const items = e.clipboardData?.items;
+      if (!items) return;
+      const imageItems: File[] = [];
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i];
+        if (item.type.startsWith("image/")) {
+          const f = item.getAsFile();
+          if (f) imageItems.push(f);
+        }
+      }
+      if (imageItems.length === 0) return;
+      e.preventDefault();
+      try {
+        for (const file of imageItems) {
+          const form = new FormData();
+          // Nazwa: clipboard-<timestamp>.<ext>
+          const ext = file.type.split("/")[1] || "png";
+          const renamed = new File([file], `clipboard-${Date.now()}.${ext}`, { type: file.type });
+          form.append("file", renamed);
+          const res = await fetch(`${API}/projects/${projectId}/images/`, {
+            method: "POST",
+            body: form,
+          });
+          if (!res.ok) throw new Error(`upload failed: ${res.status}`);
+        }
+        await refreshImages();
+        setError(`✓ Wklejono ${imageItems.length} obrazek ze schowka — sprawdź "📷 Biblioteka obrazków"`);
+        setTimeout(() => setError(null), 3500);
+      } catch (err) {
+        setError(`Paste obrazka failed: ${err instanceof Error ? err.message : "unknown"}`);
+      }
+    };
+    window.addEventListener("paste", handler);
+    return () => window.removeEventListener("paste", handler);
+  }, [projectId, refreshImages]);
+
   // Skróty klawiszowe — wszystkie aktywne tylko gdy fokus NIE jest w polu
   // edytowalnym (textarea/input/contenteditable), żeby nie kolidować z
   // natywnym zachowaniem przeglądarki w edycji tekstu.
@@ -1746,6 +1788,27 @@ export default function Gen4Editor({
           <div className="border-t border-slate-100 bg-indigo-50/40 px-3 py-1.5">
             <div className="flex items-center gap-2">
               <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700">💬 AI command</span>
+              <select
+                onChange={(e) => {
+                  if (e.target.value) {
+                    setBatchEditInstr(e.target.value);
+                    e.target.value = "";
+                  }
+                }}
+                defaultValue=""
+                className="rounded border border-indigo-200 bg-white px-1 py-0.5 text-[10px] text-indigo-700"
+                title="Gotowe presety"
+              >
+                <option value="" disabled>Presety…</option>
+                <option value="Przetłumacz wszystkie ostrzeżenia '⚠️ WAŻNE' na bułgarski w polu content_bg">→ Ostrzeżenia BG</option>
+                <option value="Skróć tekst body o ~30% zachowując sens">→ Skróć body</option>
+                <option value="Pogrub i powiększ tytuły stron do 14pt">→ Pogrub nagłówki</option>
+                <option value="Zmień kolor wszystkich text element na #0f172a (czarny)">→ Czarny tekst</option>
+                <option value="Dodaj emoji ⚠️ na początku każdego ostrzeżenia jeśli go nie ma">→ Emoji warnings</option>
+                <option value="Sprawdź wszystkie placeholdery '⚠️ DO UZUPEŁNIENIA' i jeżeli wartość jest w extracted_structured plików referencyjnych, wypełnij ją">→ Auto-fill</option>
+                <option value="Zaokrąglij wszystkie wartości liczbowe do 2 miejsc po przecinku">→ Zaokrąglij</option>
+                <option value="Popraw gramatyką i poprawność interpunkcji wszystkich text elementów">→ Gramatyka</option>
+              </select>
               <input
                 type="text"
                 value={batchEditInstr}
@@ -1755,7 +1818,7 @@ export default function Gen4Editor({
                     void batchEditAll();
                   }
                 }}
-                placeholder="np. 'Tłumacz wszystkie ostrzeżenia na BG', 'Skróć każdą stronę o 20%', 'Zmień kolor nagłówków na granatowy'…"
+                placeholder="np. 'Tłumacz wszystkie ostrzeżenia na BG', 'Skróć każdą stronę o 20%'…"
                 className="flex-1 rounded border border-indigo-200 bg-white px-2 py-0.5 text-xs focus:border-indigo-500 focus:outline-none"
                 disabled={batchEditBusy}
               />
@@ -1764,7 +1827,7 @@ export default function Gen4Editor({
                 disabled={batchEditBusy || !batchEditInstr.trim() || pages.length < 1}
                 onClick={() => void batchEditAll()}
                 className="rounded bg-indigo-700 px-3 py-0.5 text-[11px] font-semibold text-white hover:bg-indigo-800 disabled:opacity-40 whitespace-nowrap"
-                title="AI zastosuje instrukcję per strona przez ai-edit (oszczędza klikania)"
+                title="AI zastosuje instrukcję per strona przez ai-edit"
               >
                 {batchEditBusy && batchEditProgress
                   ? `⚙️ ${batchEditProgress.current}/${batchEditProgress.total}`
