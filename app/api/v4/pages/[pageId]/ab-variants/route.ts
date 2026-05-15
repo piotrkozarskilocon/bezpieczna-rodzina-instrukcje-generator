@@ -51,11 +51,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .single();
   const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
   const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
-  // Anthropic 5MB request limit — tylko preferred images dla tej strony.
-  const attachments = galleryImages
-    .filter((img) => img.preferred_page_id === pageId)
-    .map((img) => img.anthropic_file_id)
-    .filter((id): id is string => !!id);
+  // Anthropic 5MB request limit — zero attachments, patrz auto-populate.
+  const attachments: string[] = [];
   const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
   const systemPrompt = galleryBlock ? `${galleryBlock}\n\n${built.system}` : built.system;
 

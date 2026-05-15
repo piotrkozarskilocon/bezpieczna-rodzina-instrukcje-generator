@@ -58,13 +58,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .single();
   const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
   const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
-  // Anthropic 5MB request limit: pelne PDF (27 files) + obrazki = 100+ MB → 413.
-  // Tekst summary/structured z renderReferenceDocsForPrompt wystarczy zamiast PDF bytes.
-  // Obrazki: tylko te z preferred_page_id == ta strona.
-  const attachments = galleryImages
-    .filter((img) => img.preferred_page_id === pageId)
-    .map((img) => img.anthropic_file_id)
-    .filter((id): id is string => !!id);
+  // Anthropic 5MB request limit. Per-page operations nie potrzebuja bytes —
+  // PDF zostaja jako tekst (extracted_summary), obrazki sa wybierane po image_id
+  // na podstawie opisu z renderImagesForPrompt. Eliminuje 413 dla projektow z
+  // duzymi obrazami (np L474.png 1.9MB → base64 2.5MB).
+  const attachments: string[] = [];
 
   const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
   const baseSystem = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;

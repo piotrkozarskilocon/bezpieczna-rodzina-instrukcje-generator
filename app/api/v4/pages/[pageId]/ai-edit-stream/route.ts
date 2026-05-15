@@ -78,11 +78,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     .single();
   const refDocs = pageMeta ? await loadReferenceDocs(pageMeta.project_id) : [];
   const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
-  // Anthropic 5MB request limit — patrz auto-populate. Tylko preferred images.
-  const attachments = galleryImages
-    .filter((img) => img.preferred_page_id === pageId)
-    .map((img) => img.anthropic_file_id)
-    .filter((id): id is string => !!id);
+  // Anthropic 5MB request limit — zero attachments, patrz auto-populate komentarz.
+  const attachments: string[] = [];
 
   const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
   const baseSystem = body?.custom_system && body.custom_system.trim() ? body.custom_system : built.system;

@@ -76,12 +76,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // Gallery images zawsze (jesli sa) — sa lekkie i czesto potrzebne do user-
   // visible operacji. skip_attachments dotyczy tylko duzych ref docs (PDF SAR).
   const galleryImages = pageMeta ? await loadProjectImagesForAi(pageMeta.project_id) : [];
-  // Anthropic 5MB request limit. PDF refDocs => text (renderReferenceDocsForPrompt).
-  // Obrazki => tylko preferred dla tej strony.
-  const attachments = galleryImages
-    .filter((img) => img.preferred_page_id === pageId)
-    .map((img) => img.anthropic_file_id)
-    .filter((id): id is string => !!id);
+  // Anthropic 5MB request limit. Zero attachments — PDF jako tekst, obrazki
+  // po image_id z opisu. Patrz auto-populate komentarz.
+  const attachments: string[] = [];
 
   // Override promptu przez usera (debug "Edytuj prompt przed uruchomieniem").
   const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
