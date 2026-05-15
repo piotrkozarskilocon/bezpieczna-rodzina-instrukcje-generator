@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callGemini, GEMINI_PRO } from "@/lib/v4Gemini";
+import { callGemini, GEMINI_FLASH } from "@/lib/v4Gemini";
 import { SarReportSchema, type SarReport } from "@/lib/v4Schemas";
 import { logAiCall } from "@/lib/v4AiLog";
 
@@ -111,7 +111,7 @@ Wyciagnij strukturalne wartosci SAR + meta z zalaczonego raportu. Jezeli to nie 
     ai = await callGemini<SarReport>({
       system: SAR_SYSTEM,
       user: userPrompt,
-      model: GEMINI_PRO,
+      model: GEMINI_FLASH,
       maxTokens: 4000,
       outputSchema: {
         name: "submit_sar_report",
@@ -129,7 +129,7 @@ Wyciagnij strukturalne wartosci SAR + meta z zalaczonego raportu. Jezeli to nie 
       user_instruction: `extract structured from ${doc.name}`,
       system_prompt: SAR_SYSTEM,
       user_prompt: userPrompt,
-      model: GEMINI_PRO,
+      model: GEMINI_FLASH,
       max_tokens: 4000,
       error: msg,
       duration_ms: Date.now() - startedAt,
