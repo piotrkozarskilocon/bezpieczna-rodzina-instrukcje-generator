@@ -3,13 +3,14 @@ import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL, resolveModel } from "@/lib/anthropic";
-import { ownPage, replacePageElements } from "@/lib/v4Edit";
+import { ownPage, replacePageElements, loadPageWithElements } from "@/lib/v4Edit";
 import { buildApplyDsToPagePrompt } from "@/lib/v4ApplyDs";
 import { loadReferenceDocs, getAttachmentFileIds } from "@/lib/v4ReferenceDocs";
 import { loadProjectImagesForAi, getImageAttachmentFileIds, renderImagesGalleryForPrompt } from "@/lib/v4Images";
 import { logAiCall } from "@/lib/v4AiLog";
 import { PageElementsPatchResponseSchema, type PageElementsPatchResponse, PageElementsResponseSchema, type PageElementsResponse } from "@/lib/v4Schemas";
 import { applyPatch, type Operation } from "fast-json-patch";
+import { validatePage, summarizeIssues, type ElementForValidation } from "@/lib/v4Validate";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -144,8 +145,55 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       fallbackUsed = true;
       console.log(`[apply-design] full mode fallback OK, ${newElements.length} elements`);
     }
+    // SNAPSHOT przed replace — do rollback gdyby walidacja wykryla wiecej niz
+    // 3 errors albo wiecej niz 8 issues lacznie. Snapshot to currentDoc.elements
+    // (czysty stan strony przed apply DS).
+    const snapshotElements = currentDoc.elements;
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const count = await replacePageElements(pageId, { elements: newElements as any });
+
+    // POST-APPLY VALIDATION — fetch swiezo zapisanej strony i sprawdz czy
+    // AI nie zniszczyl layoutu. Trigger rollback gdy:
+    //   - errors > 3 (powaznie poza strona)
+    //   - errors + warnings > 8 (totalna masakra)
+    let rolledBack = false;
+    let validationSummary: ReturnType<typeof summarizeIssues> | null = null;
+    let rollbackReason: string | null = null;
+    try {
+      const fresh = await loadPageWithElements(pageId);
+      if (fresh) {
+        const elementsForVal: ElementForValidation[] = fresh.elements.map((e) => ({
+          id: e.id,
+          type: e.type,
+          x_mm: e.x_mm,
+          y_mm: e.y_mm,
+          w_mm: e.w_mm,
+          h_mm: e.h_mm,
+          properties: e.properties,
+        }));
+        const issues = validatePage({
+          id: fresh.page.id,
+          page_number: fresh.page.page_number,
+          width_mm: fresh.page.width_mm,
+          height_mm: fresh.page.height_mm,
+          template: fresh.page.template,
+          title: fresh.page.title,
+          elements: elementsForVal,
+        });
+        validationSummary = summarizeIssues(issues);
+        if (validationSummary.errors > 3 || validationSummary.errors + validationSummary.warnings > 8) {
+          rollbackReason = `validation: ${validationSummary.errors} errors + ${validationSummary.warnings} warnings (limit: 3 err / 8 total)`;
+          console.warn(`[apply-design] AUTO-ROLLBACK pageId=${pageId} powod: ${rollbackReason}`);
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          await replacePageElements(pageId, { elements: snapshotElements as any });
+          rolledBack = true;
+        }
+      }
+    } catch (valErr) {
+      const m = valErr instanceof Error ? valErr.message : "validation failed";
+      console.warn(`[apply-design] validation step failed (nieblokujace): ${m}`);
+    }
 
     if (projectIdForLog) {
       void logAiCall({
@@ -173,8 +221,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       ok: true,
       page_id: pageId,
       page_number: built.pageNumber,
-      elements: count,
+      elements: rolledBack ? snapshotElements.length : count,
       fallback_used: fallbackUsed,
+      rolled_back: rolledBack,
+      rollback_reason: rollbackReason,
+      validation: validationSummary,
     });
   } catch (err) {
     const msg = err instanceof Error ? err.message : "AI call failed";

@@ -34,15 +34,88 @@ async function loadDs(dsId: string, projectId: string): Promise<DsRow | null> {
   return data as DsRow;
 }
 
-function commonRules(doNotTranslate: string[], modelName?: string | null, modelCode?: string | null): string[] {
+/**
+ * Usuwa pola identyfikujące inny model z DS jsonb zanim wyślemy go do AI.
+ * DS często zawiera pola "model_name", "device_name", "product_name" które
+ * leaknęły z poprzedniego projektu (np. "GOAT" w nowym projekcie Slay AI).
+ * Strip jest TOP-LEVEL — nie wchodzimy głębiej żeby nie zniszczyć tokens.
+ */
+function sanitizeDsForPrompt(content: Record<string, unknown>): Record<string, unknown> {
+  const stripKeys = new Set([
+    "model_name",
+    "model_code",
+    "model",
+    "device_name",
+    "device_code",
+    "device_type",
+    "product_name",
+    "product_code",
+    "product",
+  ]);
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(content)) {
+    if (stripKeys.has(k)) continue;
+    out[k] = v;
+  }
+  return out;
+}
+
+function commonRules(
+  doNotTranslate: string[],
+  modelName?: string | null,
+  modelCode?: string | null,
+  pageWidth?: number,
+  pageHeight?: number,
+): string[] {
+  const pw = pageWidth ?? 76;
+  const ph = pageHeight ?? 76;
+  const margin = 3;
+  const maxX = pw - margin;
+  const maxY = ph - margin;
+  // Skalowanie max font_size dla formatu — dla 76x76 mm nagłówek max 11pt.
+  // Dla większych formatów (np. A6 105x148) skala rośnie liniowo.
+  const fontScale = Math.min(pw, ph) / 76;
+  const maxHeader = Math.round(11 * fontScale);
+  const maxBody = Math.round(7 * fontScale);
+  const maxCaption = Math.round(5 * fontScale);
+
   return [
+    "",
+    "═══════════════════════════════════════════════════════════════",
+    `WYMIARY STRONY — ${pw} × ${ph} mm (TWARDE OGRANICZENIA, BEZWZGLĘDNE):`,
+    "═══════════════════════════════════════════════════════════════",
+    `• Margines od kazdej krawedzi: ${margin} mm.`,
+    `• ŻADEN element NIE MOŻE wyjść poza obszar:`,
+    `    - x_mm >= ${margin} i x_mm + w_mm <= ${maxX}`,
+    `    - y_mm >= ${margin} i y_mm + h_mm <= ${maxY}`,
+    `• Maksymalne rozmiary czcionek dla ${pw}×${ph} mm:`,
+    `    - Naglowek (tytul strony): max ${maxHeader} pt`,
+    `    - Body / tresc: max ${maxBody} pt`,
+    `    - Caption / podpis: max ${maxCaption} pt`,
+    `• Jezeli DS proponuje wieksze fonty (np. 22pt dla titleLarge), MUSISZ je ZESKALOWAC`,
+    `  do wymiarow tej strony. NIE kopiuj naiwnie wartosci z DS.`,
+    "",
+    "ZAKAZ DUPLIKOWANIA ELEMENTÓW (BEZWZGLĘDNY):",
+    "Otrzymujesz aktualna liste elementow strony. Twoje zadanie: ZACHOWAĆ tę samą",
+    "liczbę elementów (±2 maksymalnie). NIE dodawaj nowych elementow ktore powielaja",
+    "tresc istniejacych. Jezeli zmieniasz styl 'listy cech', zmodyfikuj istniejaca,",
+    "NIE wstawiaj drugiej listy obok. Sprawdz przed odpowiedzia: czy zwracasz +/-2",
+    "elementy w stosunku do wejscia? Jezeli nie, popraw.",
+    "",
+    "PRIORYTET 'replace' NAD 'add' (dla patches mode):",
+    "Gdy potrzebujesz zmienic istniejacy element (kolor, font, pozycja), uzyj 'replace'",
+    "z konkretnego path. Operacji 'add /elements/-' uzywaj TYLKO gdy element jest",
+    "fundamentalnie NOWY (np. brakuje page_number a wzorzec go ma).",
     "",
     ...(modelName && modelCode
       ? [
           "JEDEN MODEL — RYGOR (BEZWZGLĘDNIE):",
           `Cały dokument jest dla DOKŁADNIE JEDNEGO modelu: ${modelName} (${modelCode}).`,
-          "Nie mieszaj z innymi modelami/kodami GJD.XX. Jeśli w snapshocie istnieje",
-          "tekst łączący wiele modeli — zostaw tylko ten jeden.",
+          "Nie mieszaj z innymi modelami/kodami GJD.XX. Jeśli w snapshocie albo w DS",
+          "istnieje wzmianka o innym modelu (np. 'GOAT', 'Slay AI', 'Sigma') — IGNORUJ",
+          `ja i uzyj WYLACZNIE '${modelName}'. DS zawiera czasem placeholdery typu`,
+          `'[CURRENT_MODEL]' lub nazwy z innych projektow — w treści generowanej`,
+          `MUSISZ uzyc tylko '${modelName}', niezaleznie od tego co widzisz w DS.`,
           "",
         ]
       : []),
@@ -163,9 +236,15 @@ export async function buildApplyDsToProjectPrompt(
     "",
     "DESIGN SYSTEM (nazwa: " + ds.name + "):",
     "```json",
-    JSON.stringify(ds.content, null, 2),
+    JSON.stringify(sanitizeDsForPrompt(ds.content), null, 2),
     "```",
-    ...commonRules(doNotTranslate, modelName, modelCode),
+    ...commonRules(
+      doNotTranslate,
+      modelName,
+      modelCode,
+      pages[0]?.width_mm ?? 76,
+      pages[0]?.height_mm ?? 76,
+    ),
     "",
     renderImagesForPrompt(projectImages),
     "",
@@ -287,9 +366,9 @@ export async function buildApplyDsToPagePrompt(
     "",
     "DESIGN SYSTEM (nazwa: " + ds.name + "):",
     "```json",
-    JSON.stringify(ds.content, null, 2),
+    JSON.stringify(sanitizeDsForPrompt(ds.content), null, 2),
     "```",
-    ...commonRules(doNotTranslate, modelName, modelCode),
+    ...commonRules(doNotTranslate, modelName, modelCode, page.width_mm, page.height_mm),
     "",
     renderImagesForPrompt(projectImages, page.page_number),
     "",
