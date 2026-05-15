@@ -175,9 +175,10 @@ export default function Gen4Editor({
       .catch(() => { /* silent — empty map = fall back to PL */ });
     return () => { active = false; };
   }, [compareLang, currentPageId, projectId]);
-  // Historia stanów elementów dla undo (Ctrl+Z). Trzyma do 10 ostatnich
-  // snapshotów bieżącej strony. Reset przy zmianie strony.
+  // Historia stanów elementów dla undo (Ctrl+Z) i redo (Ctrl+Shift+Z / Ctrl+Y).
+  // Trzyma do 10 ostatnich snapshotów bieżącej strony. Reset przy zmianie strony.
   const [history, setHistory] = useState<ElementRow[][]>([]);
+  const [redoStack, setRedoStack] = useState<ElementRow[][]>([]);
   const MAX_HISTORY = 10;
   const pushHistory = useCallback((snapshot: ElementRow[]) => {
     setHistory((prev) => {
@@ -185,7 +186,12 @@ export default function Gen4Editor({
       if (next.length > MAX_HISTORY) next.shift();
       return next;
     });
+    setRedoStack([]); // każda nowa zmiana czyści redo stack
   }, []);
+
+  // Clipboard: zaznaczone elementy skopiowane Ctrl+C, wklejane Ctrl+V z offsetem +2mm.
+  // Trzyma tylko shape (type/x_mm/.../properties), bez id (nowe id przy paste).
+  const [clipboard, setClipboard] = useState<Array<Omit<ElementRow, "id">>>([]);
 
   const refreshImages = useCallback(async () => {
     try {
@@ -812,14 +818,11 @@ export default function Gen4Editor({
     }
   };
 
-  /** Cofnięcie — przywraca ostatni snapshot przez replace-elements (atomic
-   *  wymiana). Bezpieczne nawet gdy historia ma nieaktualne id z bazy. */
-  const undo = useCallback(async () => {
-    if (!currentPageId || history.length === 0) return;
-    const lastSnapshot = history[history.length - 1];
-    setHistory((prev) => prev.slice(0, -1));
+  /** Restore z dowolnego snapshot przez replace-elements + reload. */
+  const restoreSnapshot = useCallback(async (snapshot: ElementRow[]) => {
+    if (!currentPageId) return false;
     const payload = JSON.stringify({
-      elements: lastSnapshot.map((el) => ({
+      elements: snapshot.map((el) => ({
         type: el.type,
         x_mm: el.x_mm,
         y_mm: el.y_mm,
@@ -837,17 +840,119 @@ export default function Gen4Editor({
         body: JSON.stringify({ json: payload }),
       });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
-      // Reload elementów żeby dostać nowe id (replace robi delete+insert).
       const reload = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
       if (reload.ok) {
         const j = (await reload.json()) as { elements: ElementRow[] };
         setElements(j.elements ?? []);
         setSelectedId(null);
       }
+      return true;
     } catch (err) {
-      setError(err instanceof Error ? err.message : "undo failed");
+      setError(err instanceof Error ? err.message : "restore failed");
+      return false;
     }
-  }, [currentPageId, history]);
+  }, [currentPageId]);
+
+  /** Cofnięcie — przywraca ostatni snapshot. Push current state na redo stack. */
+  const undo = useCallback(async () => {
+    if (!currentPageId || history.length === 0) return;
+    const lastSnapshot = history[history.length - 1];
+    setHistory((prev) => prev.slice(0, -1));
+    setRedoStack((prev) => [...prev.slice(-(MAX_HISTORY - 1)), elements]);
+    await restoreSnapshot(lastSnapshot);
+  }, [currentPageId, history, elements, restoreSnapshot]);
+
+  /** Redo — przywraca następny stan z redoStack (po undo). */
+  const redo = useCallback(async () => {
+    if (!currentPageId || redoStack.length === 0) return;
+    const nextSnapshot = redoStack[redoStack.length - 1];
+    setRedoStack((prev) => prev.slice(0, -1));
+    setHistory((prev) => [...prev.slice(-(MAX_HISTORY - 1)), elements]);
+    await restoreSnapshot(nextSnapshot);
+  }, [currentPageId, redoStack, elements, restoreSnapshot]);
+
+  /** Copy zaznaczonych elementów do clipboard state (in-memory). */
+  const copySelected = useCallback(() => {
+    if (selectedIds.size === 0) return;
+    const items = elements
+      .filter((e) => selectedIds.has(e.id))
+      .map((e) => {
+        // eslint-disable-next-line @typescript-eslint/no-unused-vars
+        const { id, ...rest } = e;
+        return rest;
+      });
+    setClipboard(items);
+    setError(`✓ Skopiowano ${items.length} element${items.length === 1 ? "" : "y"}.`);
+    setTimeout(() => setError(null), 1500);
+  }, [selectedIds, elements]);
+
+  /** Paste z clipboard na aktualną stronę, każdy element +2mm x/y. */
+  const pasteFromClipboard = useCallback(async () => {
+    if (!currentPageId || clipboard.length === 0) return;
+    pushHistory(elements);
+    const newIds: string[] = [];
+    let nextZ = elements.length;
+    for (const src of clipboard) {
+      try {
+        const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: src.type,
+            x_mm: Math.min(src.x_mm + 2, 73),
+            y_mm: Math.min(src.y_mm + 2, 73),
+            w_mm: src.w_mm,
+            h_mm: src.h_mm,
+            z_index: ++nextZ,
+            rotation_deg: src.rotation_deg,
+            properties: src.properties,
+          }),
+        });
+        if (res.ok) {
+          const j = (await res.json()) as { element: ElementRow };
+          newIds.push(j.element.id);
+          setElements((prev) => [...prev, j.element]);
+        }
+      } catch (err) {
+        console.error("[paste]", err);
+      }
+    }
+    setSelectedIds(new Set(newIds));
+  }, [currentPageId, clipboard, elements, pushHistory]);
+
+  /** Nudge zaznaczonych strzałkami. delta w mm. */
+  const nudgeSelected = useCallback((dx: number, dy: number) => {
+    if (selectedIds.size === 0) return;
+    pushHistory(elements);
+    for (const id of selectedIds) {
+      const el = elements.find((e) => e.id === id);
+      if (!el) continue;
+      const newX = Math.max(0, Math.min(73 - el.w_mm, el.x_mm + dx));
+      const newY = Math.max(0, Math.min(73 - el.h_mm, el.y_mm + dy));
+      void updateElement(id, { x_mm: newX, y_mm: newY });
+    }
+  }, [selectedIds, elements, pushHistory, updateElement]);
+
+  /** Z-order: zmień z_index zaznaczonego pojedynczego elementu. */
+  const changeZOrder = useCallback((mode: "front" | "back" | "forward" | "backward") => {
+    if (!selectedId) return;
+    const el = elements.find((e) => e.id === selectedId);
+    if (!el) return;
+    const sorted = [...elements].sort((a, b) => a.z_index - b.z_index);
+    let newZ: number;
+    if (mode === "front") {
+      newZ = (sorted[sorted.length - 1]?.z_index ?? 0) + 1;
+    } else if (mode === "back") {
+      newZ = (sorted[0]?.z_index ?? 0) - 1;
+    } else if (mode === "forward") {
+      const idx = sorted.findIndex((e) => e.id === selectedId);
+      newZ = idx < sorted.length - 1 ? sorted[idx + 1].z_index + 1 : el.z_index;
+    } else { // backward
+      const idx = sorted.findIndex((e) => e.id === selectedId);
+      newZ = idx > 0 ? sorted[idx - 1].z_index - 1 : el.z_index;
+    }
+    void updateElement(selectedId, { z_index: newZ });
+  }, [selectedId, elements, updateElement]);
 
   // Skróty klawiszowe — wszystkie aktywne tylko gdy fokus NIE jest w polu
   // edytowalnym (textarea/input/contenteditable), żeby nie kolidować z
@@ -862,6 +967,53 @@ export default function Gen4Editor({
       if (mod && key === "z" && !e.shiftKey) {
         e.preventDefault();
         void undo();
+        return;
+      }
+      // Ctrl+Shift+Z / Cmd+Shift+Z / Ctrl+Y — redo
+      if ((mod && key === "z" && e.shiftKey) || (mod && key === "y")) {
+        e.preventDefault();
+        void redo();
+        return;
+      }
+      // Ctrl+C / Cmd+C — copy selected do clipboard
+      if (mod && key === "c") {
+        if (selectedIds.size === 0) return;
+        e.preventDefault();
+        copySelected();
+        return;
+      }
+      // Ctrl+V / Cmd+V — paste z clipboard
+      if (mod && key === "v") {
+        if (clipboard.length === 0) return;
+        e.preventDefault();
+        void pasteFromClipboard();
+        return;
+      }
+      // Ctrl+] / Ctrl+[ — z-order (forward / backward)
+      if (mod && (key === "]" || e.code === "BracketRight")) {
+        if (!selectedId) return;
+        e.preventDefault();
+        if (e.shiftKey) changeZOrder("front");
+        else changeZOrder("forward");
+        return;
+      }
+      if (mod && (key === "[" || e.code === "BracketLeft")) {
+        if (!selectedId) return;
+        e.preventDefault();
+        if (e.shiftKey) changeZOrder("back");
+        else changeZOrder("backward");
+        return;
+      }
+      // Arrow keys — nudge selected o 1mm (10mm z Shift)
+      if (
+        (e.key === "ArrowUp" || e.key === "ArrowDown" || e.key === "ArrowLeft" || e.key === "ArrowRight")
+        && selectedIds.size > 0
+      ) {
+        e.preventDefault();
+        const step = e.shiftKey ? 10 : 1;
+        const dx = e.key === "ArrowLeft" ? -step : e.key === "ArrowRight" ? step : 0;
+        const dy = e.key === "ArrowUp" ? -step : e.key === "ArrowDown" ? step : 0;
+        nudgeSelected(dx, dy);
         return;
       }
       // Ctrl+D / Cmd+D — duplicate (multi-select aware)
@@ -909,7 +1061,7 @@ export default function Gen4Editor({
     window.addEventListener("keydown", handler);
     return () => window.removeEventListener("keydown", handler);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [undo, duplicateElement, duplicateSelected, deleteSelected, selectedId, selectedIds, elements]);
+  }, [undo, redo, duplicateElement, duplicateSelected, deleteSelected, copySelected, pasteFromClipboard, nudgeSelected, changeZOrder, selectedId, selectedIds, elements, clipboard]);
 
   return (
     <div className="rounded-xl border border-slate-200 bg-white">
@@ -1113,6 +1265,19 @@ export default function Gen4Editor({
                 }
               >
                 ↶ Cofnij {history.length > 0 && <span className="text-slate-400">({history.length})</span>}
+              </button>
+              <button
+                type="button"
+                disabled={redoStack.length === 0}
+                onClick={() => void redo()}
+                className="rounded border border-slate-300 bg-white px-2 py-0.5 font-medium text-slate-700 hover:border-slate-500 hover:bg-slate-50 disabled:opacity-30"
+                title={
+                  redoStack.length === 0
+                    ? "Brak zmian do przywrócenia"
+                    : `Przywróć (${redoStack.length}/${MAX_HISTORY}) — Ctrl+Shift+Z / Ctrl+Y`
+                }
+              >
+                ↷ Ponów {redoStack.length > 0 && <span className="text-slate-400">({redoStack.length})</span>}
               </button>
               <button
                 type="button"
@@ -1390,20 +1555,60 @@ export default function Gen4Editor({
                   </p>
                 )}
                 {selectedElement && (
-                  <ElementProperties
-                    element={selectedElement}
-                    onUpdate={(patch) => void updateElement(selectedElement.id, patch)}
-                    onDelete={() => void deleteElement(selectedElement.id)}
-                    pageId={currentPageId}
-                    onAiFixApplied={async () => {
-                      // reload elementów po per-element AI fix
-                      const res = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
-                      if (res.ok) {
-                        const j = (await res.json()) as { elements: ElementRow[] };
-                        setElements(j.elements ?? []);
-                      }
-                    }}
-                  />
+                  <>
+                    <div className="mb-2 flex flex-wrap gap-1">
+                      <button
+                        type="button"
+                        onClick={() => changeZOrder("front")}
+                        className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                        title="Wyniesc na wierzch (Ctrl+Shift+])"
+                      >⏶ Na wierzch</button>
+                      <button
+                        type="button"
+                        onClick={() => changeZOrder("forward")}
+                        className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                        title="O 1 do przodu (Ctrl+])"
+                      >▲ +1</button>
+                      <button
+                        type="button"
+                        onClick={() => changeZOrder("backward")}
+                        className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                        title="O 1 do tyłu (Ctrl+[)"
+                      >▼ -1</button>
+                      <button
+                        type="button"
+                        onClick={() => changeZOrder("back")}
+                        className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                        title="Wysłac pod spód (Ctrl+Shift+[)"
+                      >⏷ Pod spód</button>
+                      <button
+                        type="button"
+                        onClick={() => copySelected()}
+                        className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                        title="Kopiuj (Ctrl+C)"
+                      >📋 Kopiuj</button>
+                      <button
+                        type="button"
+                        onClick={() => selectedId && void duplicateElement(selectedId)}
+                        className="rounded border border-slate-300 bg-white px-1.5 py-0.5 text-[10px] text-slate-700 hover:bg-slate-50"
+                        title="Duplikuj (Ctrl+D)"
+                      >📑 Duplikuj</button>
+                    </div>
+                    <ElementProperties
+                      element={selectedElement}
+                      onUpdate={(patch) => void updateElement(selectedElement.id, patch)}
+                      onDelete={() => void deleteElement(selectedElement.id)}
+                      pageId={currentPageId}
+                      onAiFixApplied={async () => {
+                        // reload elementów po per-element AI fix
+                        const res = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+                        if (res.ok) {
+                          const j = (await res.json()) as { elements: ElementRow[] };
+                          setElements(j.elements ?? []);
+                        }
+                      }}
+                    />
+                  </>
                 )}
               </>
             )}
@@ -3493,9 +3698,17 @@ function ShortcutsModal({ onClose }: { onClose: () => void }): React.ReactElemen
     { section: "Selekcja", keys: "Ctrl / Cmd + A", desc: "Zaznacz wszystkie elementy" },
     { section: "Selekcja", keys: "Esc", desc: "Odznacz / anuluj rysowanie" },
     { section: "Edycja", keys: "Ctrl / Cmd + Z", desc: "Cofnij ostatnią zmianę" },
+    { section: "Edycja", keys: "Ctrl + Shift + Z / Ctrl + Y", desc: "Przywróć cofniętą zmianę (redo)" },
+    { section: "Edycja", keys: "Ctrl / Cmd + C", desc: "Kopiuj zaznaczone do schowka" },
+    { section: "Edycja", keys: "Ctrl / Cmd + V", desc: "Wklej ze schowka (offset +2 mm)" },
     { section: "Edycja", keys: "Ctrl / Cmd + D", desc: "Duplikuj zaznaczone (z offsetem 2 mm)" },
     { section: "Edycja", keys: "Del / Backspace", desc: "Usuń zaznaczone" },
+    { section: "Edycja", keys: "Strzałka ←↑↓→", desc: "Przesuń zaznaczone o 1 mm (Shift = 10 mm)" },
     { section: "Edycja", keys: "Ctrl / Cmd + S", desc: "Informacja o auto-save (wszystko zapisuje się na bieżąco)" },
+    { section: "Warstwy (z-order)", keys: "Ctrl + ]", desc: "Przesuń o 1 do przodu" },
+    { section: "Warstwy (z-order)", keys: "Ctrl + [", desc: "Przesuń o 1 do tyłu" },
+    { section: "Warstwy (z-order)", keys: "Ctrl + Shift + ]", desc: "Wynieś na wierzch" },
+    { section: "Warstwy (z-order)", keys: "Ctrl + Shift + [", desc: "Wyślij pod spód" },
     { section: "Widok", keys: "Cmd + P", desc: "Pełnoekranowy podgląd strony" },
     { section: "Widok", keys: "Cmd + /", desc: "Ta lista skrótów" },
     { section: "Rysowanie", keys: "Klik Linia / Prostokąt → drag", desc: "Narysuj element przeciągnięciem myszy" },
@@ -3509,7 +3722,7 @@ function ShortcutsModal({ onClose }: { onClose: () => void }): React.ReactElemen
           <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
         </div>
         <div className="p-5">
-          {["Selekcja", "Edycja", "Widok", "Rysowanie"].map((section) => (
+          {["Selekcja", "Edycja", "Warstwy (z-order)", "Widok", "Rysowanie"].map((section) => (
             <div key={section} className="mb-4">
               <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-slate-500">{section}</h4>
               <table className="w-full text-xs">
