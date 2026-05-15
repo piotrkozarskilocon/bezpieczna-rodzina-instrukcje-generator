@@ -1793,6 +1793,30 @@ export default function Gen4Editor({
                       </button>
                       <button
                         type="button"
+                        onClick={async (e) => {
+                          e.stopPropagation();
+                          try {
+                            const r = await fetch(`${API}/pages/${p.id}/duplicate`, { method: "POST" });
+                            if (!r.ok) throw new Error(`HTTP ${r.status}`);
+                            const j = (await r.json()) as { page: PageRow };
+                            // Reload pages
+                            const pr = await fetch(`${API}/projects/${projectId}/pages/`, { cache: "no-store" });
+                            if (pr.ok) {
+                              const pj = (await pr.json()) as { pages: PageRow[] };
+                              setPages(pj.pages ?? []);
+                            }
+                            setCurrentPageId(j.page.id);
+                          } catch (err) {
+                            setError(err instanceof Error ? err.message : "duplicate page failed");
+                          }
+                        }}
+                        className="text-slate-400 opacity-0 transition group-hover:opacity-100 hover:text-blue-700"
+                        title="Duplikuj stronę"
+                      >
+                        ⎘
+                      </button>
+                      <button
+                        type="button"
                         onClick={(e) => { e.stopPropagation(); void deletePage(p.id); }}
                         className="text-slate-400 opacity-0 transition group-hover:opacity-100 hover:text-red-700"
                         title="Usuń stronę"
