@@ -44,41 +44,30 @@ export interface PdfChunk {
 }
 
 /** Zwraca liczbe stron PDF. Najpierw pdf-lib (tolerant), jezeli failuje
- *  fallback do pdf-parse (wraps pdf.js — robustny, obsluguje compressed streams). */
+ *  fallback do pdf-parse v1 (wraps pdf.js legacy — Node-compatible). */
 export async function countPdfPages(buf: Buffer): Promise<number> {
   try {
     const pdf = await loadPdfTolerant(buf);
     return pdf.getPageCount();
   } catch {
-    const { PDFParse } = await import("pdf-parse");
-    const parser = new PDFParse({ data: new Uint8Array(buf) });
-    try {
-      const info = await parser.getInfo();
-      // InfoResult ma 'numPages' lub 'numpages' — zalezne od wersji. Probe oba.
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const n = (info as any).numPages ?? (info as any).numpages ?? 0;
-      return Number(n) || 0;
-    } finally {
-      await parser.destroy();
-    }
+    // pdf-parse v1.1.1 — legacy pdf.js, Node-compatible (nie wymaga DOMMatrix
+    // ktore by jest brak w Node, jak w pdf-parse v2/pdfjs-dist v4+).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const pdfParseMod: any = await import("pdf-parse");
+    const pdfParse: (b: Buffer) => Promise<{ numpages: number; text: string }> =
+      pdfParseMod.default ?? pdfParseMod;
+    const parsed = await pdfParse(buf);
+    return parsed.numpages;
   }
 }
 
 /** Wyciaga tekst z PDF (fallback gdy chunkPdf nie zadziala). */
 export async function extractPdfText(buf: Buffer): Promise<{ numpages: number; text: string }> {
-  const { PDFParse } = await import("pdf-parse");
-  const parser = new PDFParse({ data: new Uint8Array(buf) });
-  try {
-    const result = await parser.getText();
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const r: any = result;
-    const pages = r.pages ?? [];
-    const text: string = r.text ?? pages.map((p: { text?: string }) => p.text ?? "").join("\n\n");
-    const numpages: number = r.numPages ?? r.numpages ?? pages.length ?? 0;
-    return { numpages, text };
-  } finally {
-    await parser.destroy();
-  }
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const pdfParseMod: any = await import("pdf-parse");
+  const pdfParse: (b: Buffer) => Promise<{ numpages: number; text: string }> =
+    pdfParseMod.default ?? pdfParseMod;
+  return pdfParse(buf);
 }
 
 /** Dzieli PDF na chunki po max `maxPagesPerChunk` stron.
