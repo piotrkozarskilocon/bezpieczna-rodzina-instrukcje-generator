@@ -262,6 +262,8 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
 
   const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; doc_name: string } | null>(null);
   const [bulkResult, setBulkResult] = useState<{ ok: number; err: number } | null>(null);
+  const [categorizeBusy, setCategorizeBusy] = useState(false);
+  const [categorizeProgress, setCategorizeProgress] = useState<{ current: number; total: number; doc_name: string } | null>(null);
 
   /** Bulk re-summary dla WSZYSTKICH plikow projektu — uzywa SSE stream
    *  z progress updates. */
@@ -334,6 +336,68 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
     }
   };
 
+  /** Bulk auto-categorize: AI rozpoznaje kind plików (sar/spec/decl/manual/other). */
+  const categorizeAll = async (force = false) => {
+    if (categorizeBusy) return;
+    setCategorizeBusy(true);
+    setCategorizeProgress({ current: 0, total: docs.length, doc_name: "..." });
+    setError(null);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/categorize-all${force ? "?force=1" : ""}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok || !res.body) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr += line.slice(6);
+          }
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr) as Record<string, unknown>;
+            if (eventName === "progress") {
+              setCategorizeProgress({
+                current: (data.current as number) ?? 0,
+                total: (data.total as number) ?? docs.length,
+                doc_name: (data.doc_name as string) ?? "...",
+              });
+              if (data.status === "done" && data.kind) {
+                const docName = data.doc_name as string;
+                const newKind = data.kind as string;
+                setDocs((prev) =>
+                  prev.map((d) => d.name === docName ? { ...d, kind: newKind } : d),
+                );
+              }
+            } else if (eventName === "done") {
+              void refresh();
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "categorize failed");
+    } finally {
+      setCategorizeBusy(false);
+      setCategorizeProgress(null);
+    }
+  };
+
   const remove = async (id: string) => {
     if (!confirm("Usunąć plik referencyjny? AI nie będzie z niego korzystał w kolejnych generacjach.")) return;
     try {
@@ -358,17 +422,30 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
           </p>
         </div>
         {docs.length > 0 && (
-          <button
-            type="button"
-            onClick={() => void resummarizeAll()}
-            disabled={!!bulkProgress}
-            className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
-            title="Ponownie wygeneruj streszczenia dla wszystkich plikow (uzyteczne dla starych projektow)"
-          >
-            {bulkProgress
-              ? `📝 ${bulkProgress.current}/${bulkProgress.total}: ${bulkProgress.doc_name.slice(0, 25)}...`
-              : "📝 Re-summary all"}
-          </button>
+          <div className="flex gap-1">
+            <button
+              type="button"
+              onClick={() => void categorizeAll()}
+              disabled={categorizeBusy}
+              className="rounded border border-blue-300 bg-blue-50 px-2 py-1 text-[11px] font-semibold text-blue-800 hover:bg-blue-100 disabled:opacity-40 whitespace-nowrap"
+              title="AI auto-rozpoznaje typ kazdego pliku (SAR/Spec/Decl/Manual/inne). Pomija juz skategoryzowane."
+            >
+              {categorizeProgress
+                ? `🏷️ ${categorizeProgress.current}/${categorizeProgress.total}: ${categorizeProgress.doc_name.slice(0, 20)}...`
+                : "🏷️ Auto-rozpoznaj typy"}
+            </button>
+            <button
+              type="button"
+              onClick={() => void resummarizeAll()}
+              disabled={!!bulkProgress}
+              className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
+              title="Ponownie wygeneruj streszczenia dla wszystkich plikow"
+            >
+              {bulkProgress
+                ? `📝 ${bulkProgress.current}/${bulkProgress.total}: ${bulkProgress.doc_name.slice(0, 20)}...`
+                : "📝 Re-summary all"}
+            </button>
+          </div>
         )}
       </div>
       {bulkResult && (
