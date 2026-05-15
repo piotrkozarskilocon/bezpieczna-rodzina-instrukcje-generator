@@ -457,6 +457,63 @@ export default function Gen4Editor({
     }
   };
 
+  /** Wstaw preset snippet (zestaw elementow) na strone. */
+  const insertSnippet = useCallback(async (snippetId: string) => {
+    if (!currentPageId || !currentPage) return;
+    const pw = currentPage.width_mm;
+    const ph = currentPage.height_mm;
+    const margin = 3;
+    pushHistory(elements);
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const snippets: Record<string, Array<{ type: ElementType; coords: any; props: any }>> = {
+      warning: [
+        { type: "rect", coords: { x_mm: margin, y_mm: ph - 18, w_mm: pw - 2 * margin, h_mm: 12 }, props: { stroke_width: 0.4, color: "#dc2626", fill: "#fef2f2" } },
+        { type: "text", coords: { x_mm: margin + 2, y_mm: ph - 17, w_mm: pw - 2 * margin - 4, h_mm: 4 }, props: { content: "⚠️ WAŻNE:", font_size_pt: 7, color: "#dc2626", align: "left" } },
+        { type: "text", coords: { x_mm: margin + 2, y_mm: ph - 13, w_mm: pw - 2 * margin - 4, h_mm: 7 }, props: { content: "Treść ostrzeżenia. Edytuj kliknięciem.", font_size_pt: 6, color: "#0f172a", align: "left" } },
+      ],
+      step: [
+        { type: "text", coords: { x_mm: margin, y_mm: margin + 2, w_mm: pw - 2 * margin, h_mm: 9 }, props: { content: "Krok N: Tytuł kroku", font_size_pt: 13, color: "#0f172a", align: "left" } },
+        { type: "line", coords: { x_mm: margin, y_mm: margin + 12, w_mm: pw - 2 * margin, h_mm: 0.3 }, props: { stroke_width: 0.3, color: "#94a3b8" } },
+        { type: "text", coords: { x_mm: margin, y_mm: margin + 14, w_mm: pw - 2 * margin, h_mm: 30 }, props: { content: "Opis kroku. Edytuj kliknięciem.", font_size_pt: 7, color: "#0f172a", align: "left" } },
+      ],
+      "page-num": [
+        { type: "page_number", coords: { x_mm: pw - margin - 15, y_mm: ph - margin - 3, w_mm: 15, h_mm: 3 }, props: { format: "{LANG} {n}/{N}", font_size_pt: 5, color: "#94a3b8", align: "right" } },
+      ],
+      "qr-contact": [
+        { type: "text", coords: { x_mm: margin, y_mm: margin, w_mm: pw - 2 * margin, h_mm: 6 }, props: { content: "Kontakt", font_size_pt: 11, color: "#0f172a", align: "left" } },
+        { type: "qr", coords: { x_mm: pw - margin - 25, y_mm: margin + 8, w_mm: 25, h_mm: 25 }, props: { url: "https://bezpiecznarodzina.pl" } },
+        { type: "text", coords: { x_mm: margin, y_mm: margin + 10, w_mm: pw - 2 * margin - 30, h_mm: 20 }, props: { content: "Strona producenta:\nwww.bezpiecznarodzina.pl\n\nKontakt:\nkontakt@bezpiecznarodzina.pl", font_size_pt: 6, color: "#0f172a", align: "left" } },
+      ],
+      header: [
+        { type: "text", coords: { x_mm: margin, y_mm: margin + 1, w_mm: pw - 2 * margin, h_mm: 8 }, props: { content: "Tytuł sekcji", font_size_pt: 12, color: "#0f172a", align: "left" } },
+        { type: "line", coords: { x_mm: margin, y_mm: margin + 10, w_mm: pw - 2 * margin, h_mm: 0.4 }, props: { stroke_width: 0.4, color: "#475569" } },
+      ],
+    };
+    const items = snippets[snippetId];
+    if (!items) return;
+    for (const item of items) {
+      try {
+        const res = await fetch(`${API}/pages/${currentPageId}/elements/`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            type: item.type,
+            ...item.coords,
+            z_index: elements.length + 1,
+            properties: item.props,
+          }),
+        });
+        if (res.ok) {
+          const j = (await res.json()) as { element: ElementRow };
+          setElements((prev) => [...prev, j.element]);
+        }
+      } catch (err) {
+        console.error("[insertSnippet]", err);
+      }
+    }
+  }, [currentPageId, currentPage, elements, pushHistory]);
+
   /** Klik w toolbarze:
    *  - text/image/qr/page_number/callout → wstaw od razu w (5,5) z defaultem,
    *  - line/rect → włącz tryb rysowania (kursor crosshair na canvas). */
@@ -1679,6 +1736,25 @@ export default function Gen4Editor({
                 Tryb rysowania: <strong>{labelForType(drawingTool)}</strong> — przeciągnij myszą po stronie (Esc anuluje).
               </span>
             )}
+            <select
+              onChange={(e) => {
+                if (e.target.value) {
+                  void insertSnippet(e.target.value);
+                  e.target.value = "";
+                }
+              }}
+              defaultValue=""
+              disabled={!currentPageId}
+              className="rounded border border-purple-300 bg-purple-50 px-2 py-0.5 text-[11px] text-purple-700 disabled:opacity-30"
+              title="Wstaw gotowy zestaw elementów"
+            >
+              <option value="" disabled>📦 Snippet…</option>
+              <option value="warning">⚠️ Ostrzeżenie (rect + text)</option>
+              <option value="step">📋 Krok (tytuł + linia + body)</option>
+              <option value="header">📄 Tytuł sekcji (text + linia)</option>
+              <option value="qr-contact">📱 Kontakt + QR</option>
+              <option value="page-num">🔢 Numer strony</option>
+            </select>
             {selectedIds.size > 1 && (
               <span className="flex flex-wrap items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">
                 <strong>{selectedIds.size}</strong> zazn.
