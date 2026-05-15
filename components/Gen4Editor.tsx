@@ -1499,7 +1499,39 @@ export default function Gen4Editor({
                     ? "text-slate-700"
                     : "text-amber-700";
               return (
-                <li key={p.id}>
+                <li key={p.id}
+                  draggable
+                  onDragStart={(e) => { e.dataTransfer.setData("text/page-id", p.id); }}
+                  onDragOver={(e) => { e.preventDefault(); e.currentTarget.classList.add("ring-2", "ring-blue-400"); }}
+                  onDragLeave={(e) => { e.currentTarget.classList.remove("ring-2", "ring-blue-400"); }}
+                  onDrop={async (e) => {
+                    e.preventDefault();
+                    e.currentTarget.classList.remove("ring-2", "ring-blue-400");
+                    const draggedId = e.dataTransfer.getData("text/page-id");
+                    if (!draggedId || draggedId === p.id) return;
+                    // Buduj nowy order: insert draggedId przed p.id
+                    const order = pages.map((pp) => pp.id).filter((id) => id !== draggedId);
+                    const targetIdx = order.indexOf(p.id);
+                    if (targetIdx === -1) return;
+                    order.splice(targetIdx, 0, draggedId);
+                    try {
+                      const res = await fetch(`${API}/projects/${projectId}/reorder-pages`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ order }),
+                      });
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                      // Reload pages
+                      const r = await fetch(`${API}/projects/${projectId}/pages/`, { cache: "no-store" });
+                      if (r.ok) {
+                        const j = (await r.json()) as { pages: PageRow[] };
+                        setPages(j.pages ?? []);
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "reorder failed");
+                    }
+                  }}
+                >
                   <button
                     type="button"
                     onClick={() => setCurrentPageId(p.id)}
@@ -1507,9 +1539,9 @@ export default function Gen4Editor({
                       e.stopPropagation();
                       void renamePage(p);
                     }}
-                    title="Kliknij dwukrotnie aby zmienić tytuł"
+                    title="Kliknij dwukrotnie aby zmienić tytuł · Przeciągnij aby zmienić kolejność"
                     className={
-                      "group flex w-full items-center justify-between rounded border px-2 py-1.5 text-left text-xs " +
+                      "group flex w-full items-center justify-between rounded border px-2 py-1.5 text-left text-xs cursor-grab " +
                       (p.id === currentPageId
                         ? "border-blue-500 bg-blue-50 text-slate-900"
                         : "border-slate-200 bg-white text-slate-700 hover:border-slate-400")
