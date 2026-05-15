@@ -50,10 +50,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return new Response(JSON.stringify({ error: "Brak stron do regeneracji (filter cover/toc)" }), { status: 400 });
   }
 
-  // Url to ourselves zeby wywolac auto-populate per stronę. Vercel auto-detect
-  // domain z headers (VERCEL_URL) lub fallback do request.url base.
+  // Url to ourselves zeby wywolac auto-populate per stronę. VERCEL_URL zwraca
+  // deployment-specific URL ktory ma "deployment protection" → 401. Uzywamy
+  // stabilnego aliasu (GENERATOR_BASE_URL env) lub fallback do request.url host.
   const baseUrl = (() => {
-    if (process.env.VERCEL_URL) return `https://${process.env.VERCEL_URL}`;
+    if (process.env.GENERATOR_BASE_URL) return process.env.GENERATOR_BASE_URL.replace(/\/$/, "");
     const u = new URL(request.url);
     return `${u.protocol}//${u.host}`;
   })();
