@@ -153,6 +153,7 @@ export default function Gen4Editor({
   // Modal pełnoekranowego podglądu + modal listy skrótów klawiszowych.
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
+  const [findReplaceOpen, setFindReplaceOpen] = useState(false);
   // Side-by-side language preview — gdy != null, obok głównego canvasa
   // pokazujemy ten sam page ze swapem tekstów na wybrany język.
   const [compareLang, setCompareLang] = useState<string | null>(null);
@@ -1075,6 +1076,18 @@ export default function Gen4Editor({
         setShortcutsOpen(true);
         return;
       }
+      // Ctrl+H / Cmd+H — Find/Replace modal
+      if (mod && key === "h") {
+        e.preventDefault();
+        setFindReplaceOpen(true);
+        return;
+      }
+      // Ctrl+F / Cmd+F — Find modal (te samo co H, ale tylko podgląd)
+      if (mod && key === "f") {
+        e.preventDefault();
+        setFindReplaceOpen(true);
+        return;
+      }
       // Ctrl+A / Cmd+A — select all elements on current page
       if (mod && key === "a") {
         if (elements.length === 0) return;
@@ -1723,6 +1736,22 @@ export default function Gen4Editor({
         />
       )}
       {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
+      {findReplaceOpen && (
+        <FindReplaceModal
+          projectId={projectId}
+          currentPageId={currentPageId}
+          onClose={() => setFindReplaceOpen(false)}
+          onApplied={async () => {
+            if (currentPageId) {
+              const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+              if (elRes.ok) {
+                const elJson = (await elRes.json()) as { elements: ElementRow[] };
+                setElements(elJson.elements ?? []);
+              }
+            }
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -3782,6 +3811,7 @@ function ShortcutsModal({ onClose }: { onClose: () => void }): React.ReactElemen
     { section: "Warstwy (z-order)", keys: "Ctrl + Shift + [", desc: "Wyślij pod spód" },
     { section: "Widok", keys: "Cmd + P", desc: "Pełnoekranowy podgląd strony" },
     { section: "Widok", keys: "Cmd + /", desc: "Ta lista skrótów" },
+    { section: "Widok", keys: "Cmd + F / Cmd + H", desc: "Znajdź i zamień w tekstach" },
     { section: "Rysowanie", keys: "Klik Linia / Prostokąt → drag", desc: "Narysuj element przeciągnięciem myszy" },
   ];
 
@@ -3976,6 +4006,161 @@ function AiQuickActions({ elementId, onApplied }: { elementId: string; onApplied
           className="flex-1 rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
           {busy === "translate" ? "..." : `🌐 Tłumacz → ${translateLang.toUpperCase()}`}
         </button>
+      </div>
+    </div>
+  );
+}
+
+/** Find/Replace modal — Ctrl+H. Scope project/page, case-sensitive, regex. */
+function FindReplaceModal({
+  projectId,
+  currentPageId,
+  onClose,
+  onApplied,
+}: {
+  projectId: string;
+  currentPageId: string | null;
+  onClose: () => void;
+  onApplied: () => Promise<void>;
+}): React.ReactElement {
+  const [find, setFind] = useState("");
+  const [replace, setReplace] = useState("");
+  const [caseSensitive, setCaseSensitive] = useState(false);
+  const [regex, setRegex] = useState(false);
+  const [scope, setScope] = useState<"project" | "page">("project");
+  const [previewCount, setPreviewCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const preview = async () => {
+    if (!find) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/find-replace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          find,
+          case_sensitive: caseSensitive,
+          regex,
+          scope,
+          page_id: scope === "page" ? currentPageId : undefined,
+        }),
+      });
+      if (res.ok) {
+        const j = (await res.json()) as { matches_count: number };
+        setPreviewCount(j.matches_count);
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const applyReplace = async () => {
+    if (!find) return;
+    if (!confirm(`Zastapic ${previewCount ?? "?"} wystapien "${find}" → "${replace}"?`)) return;
+    setBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/find-replace`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          find,
+          replace,
+          case_sensitive: caseSensitive,
+          regex,
+          scope,
+          page_id: scope === "page" ? currentPageId : undefined,
+        }),
+      });
+      if (res.ok) {
+        const j = (await res.json()) as { replaced_in_elements: number };
+        await onApplied();
+        alert(`✅ Zastąpiono w ${j.replaced_in_elements} elementach.`);
+        onClose();
+      }
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  // Auto-preview po wpisaniu (debounce)
+  useEffect(() => {
+    if (!find) { setPreviewCount(null); return; }
+    const t = setTimeout(() => void preview(), 400);
+    return () => clearTimeout(t);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [find, caseSensitive, regex, scope]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-start justify-center bg-black/40 p-6">
+      <div className="mt-12 w-full max-w-md rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-4 py-2">
+          <h3 className="text-sm font-semibold text-slate-900">🔍 Znajdź i zamień</h3>
+          <button type="button" onClick={onClose} className="text-slate-400 hover:text-slate-700">✕</button>
+        </div>
+        <div className="space-y-2 p-4">
+          <div>
+            <label className="block text-[11px] font-medium text-slate-700">Znajdź</label>
+            <input
+              type="text"
+              value={find}
+              autoFocus
+              onChange={(e) => setFind(e.target.value)}
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              placeholder="wpisz frazę..."
+            />
+          </div>
+          <div>
+            <label className="block text-[11px] font-medium text-slate-700">Zamień na</label>
+            <input
+              type="text"
+              value={replace}
+              onChange={(e) => setReplace(e.target.value)}
+              className="mt-1 w-full rounded border border-slate-300 px-2 py-1 text-sm"
+              placeholder="(zostaw puste żeby usunąć)"
+            />
+          </div>
+          <div className="flex flex-wrap gap-3 text-[11px] text-slate-700">
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={caseSensitive} onChange={(e) => setCaseSensitive(e.target.checked)} />
+              Aa wielkość
+            </label>
+            <label className="flex items-center gap-1">
+              <input type="checkbox" checked={regex} onChange={(e) => setRegex(e.target.checked)} />
+              .* regex
+            </label>
+            <label className="flex items-center gap-1">
+              Zakres:
+              <select value={scope} onChange={(e) => setScope(e.target.value as "project" | "page")}
+                className="rounded border border-slate-300 px-1 py-0.5">
+                <option value="project">Cały projekt</option>
+                <option value="page">Aktualna strona</option>
+              </select>
+            </label>
+          </div>
+          {previewCount !== null && (
+            <div className={`rounded px-2 py-1 text-[11px] ${previewCount > 0 ? "bg-blue-50 text-blue-800" : "bg-slate-100 text-slate-600"}`}>
+              {previewCount > 0 ? `Znaleziono ${previewCount} wystąpień` : "Brak wyników"}
+            </div>
+          )}
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={onClose}
+              className="rounded border border-slate-300 bg-white px-3 py-1 text-xs text-slate-700 hover:bg-slate-50">
+              Anuluj
+            </button>
+            <button type="button" disabled={busy || !find || previewCount === 0}
+              onClick={() => void applyReplace()}
+              className="rounded bg-purple-700 px-3 py-1 text-xs font-semibold text-white hover:bg-purple-800 disabled:opacity-40">
+              {busy ? "..." : `Zamień ${previewCount ?? ""}`}
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
