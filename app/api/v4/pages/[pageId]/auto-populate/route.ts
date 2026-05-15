@@ -89,10 +89,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   // Lista obrazków projektu — AI dostaje katalog z opisami.
   const projectImages = await loadProjectImages(page.project_id);
+  // Obrazki ktore user explicit przypisal do tej strony (drag-drop w UI albo
+  // AI suggest). To 100% pewny match — w prompcie wymuszamy uzycie image_id.
+  const preferredImages = projectImages.filter((img) => img.preferred_page_id === page.id);
+
+  // Twarde ograniczenia wymiarowe per strona (skalowane do wymiarow page).
+  // To samo co w lib/v4ApplyDs commonRules — wczesniej brakowalo w auto-populate
+  // -> AI generowal elementy ktore wychodzily poza 76x76 mm.
+  const pw = page.width_mm;
+  const ph = page.height_mm;
+  const margin = 3;
+  const fontScale = Math.min(pw, ph) / 76;
+  const maxHeader = Math.round(11 * fontScale);
+  const maxBody = Math.round(7 * fontScale);
+  const maxCaption = Math.round(5 * fontScale);
 
   const system = [
     "Jesteś asystentem generującym elementy POJEDYNCZEJ strony drukowanej instrukcji",
-    "obsługi smartwatcha marki Locon (Bezpieczna Rodzina). Strona ma format 76x76 mm,",
+    `obsługi smartwatcha marki Locon (Bezpieczna Rodzina). Strona ma format ${pw}×${ph} mm,`,
     "druk w skali szarości, na cienkim papierze.",
     "",
     "Zasady językowe:",
@@ -102,12 +116,26 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     "  ⚠️ DO UZUPEŁNIENIA: <opis>",
     "  NIE WYMYŚLAJ wartości technicznych ani prawnych.",
     "",
-    "Zasady layoutu (mm):",
-    "- Marginesy ~3 mm od krawędzi strony.",
-    "- Tytuł strony jako text 11-14pt na górze (y_mm ~5).",
-    "- Body text 6-8pt, podpisy 4-5pt.",
-    "- Kolory grayscale: tekst #0f172a, accent #475569, jasny #94a3b8.",
-    "- Numeracja: element page_number z formatem '{LANG} {n}/{N}' w prawym dolnym rogu.",
+    "═══════════════════════════════════════════════════════════════",
+    `TWARDE OGRANICZENIA WYMIAROWE — ${pw}×${ph} mm (BEZWZGLĘDNE):`,
+    "═══════════════════════════════════════════════════════════════",
+    `• Margines od kazdej krawedzi: ${margin} mm.`,
+    `• ŻADEN element NIE MOŻE wyjść poza obszar:`,
+    `    - x_mm >= ${margin} i x_mm + w_mm <= ${pw - margin}`,
+    `    - y_mm >= ${margin} i y_mm + h_mm <= ${ph - margin}`,
+    `• Maksymalne rozmiary czcionek dla ${pw}×${ph} mm:`,
+    `    - Naglowek (tytul strony): max ${maxHeader} pt (y_mm ~${margin + 2})`,
+    `    - Body / tresc: max ${maxBody} pt`,
+    `    - Caption / podpis: max ${maxCaption} pt`,
+    `• Liczba znakow w boxie text: szacuj ~0.5*font_size mm szerokosci na znak.`,
+    `  Dla body ${maxBody}pt w boxie szerokim 66mm zmiesci sie ~${Math.floor(66 / (maxBody * 0.5 * 0.353))} znakow na linie.`,
+    `  Box wysoki ${maxBody}mm zmiesci ~2 linie. Jezeli tresc jest dluzsza — uzyj wiekszego h_mm albo skroc.`,
+    "• Numeracja stron: element page_number w prawym dolnym rogu (x=~58, y=~70 dla 76x76).",
+    "• Kolory grayscale: tekst #0f172a, accent #475569, jasny #94a3b8.",
+    "",
+    "ZAKAZ OVERLAP (nakladanie elementow):",
+    "Elementy text NIE moga sie nakladac na inne text/image elementy. Sprawdz",
+    "x_mm+w_mm vs sasiednie elementy. Background rect i page_number sa wyjatkami.",
     "",
     "Schemat elementu:",
     "{",
@@ -156,13 +184,26 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       userLines.push(`Wstaw placeholdery dla: ${sectionPlaceholders.join(", ")}`);
     }
     if (sectionNeedsImage) {
-      userLines.push(
-        "⚙️ TA STRONA WYMAGA OBRAZKA: zostaw miejsce ~30-50 mm szerokości na image element. " +
-          "Jeśli w bibliotece projektu jest obrazek pasujący do tematu strony (porównaj jego " +
-          "opis z tytułem) — WSTAW GO. W przeciwnym razie wstaw image element z image_id=null " +
-          "i properties.placeholder_description='krótki opis czego brakuje' aby user mógł później " +
-          "dograć obrazek do biblioteki.",
-      );
+      if (preferredImages.length > 0) {
+        // User ma juz przypisany obrazek do tej strony — wymusilismy go (no escape).
+        userLines.push(
+          "⚙️ TA STRONA MA PRZYPISANY OBRAZEK W BIBLIOTECE (preferred_page_id = ta strona).",
+          "MUSISZ go wstawic — to user-decision, nie wymyslaj alternatywy.",
+          ...preferredImages.map((img) =>
+            `  → image_id: "${img.id}" (opis: ${img.description ?? "(brak)"})`,
+          ),
+          "Wstaw element: { type:'image', x_mm, y_mm, w_mm 30-50, h_mm 30-50, properties:{ image_id: '<id>', fit_mode: 'contain' } }",
+          "ZAKAZ uzywania image_id=null gdy preferred image istnieje. ZAKAZ pomijania go.",
+        );
+      } else {
+        // Brak preferred — AI sam decyduje czy pasuje cos z biblioteki.
+        userLines.push(
+          "⚙️ TA STRONA WYMAGA OBRAZKA: zostaw miejsce ~30-50 mm szerokości na image element.",
+          "Sprawdz liste obrazkow z biblioteki (powyzej w 'DOSTĘPNE OBRAZKI'). Jezeli ktorys",
+          "ma opis pasujacy do tematu tej strony — UZYJ JEGO image_id (preferowany sposob).",
+          "Tylko jezeli NIC nie pasuje, wstaw image_id=null + properties.placeholder_description.",
+        );
+      }
     }
   } else {
     userLines.push("Treść strony: wypełnij zgodnie z template i tytułem.");

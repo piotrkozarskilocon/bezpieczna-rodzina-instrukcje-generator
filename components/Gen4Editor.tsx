@@ -119,6 +119,7 @@ export default function Gen4Editor({
   const [applyStyleBusy, setApplyStyleBusy] = useState(false);
   const [applyStyleProgress, setApplyStyleProgress] = useState<{ done: number; total: number } | null>(null);
   const [applyStyleErr, setApplyStyleErr] = useState<string | null>(null);
+  const [tocBusy, setTocBusy] = useState(false);
   // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
   const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
@@ -500,6 +501,44 @@ export default function Gen4Editor({
     } finally {
       setFixBusy(false);
       setFixStartedAt(null);
+    }
+  };
+
+  /** Regeneruj spis tresci z aktualnej listy stron (deterministycznie, bez AI).
+   *  Po dodaniu/usunieciu strony albo zmianie tytulu TOC sie nie aktualizuje
+   *  sam — user klika przycisk i dostaje swiezo wygenerowana strone TOC. */
+  const regenerateToc = async () => {
+    if (tocBusy) return;
+    setTocBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/regenerate-toc`, {
+        method: "POST",
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        toc_page_id?: string;
+        toc_page_number?: number;
+        entries_count?: number;
+        elements_count?: number;
+        error?: string;
+      };
+      if (!res.ok || !j.ok) {
+        alert(`Regeneracja TOC nieudana: ${j.error ?? "HTTP " + res.status}`);
+        return;
+      }
+      // Odswiez aktualnie wyswietlana strone jezeli to TOC
+      if (currentPageId === j.toc_page_id) {
+        const elRes = await fetch(`${API}/pages/${j.toc_page_id}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+      alert(`Spis tresci zaktualizowany: ${j.entries_count} wpisow, ${j.elements_count} elementow.`);
+    } catch (err) {
+      alert(`Regeneracja TOC failed: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setTocBusy(false);
     }
   };
 
@@ -1000,6 +1039,15 @@ export default function Gen4Editor({
                 {applyStyleBusy && applyStyleProgress
                   ? `✨ Wygląd → inne (${applyStyleProgress.done}/${applyStyleProgress.total})...`
                   : "✨ Wygląd → inne strony"}
+              </button>
+              <button
+                type="button"
+                disabled={tocBusy || pages.length < 2}
+                onClick={() => void regenerateToc()}
+                className="rounded border border-emerald-300 bg-emerald-50 px-2 py-0.5 font-medium text-emerald-700 hover:border-emerald-500 hover:bg-emerald-100 disabled:opacity-30"
+                title="Deterministycznie regeneruje strone Spis Treści na podstawie aktualnej listy stron (bez AI)."
+              >
+                {tocBusy ? "🔄 Odświeżam TOC..." : "🔄 Spis treści"}
               </button>
               <select
                 value={editorAiModel}
