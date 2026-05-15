@@ -29,6 +29,25 @@ interface DocRow {
   name: string;
   file_path: string;
   mime_type: string | null;
+  extracted_summary: string | null;
+}
+
+/** Heurystyka: czy summary jest "broken" tj. AI mowi ze nie widzi pliku.
+ *  Po fix Anthropic Files → Supabase Storage te frazy zniknely. */
+function isBrokenSummary(s: string | null): boolean {
+  if (!s) return true;
+  const lc = s.toLowerCase();
+  return (
+    lc.includes("nie widz") ||
+    lc.includes("nie mam dostępu") ||
+    lc.includes("czekam na plik") ||
+    lc.includes("i notice you") ||
+    lc.includes("załączonego pliku") ||
+    lc.includes("oczekuję na zawartość") ||
+    lc.includes("nie zobaczyłem") ||
+    lc.includes("brakuje załączonego") ||
+    lc.includes("brak załączonego")
+  );
 }
 
 export async function POST(request: NextRequest, ctx: RouteContext) {
@@ -52,15 +71,24 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
   }
 
+  // Param ?force=1 (default = idempotent, pomijamy pliki z fresh summary).
+  const force = new URL(request.url).searchParams.get("force") === "1";
+
   const { data: docs } = await sb
     .from("gen4_reference_docs")
-    .select("id, kind, name, file_path, mime_type")
+    .select("id, kind, name, file_path, mime_type, extracted_summary")
     .eq("project_id", projectId)
     .order("created_at", { ascending: true });
-  const allDocs = (docs ?? []) as DocRow[];
+  const docsAll = (docs ?? []) as DocRow[];
+  // Idempotency: skip pliki ktore juz maja sensowne summary (po fix Anthropic
+  // Files → Supabase Storage). User moze wymusic force=1 zeby zregenerowac wszystko.
+  const skippedDocs = force ? [] : docsAll.filter((d) => !isBrokenSummary(d.extracted_summary));
+  const allDocs = force ? docsAll : docsAll.filter((d) => isBrokenSummary(d.extracted_summary));
 
   if (allDocs.length === 0) {
-    return new Response(JSON.stringify({ error: "Brak plikow referencyjnych w projekcie" }), { status: 400 });
+    return new Response(JSON.stringify({
+      error: `Brak plikow do resummarize (${skippedDocs.length} juz ma fresh summary). Uzyj ?force=1 zeby zregenerowac wszystkie.`,
+    }), { status: 400 });
   }
 
   const encoder = new TextEncoder();
@@ -71,7 +99,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       const send = (event: string, data: unknown) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
-      send("started", { total: allDocs.length, project_id: projectId });
+      send("started", {
+        total: allDocs.length,
+        project_id: projectId,
+        skipped: skippedDocs.length,
+        skipped_note: skippedDocs.length > 0 ? `Pominieto ${skippedDocs.length} plikow z fresh summary` : null,
+      });
 
       const heartbeat = setInterval(() => {
         try { send("ping", { elapsed_ms: Date.now() - startedAt }); } catch { /* closed */ }
