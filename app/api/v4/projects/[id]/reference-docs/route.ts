@@ -208,12 +208,19 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       const summarySystem = "Jesteś asystentem analizującym dokumenty techniczne dla generatora instrukcji obsługi smartwatchy Locon. Streszczasz pliki referencyjne w 1-3 zdaniach po POLSKU. Wyciągaj konkretne wartości techniczne (np. SAR head/body w W/kg, normy, częstotliwości, IP rating, pojemność baterii, wymiary). Bez fence, bez prozy poza treścią.";
       const summaryUser = `Streść zawartość załączonego pliku${convertedNote} ${kind === "sar_report" ? "(raport SAR)" : kind === "tech_spec" ? "(specyfikacja techniczna)" : kind === "manufacturer_manual" ? "(instrukcja producenta — może być w obcym języku, przetłumacz kluczowe terminy)" : ""} w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`;
       const summaryStartedAt = Date.now();
-      const summaryAi = await callClaude({
+      // Uzywamy Gemini Flash (nie Claude) — Anthropic ma bug "not downloadable"
+      // dla user-uploaded plików (file_id istnieje ale download() rzuca 400).
+      // Gemini Flash dostaje bytes inline z prepared (PDF/text), zero ograniczen.
+      // Plus dla wielu-stronicowych PDF: pierwsze 50 stron wystarczy do summary.
+      // eslint-disable-next-line @typescript-eslint/no-require-imports
+      const { callGeminiWithRetry, GEMINI_FLASH } = await import("@/lib/v4Gemini");
+      const inlineBase64 = Buffer.from(prepared.bytes).toString("base64");
+      const summaryAi = await callGeminiWithRetry({
         system: summarySystem,
         user: summaryUser,
-        model: EDIT_MODEL,
-        maxTokens: 500,
-        attachments: [anthropicFileId],
+        model: GEMINI_FLASH,
+        maxTokens: 2000,
+        inlineFiles: [{ mimeType: prepared.mimeType, data: inlineBase64 }],
       });
       extractedSummary = summaryAi.text.trim().slice(0, 2000);
       void logAiCall({
@@ -224,7 +231,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         system_prompt: summarySystem,
         user_prompt: summaryUser,
         model: summaryAi.model,
-        max_tokens: 500,
+        max_tokens: 2000,
         response_text: summaryAi.text,
         tokens_in: summaryAi.inputTokens,
         tokens_out: summaryAi.outputTokens,
