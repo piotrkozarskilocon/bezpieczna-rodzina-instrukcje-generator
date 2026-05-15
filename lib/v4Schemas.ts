@@ -172,7 +172,9 @@ export const SarReportSchema = z.object({
   ),
   frequencies_tested: z.array(z.object({
     band: z.string(),
-    range_mhz: z.tuple([z.number(), z.number()]),
+    // Gemini API nie obsluguje tuple (prefixItems / heterogenous items).
+    // Uniform array of two numbers [min_mhz, max_mhz] zamiast tuple.
+    range_mhz: z.array(z.number()).length(2).describe("[min_mhz, max_mhz]"),
   })).optional().describe("Pasma testowane w raporcie"),
   applied_standards: z.array(z.string()).optional().describe(
     "Normy do ktorych raport sie odnosi np. 'EN 62209-1', 'EN 62209-2', 'IEC 62209', 'FCC OET 65'",
