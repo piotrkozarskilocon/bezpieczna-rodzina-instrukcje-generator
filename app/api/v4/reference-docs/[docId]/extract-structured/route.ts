@@ -15,8 +15,15 @@ import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callGemini, GEMINI_FLASH } from "@/lib/v4Gemini";
-import { SarReportSchema, type SarReport } from "@/lib/v4Schemas";
+import {
+  SarReportSchema,
+  TechSpecSchema,
+  DeclarationCeSchema,
+  ManufacturerManualSchema,
+  GenericDocSchema,
+} from "@/lib/v4Schemas";
 import { logAiCall } from "@/lib/v4AiLog";
+import type { ZodSchema } from "zod";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -41,6 +48,92 @@ Twoja praca:
 6. Wartosci LICZBOWE — nie wymyslaj. Jezeli raport nie zawiera danej kategorii, pomin (zostaw null/undefined).
 
 Zwracaj WYLACZNIE strukturalny JSON wg schemy submit_sar_report. Bez prozy, bez fence.`;
+
+const TECH_SPEC_SYSTEM = `Jestes ekspertem analizujacym specyfikacje techniczne urzadzen elektronicznych — smartwatchy, trackerow, opasek. Czytasz dokument (PDF/XLSX/CSV) i wyciagasz parametry urzadzenia: bateria, IP rating, wymiary, waga, czestotliwosci radiowe, czujniki.
+
+Twoja praca:
+1. Identyfikuj model + producenta.
+2. Wartosci bezpieczne: bateria (mAh), IP rating, waga (g), wymiary (mm), temperatura pracy (C).
+3. Wszystkie obslugiwane pasma RF + zakresy MHz.
+4. Lista konektywnosci (4G/3G/2G/BT/Wi-Fi/GPS).
+5. Lista czujnikow.
+6. NIE wymyslaj wartosci. Brakujace pola pomin.
+
+Zwracaj WYLACZNIE strukturalny JSON wg schemy submit_tech_spec.`;
+
+const DECLARATION_SYSTEM = `Jestes ekspertem analizujacym deklaracje zgodnosci CE / RED / RoHS. Czytasz dokument deklaracji i wyciagasz: model, producent, dyrektywy, normy, sygnatariusza, jednostke notyfikowana, date.
+
+Wartosci LICZBOWE / TEKSTOWE doslownie — to dokument prawny. Brakujace pola pomin.
+
+Zwracaj WYLACZNIE strukturalny JSON wg schemy submit_declaration.`;
+
+const MANUAL_SYSTEM = `Jestes ekspertem analizujacym instrukcje obslugi (instrukcje producenta — czesto chinskie/angielskie). Czytasz pelen manual i wyciagasz: model, jezyk, rozdzialy/sekcje, kluczowe specyfikacje, procedury, ostrzezenia.
+
+NIE wymyslaj wartosci nieobecnych w dokumencie. Procedury opisuj krotko (1-2 zdania) — to bedzie zrodlo do generacji nowej QSG.
+
+Zwracaj WYLACZNIE strukturalny JSON wg schemy submit_manual_summary.`;
+
+const GENERIC_SYSTEM = `Jestes ekspertem analizujacym rozne dokumenty zwiazane z urzadzeniami elektronicznymi — raporty EMC, RoHS, REACH, RF tests, oceny ryzyka, certyfikaty bezpieczenstwa, zdjecia produktu, itp.
+
+Twoja praca:
+1. WYKRYJ typ dokumentu (np. 'EMC test report', 'RoHS report', 'RF blocking test', 'CE declaration', 'Risk assessment', 'Photos', 'User manual', 'SAR report', 'Other').
+2. Wyciagnij identyfikator (model, numer certyfikatu, laboratorium, data).
+3. Wymien zastosowane normy / dyrektywy.
+4. Wyciagnij key_values — najistotniejsze wartosci ktore moga byc cytowane w generowanej instrukcji (np. 'Maks moc TX' = '23 dBm', 'EUT temperature' = '23 C').
+5. Krotkie streszczenie 1-3 zdania.
+
+NIE wymyslaj wartosci. Pomin pola dla ktorych nie masz danych.
+
+Zwracaj WYLACZNIE strukturalny JSON wg schemy submit_generic_doc.`;
+
+interface SchemaConfig {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  schema: ZodSchema<any>;
+  system: string;
+  name: string;
+  description: string;
+}
+
+function pickSchemaForKind(kind: string | null): SchemaConfig {
+  switch (kind) {
+    case "sar_report":
+      return {
+        schema: SarReportSchema,
+        system: SAR_SYSTEM,
+        name: "submit_sar_report",
+        description: "Strukturalna ekstrakcja wartosci SAR + meta z raportu",
+      };
+    case "tech_spec":
+      return {
+        schema: TechSpecSchema,
+        system: TECH_SPEC_SYSTEM,
+        name: "submit_tech_spec",
+        description: "Strukturalna ekstrakcja specyfikacji technicznej urzadzenia",
+      };
+    case "declaration_ce":
+      return {
+        schema: DeclarationCeSchema,
+        system: DECLARATION_SYSTEM,
+        name: "submit_declaration",
+        description: "Strukturalna ekstrakcja deklaracji zgodnosci CE / RED / RoHS",
+      };
+    case "manufacturer_manual":
+      return {
+        schema: ManufacturerManualSchema,
+        system: MANUAL_SYSTEM,
+        name: "submit_manual_summary",
+        description: "Strukturalne streszczenie instrukcji obslugi producenta",
+      };
+    default:
+      // 'other' albo null/undefined — auto-detect typ + wyciagnij key_values.
+      return {
+        schema: GenericDocSchema,
+        system: GENERIC_SYSTEM,
+        name: "submit_generic_doc",
+        description: "Adaptive ekstrakcja dla dokumentow nietypowych — auto-detect typ + key values",
+      };
+  }
+}
 
 export async function POST(request: NextRequest, ctx: RouteContext) {
   const auth = await authenticate(request);
@@ -99,24 +192,28 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  const cfg = pickSchemaForKind(doc.kind);
+
   const userPrompt = `Plik referencyjny: ${doc.name}
-Typ: ${doc.kind ?? "(nieznany)"}
+Typ (wybrany przez uzytkownika): ${doc.kind ?? "(brak / inne)"}
 Mime: ${mimeType}
 
-Wyciagnij strukturalne wartosci SAR + meta z zalaczonego raportu. Jezeli to nie raport SAR a innego typu dokument (np. specyfikacja techniczna bez pomiarow) — zwroc minimalny obiekt z device_model + notes opisujace co to za dokument.`;
+Wyciagnij strukturalne wartosci z zalaczonego dokumentu wg schemy ${cfg.name}.
+Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jako sar_report ale to manual) — wypelnij co potrafisz, a w polu 'notes' opisz krotko realny typ dokumentu.`;
 
   const startedAt = Date.now();
-  let ai;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let ai: any;
   try {
-    ai = await callGemini<SarReport>({
-      system: SAR_SYSTEM,
+    ai = await callGemini({
+      system: cfg.system,
       user: userPrompt,
       model: GEMINI_FLASH,
       maxTokens: 4000,
       outputSchema: {
-        name: "submit_sar_report",
-        description: "Strukturalna ekstrakcja wartosci SAR + meta z raportu",
-        schema: SarReportSchema,
+        name: cfg.name,
+        description: cfg.description,
+        schema: cfg.schema,
       },
       inlineFiles: [{ mimeType, data: base64 }],
     });
@@ -127,7 +224,7 @@ Wyciagnij strukturalne wartosci SAR + meta z zalaczonego raportu. Jezeli to nie 
       endpoint: "reference-docs/extract-structured",
       context_type: "project",
       user_instruction: `extract structured from ${doc.name}`,
-      system_prompt: SAR_SYSTEM,
+      system_prompt: cfg.system,
       user_prompt: userPrompt,
       model: GEMINI_FLASH,
       max_tokens: 4000,

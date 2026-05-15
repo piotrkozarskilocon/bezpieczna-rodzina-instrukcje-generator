@@ -185,6 +185,107 @@ export const SarReportSchema = z.object({
 export type SarReport = z.infer<typeof SarReportSchema>;
 
 // ─────────────────────────────────────────────────────────────────────────
+// Extract-structured per `doc.kind`. Kazdy reference_doc moze byc innego
+// typu (tech spec, deklaracja CE, instrukcja, raport SAR, EMC, RoHS, ...) —
+// AI dostaje schemę dopasowana do typu i wyciaga odpowiednie wartosci.
+// GenericDocSchema sluzy jako fallback dla kind='other' lub null.
+// ─────────────────────────────────────────────────────────────────────────
+
+export const TechSpecSchema = z.object({
+  device_model: z.string().describe("Model urzadzenia"),
+  manufacturer: z.string().optional(),
+  battery_mah: z.number().optional().describe("Pojemnosc baterii w mAh"),
+  battery_v: z.number().optional().describe("Napiecie baterii w V"),
+  ip_rating: z.string().optional().describe("Stopien ochrony np. 'IP67', 'IP68'"),
+  weight_g: z.number().optional().describe("Waga w gramach"),
+  dimensions_mm: z.object({
+    w: z.number().describe("Szerokosc mm"),
+    h: z.number().describe("Wysokosc mm"),
+    d: z.number().describe("Glebokosc mm"),
+  }).optional().describe("Wymiary urzadzenia"),
+  display: z.object({
+    size_inch: z.number().optional(),
+    resolution: z.string().optional().describe("np. '240x240'"),
+    type: z.string().optional().describe("np. 'TFT', 'AMOLED'"),
+  }).optional(),
+  operating_temp_c: z.object({
+    min: z.number(),
+    max: z.number(),
+  }).optional().describe("Temperatura pracy w stopniach C"),
+  frequencies: z.array(z.object({
+    band: z.string(),
+    range_mhz: z.array(z.number()).length(2),
+  })).optional(),
+  connectivity: z.array(z.string()).optional().describe("np. ['4G LTE', 'Bluetooth 5.0', 'Wi-Fi 2.4GHz', 'GPS']"),
+  sensors: z.array(z.string()).optional().describe("np. ['akcelerometr', 'puls', 'SpO2']"),
+  notes: z.string().optional(),
+});
+export type TechSpec = z.infer<typeof TechSpecSchema>;
+
+export const DeclarationCeSchema = z.object({
+  device_model: z.string().describe("Model urzadzenia z deklaracji"),
+  manufacturer_name: z.string().describe("Nazwa producenta"),
+  manufacturer_address: z.string().optional().describe("Adres producenta"),
+  declared_standards: z.array(z.string()).optional().describe(
+    "Normy do ktorych deklarujemy zgodnosc np. 'EN 301 489-1', 'EN 62368-1', 'EN 50566'",
+  ),
+  applied_directives: z.array(z.string()).optional().describe(
+    "Dyrektywy do ktorych deklarujemy np. 'RED 2014/53/EU', 'RoHS 2011/65/EU'",
+  ),
+  declaration_date: z.string().optional().describe("Data deklaracji YYYY-MM-DD"),
+  declaration_place: z.string().optional().describe("Miejsce wystawienia np. 'Warszawa'"),
+  signatory_name: z.string().optional().describe("Imie i nazwisko sygnatariusza"),
+  signatory_position: z.string().optional().describe("Stanowisko sygnatariusza"),
+  notified_body: z.string().optional().describe("Jednostka notyfikowana (gdy wymagana) np. 'CE 2630'"),
+  notes: z.string().optional(),
+});
+export type DeclarationCe = z.infer<typeof DeclarationCeSchema>;
+
+export const ManufacturerManualSchema = z.object({
+  device_model: z.string(),
+  manufacturer: z.string().optional(),
+  language: z.string().optional().describe("Jezyk dokumentu np. 'en', 'zh', 'pl'"),
+  sections_found: z.array(z.string()).optional().describe(
+    "Lista rozdzialow / tematow ktore manual pokrywa np. ['First setup', 'Charging', 'SIM card', 'SOS button', 'Warranty']",
+  ),
+  key_specs: z.array(z.object({
+    label: z.string().describe("np. 'Battery', 'IP rating', 'Frequencies'"),
+    value: z.string().describe("Surowa wartosc jak w manualu"),
+  })).optional().describe("Kluczowe specyfikacje wymienione w manualu"),
+  key_procedures: z.array(z.object({
+    title: z.string().describe("np. 'How to charge', 'How to insert SIM'"),
+    summary: z.string().describe("Krotki opis kroku 1-2 zdania"),
+  })).optional().describe("Procedury opisane w manualu — przydatne dla generacji QSG"),
+  warnings: z.array(z.string()).optional().describe("Ostrzezenia i przeciwwskazania z manualu"),
+  notes: z.string().optional(),
+});
+export type ManufacturerManual = z.infer<typeof ManufacturerManualSchema>;
+
+export const GenericDocSchema = z.object({
+  detected_doc_type: z.string().describe(
+    "Wykryty typ dokumentu — opis 1-2 slowa np. 'EMC test report', 'RoHS report', 'REACH compliance', 'RF test conditions', 'Risk assessment', 'Photos of device', 'User manual', 'SAR report', 'Technical specification', 'Other'",
+  ),
+  device_model: z.string().optional().describe("Model urzadzenia (jezeli wymieniony)"),
+  manufacturer: z.string().optional(),
+  certificate_number: z.string().optional().describe("Numer certyfikatu / raport ID jezeli istnieje"),
+  test_lab: z.string().optional().describe("Laboratorium / instytucja wystawiajaca"),
+  test_date: z.string().optional().describe("Data badania YYYY-MM-DD"),
+  applicable_standards: z.array(z.string()).optional().describe(
+    "Normy / dyrektywy ktorych dokument dotyczy",
+  ),
+  key_values: z.array(z.object({
+    label: z.string().describe("Czytelna nazwa pola np. 'Battery capacity', 'Operating frequency', 'Max output power'"),
+    value: z.string().describe("Surowa wartosc"),
+    unit: z.string().optional().describe("Jednostka np. 'mAh', 'MHz', 'dBm'"),
+  })).optional().describe(
+    "Lista najistotniejszych wartosci wyciagnietych z dokumentu — to co bedzie pozniej wstawione w treści instrukcji zamiast placeholderow",
+  ),
+  summary: z.string().describe("Krotkie streszczenie dokumentu, 1-3 zdania"),
+  notes: z.string().optional(),
+});
+export type GenericDoc = z.infer<typeof GenericDocSchema>;
+
+// ─────────────────────────────────────────────────────────────────────────
 // Skeleton strony — używane przy /projects/generate
 // ─────────────────────────────────────────────────────────────────────────
 
