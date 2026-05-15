@@ -57,12 +57,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const sb = getSupabaseAdmin();
 
   // Auth check + pobierz metadata pliku
-  const { data: doc } = await sb
+  const { data: doc, error: selErr } = await sb
     .from("gen4_reference_docs")
-    .select("id, project_id, kind, name, path, mime_type, anthropic_file_id")
+    .select("id, project_id, kind, name, file_path, mime_type, anthropic_file_id")
     .eq("id", docId)
     .single();
-  if (!doc) return NextResponse.json({ error: "doc not found" }, { status: 404 });
+  if (!doc) {
+    return NextResponse.json(
+      { error: `doc not found (id=${docId}): ${selErr?.message ?? "no row"}` },
+      { status: 404 },
+    );
+  }
 
   const { data: project } = await sb
     .from("gen4_projects")
@@ -76,7 +81,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   // Sciagamy PDF/text bytes z Supabase Storage. Mamy juz file w Storage od
   // czasu uploadu (rowniez gdy Anthropic Files sync zostal zrobiony — Storage
   // jest source of truth).
-  const { data: download, error: dlErr } = await sb.storage.from(BUCKET).download(doc.path);
+  const { data: download, error: dlErr } = await sb.storage.from(BUCKET).download(doc.file_path);
   if (dlErr || !download) {
     return NextResponse.json({ error: `download failed: ${dlErr?.message ?? "unknown"}` }, { status: 500 });
   }
