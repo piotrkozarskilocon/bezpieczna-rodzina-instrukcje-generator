@@ -158,10 +158,11 @@ export default function AiNewProjectPage(): React.ReactElement {
       // Wgraj pliki referencyjne (jeśli były) ZANIM ruszymy populate —
       // dzięki temu AI w generowaniu treści ma do nich dostęp. Direct upload
       // przez signed URL (omija Vercel 4.5 MB cap dla dużych SAR/spec PDF-ów).
+      const uploadedDocIds: string[] = [];
       if (refFiles.length > 0) {
         for (let i = 0; i < refFiles.length; i++) {
           const { file, kind, lang } = refFiles[i];
-          setStage(`Wgrywam i synchronizuję plik referencyjny ${i + 1}/${refFiles.length}: ${file.name}...`);
+          setStage(`Wgrywam plik ${i + 1}/${refFiles.length}: ${file.name}...`);
           try {
             // 1. Signed URL
             const initRes = await fetch(`${API_BASE}/projects/${json.id}/reference-docs/upload-url/`, {
@@ -178,7 +179,7 @@ export default function AiNewProjectPage(): React.ReactElement {
               body: file,
             });
             // 3. Finalize (metadata + Anthropic sync)
-            await fetch(`${API_BASE}/projects/${json.id}/reference-docs/`, {
+            const finalRes = await fetch(`${API_BASE}/projects/${json.id}/reference-docs/`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({
@@ -190,8 +191,100 @@ export default function AiNewProjectPage(): React.ReactElement {
                 mime_type: file.type,
               }),
             });
+            if (finalRes.ok) {
+              const fj = (await finalRes.json()) as { doc?: { id?: string } };
+              if (fj.doc?.id) uploadedDocIds.push(fj.doc.id);
+            }
           } catch {
             /* ignoruj — user może doupload-ować w panelu projektu */
+          }
+        }
+
+        // PO UPLOAD — auto-categorize wszystkich plików z kind='other'.
+        // AI rozpoznaje typ kazdego pliku z 1-10 stron PDF (Gemini Flash) i wpisuje
+        // kind w DB. Bezpieczne — pomija user-set kindy.
+        const otherDocsCount = refFiles.filter((rf) => rf.kind === "other").length;
+        if (otherDocsCount > 0) {
+          setStage(`AI rozpoznaje typy ${otherDocsCount} plików...`);
+          try {
+            const catRes = await fetch(`${API_BASE}/projects/${json.id}/categorize-all`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+            });
+            if (catRes.ok && catRes.body) {
+              const reader = catRes.body.getReader();
+              const decoder = new TextDecoder();
+              let cBuf = "";
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                cBuf += decoder.decode(value, { stream: true });
+                const parts = cBuf.split("\n\n");
+                cBuf = parts.pop() ?? "";
+                for (const p of parts) {
+                  const dataMatch = p.match(/data:\s*(.+)/);
+                  if (dataMatch) {
+                    try {
+                      const data = JSON.parse(dataMatch[1]) as Record<string, unknown>;
+                      if (data.status === "done" && data.kind && data.doc_name) {
+                        setStage(`Rozpoznano: ${data.doc_name} → ${data.kind}`);
+                      }
+                    } catch { /* skip */ }
+                  }
+                }
+              }
+            }
+          } catch { /* zignoruj */ }
+        }
+
+        // Pobierz fresh refDocs z DB zeby miec aktualne kindy (po categorize).
+        setStage("Pobieram świeże metadane plików...");
+        let freshDocs: Array<{ id: string; kind: string; name: string }> = [];
+        try {
+          const refRes = await fetch(`${API_BASE}/projects/${json.id}/reference-docs/`, { cache: "no-store" });
+          if (refRes.ok) {
+            const fj = (await refRes.json()) as { docs?: Array<{ id: string; kind: string; name: string }> };
+            freshDocs = fj.docs ?? [];
+          }
+        } catch { /* fallback */ }
+
+        // Auto-extract structured dla SAR/Spec/Decl/Manual — Gemini Pro wycouga
+        // konkretne wartosci (SAR head/body W/kg, IP rating, czestotliwosci, etc.).
+        // 80% automation booster — AI w generacji ma gotowe liczby zamiast placeholderow.
+        const extractableKinds = new Set(["sar_report", "tech_spec", "declaration_ce", "manufacturer_manual"]);
+        const extractableDocs = freshDocs.filter((d) => extractableKinds.has(d.kind));
+        for (let i = 0; i < extractableDocs.length; i++) {
+          const d = extractableDocs[i];
+          setStage(`Wyciągam wartości z pliku ${i + 1}/${extractableDocs.length}: ${d.name}...`);
+          try {
+            const r = await fetch(`${API_BASE}/reference-docs/${d.id}/extract-structured`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({}),
+            });
+            if (r.ok && r.body) {
+              // Endpoint to SSE — czytamy aż 'done' lub 'error'
+              const reader = r.body.getReader();
+              const decoder = new TextDecoder();
+              let buf = "";
+              while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+                buf += decoder.decode(value, { stream: true });
+                const parts = buf.split("\n\n");
+                buf = parts.pop() ?? "";
+                for (const p of parts) {
+                  const m = p.match(/^event:\s*(\w+)/);
+                  if (m && (m[1] === "done" || m[1] === "error")) {
+                    // skończone, idź dalej
+                    await reader.cancel().catch(() => { /* ignore */ });
+                    break;
+                  }
+                }
+              }
+            }
+          } catch {
+            /* zignoruj, user może wymusić extract później */
           }
         }
       }
@@ -467,24 +560,12 @@ export default function AiNewProjectPage(): React.ReactElement {
               ))}
             </ul>
           )}
-          <label className="inline-flex cursor-pointer items-center gap-1 rounded-md border border-dashed border-slate-300 bg-white px-3 py-1.5 text-xs text-slate-700 hover:border-purple-400 hover:bg-purple-50">
-            <span>+ Dodaj plik (PDF / DOCX / XLSX / TXT / MD / CSV / JSON)</span>
-            <input
-              type="file"
-              accept=".pdf,.txt,.md,.csv,.json,.docx,.xlsx,application/pdf,text/plain,text/markdown,text/csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
-              multiple
-              className="hidden"
-              onChange={(e) => {
-                const files = Array.from(e.target.files ?? []);
-                setRefFiles((prev) => [
-                  ...prev,
-                  ...files.map((f) => ({ file: f, kind: "tech_spec", lang: "pl" })),
-                ]);
-                // reset input value żeby można było wgrać ten sam plik ponownie
-                e.target.value = "";
-              }}
-            />
-          </label>
+          <DragDropArea onFiles={(files) => {
+            setRefFiles((prev) => [
+              ...prev,
+              ...files.map((f) => ({ file: f, kind: "other", lang: "pl" })),
+            ]);
+          }} />
         </div>
 
         {stage && (
@@ -532,5 +613,48 @@ export default function AiNewProjectPage(): React.ReactElement {
             : "Sprawdzanie trybu pracy..."}
       </p>
     </div>
+  );
+}
+
+/** Drag&drop area + file picker — wgraj wiele plików hurtem. */
+function DragDropArea({ onFiles }: { onFiles: (files: File[]) => void }): React.ReactElement {
+  const [hovering, setHovering] = useState(false);
+  return (
+    <label
+      onDragOver={(e) => { e.preventDefault(); setHovering(true); }}
+      onDragLeave={() => setHovering(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setHovering(false);
+        const files = Array.from(e.dataTransfer.files ?? []);
+        if (files.length > 0) onFiles(files);
+      }}
+      className={
+        "block cursor-pointer rounded-lg border-2 border-dashed px-4 py-6 text-center transition " +
+        (hovering ? "border-purple-500 bg-purple-100" : "border-slate-300 bg-white hover:border-purple-400 hover:bg-purple-50")
+      }
+    >
+      <div className="text-3xl">📂</div>
+      <div className="mt-2 text-sm font-medium text-slate-700">
+        Przeciągnij pliki tutaj lub <span className="text-purple-700 underline">kliknij aby wybrać</span>
+      </div>
+      <div className="mt-1 text-[11px] text-slate-500">
+        PDF / DOCX / XLSX / TXT / MD / CSV / JSON · multiple · max 25 MB/plik
+      </div>
+      <div className="mt-1 text-[10px] text-emerald-700">
+        ✨ Po wgraniu AI automatycznie rozpozna typ kazdego pliku
+      </div>
+      <input
+        type="file"
+        accept=".pdf,.txt,.md,.csv,.json,.docx,.xlsx,application/pdf,text/plain,text/markdown,text/csv,application/json,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        multiple
+        className="hidden"
+        onChange={(e) => {
+          const files = Array.from(e.target.files ?? []);
+          if (files.length > 0) onFiles(files);
+          e.target.value = "";
+        }}
+      />
+    </label>
   );
 }
