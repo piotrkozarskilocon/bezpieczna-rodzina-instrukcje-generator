@@ -52,8 +52,11 @@ export async function countPdfPages(buf: Buffer): Promise<number> {
   } catch {
     // pdf-parse v1.1.1 — legacy pdf.js, Node-compatible (nie wymaga DOMMatrix
     // ktore by jest brak w Node, jak w pdf-parse v2/pdfjs-dist v4+).
+    // BUG: top-level import probuje otworzyc './test/data/05-versions-space.pdf'
+    // jako debug. Importujemy bezposrednio lib/pdf-parse.js zeby pominac debug.
+    // @ts-expect-error - no types for direct lib/ import path
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const pdfParseMod: any = await import("pdf-parse");
+    const pdfParseMod: any = await import("pdf-parse/lib/pdf-parse.js");
     const pdfParse: (b: Buffer) => Promise<{ numpages: number; text: string }> =
       pdfParseMod.default ?? pdfParseMod;
     const parsed = await pdfParse(buf);
@@ -63,8 +66,9 @@ export async function countPdfPages(buf: Buffer): Promise<number> {
 
 /** Wyciaga tekst z PDF (fallback gdy chunkPdf nie zadziala). */
 export async function extractPdfText(buf: Buffer): Promise<{ numpages: number; text: string }> {
+  // @ts-expect-error - no types for direct lib/ import path
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const pdfParseMod: any = await import("pdf-parse");
+  const pdfParseMod: any = await import("pdf-parse/lib/pdf-parse.js");
   const pdfParse: (b: Buffer) => Promise<{ numpages: number; text: string }> =
     pdfParseMod.default ?? pdfParseMod;
   return pdfParse(buf);
