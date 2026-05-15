@@ -260,6 +260,80 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
     }
   };
 
+  const [bulkProgress, setBulkProgress] = useState<{ current: number; total: number; doc_name: string } | null>(null);
+  const [bulkResult, setBulkResult] = useState<{ ok: number; err: number } | null>(null);
+
+  /** Bulk re-summary dla WSZYSTKICH plikow projektu — uzywa SSE stream
+   *  z progress updates. */
+  const resummarizeAll = async () => {
+    if (!confirm(`Ponownie wygenerowac streszczenia dla wszystkich ${docs.length} plikow? Moze zajac kilka minut.`)) return;
+    setBulkProgress({ current: 0, total: docs.length, doc_name: "..." });
+    setBulkResult(null);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/resummarize-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok || !res.body) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let okCount = 0;
+      let errCount = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr += line.slice(6);
+          }
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr) as Record<string, unknown>;
+            if (eventName === "progress") {
+              setBulkProgress({
+                current: (data.current as number) ?? 0,
+                total: (data.total as number) ?? docs.length,
+                doc_name: (data.doc_name as string) ?? "...",
+              });
+              if (data.status === "done" && data.summary) {
+                const docName = data.doc_name as string;
+                const summary = data.summary as string;
+                setDocs((prev) =>
+                  prev.map((d) =>
+                    d.name === docName ? { ...d, extracted_summary: summary } : d,
+                  ),
+                );
+              }
+            } else if (eventName === "done") {
+              okCount = (data.ok as number) ?? 0;
+              errCount = (data.err as number) ?? 0;
+              setBulkResult({ ok: okCount, err: errCount });
+              // Wczytaj swieze docs z DB zeby mieć pelne summaries
+              void refresh();
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "bulk resummarize failed");
+    } finally {
+      setBulkProgress(null);
+    }
+  };
+
   const remove = async (id: string) => {
     if (!confirm("Usunąć plik referencyjny? AI nie będzie z niego korzystał w kolejnych generacjach.")) return;
     try {
@@ -283,7 +357,25 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
             i wstawia wartości w generowanej instrukcji zamiast placeholderów <em>DO UZUPEŁNIENIA</em>.
           </p>
         </div>
+        {docs.length > 0 && (
+          <button
+            type="button"
+            onClick={() => void resummarizeAll()}
+            disabled={!!bulkProgress}
+            className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
+            title="Ponownie wygeneruj streszczenia dla wszystkich plikow (uzyteczne dla starych projektow)"
+          >
+            {bulkProgress
+              ? `📝 ${bulkProgress.current}/${bulkProgress.total}: ${bulkProgress.doc_name.slice(0, 25)}...`
+              : "📝 Re-summary all"}
+          </button>
+        )}
       </div>
+      {bulkResult && (
+        <div className={`mb-2 rounded border px-2 py-1 text-[11px] ${bulkResult.err > 0 ? "border-amber-400 bg-amber-50 text-amber-800" : "border-green-400 bg-green-50 text-green-800"}`}>
+          ✅ Bulk re-summary: {bulkResult.ok} OK, {bulkResult.err} blędow.
+        </div>
+      )}
 
       {error && (
         <div className="mb-3 rounded-md bg-red-50 px-3 py-2 text-xs text-red-800">
