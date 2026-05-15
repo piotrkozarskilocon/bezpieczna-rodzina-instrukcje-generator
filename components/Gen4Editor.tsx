@@ -140,6 +140,7 @@ export default function Gen4Editor({
     };
     issues: { text_placeholders: number; image_missing_id: number; total: number };
     completeness: { summaries_pct: number; structured_pct: number; images_assigned_pct: number; placeholders_filled_pct: number };
+    cost?: { total_in_tokens: number; total_out_tokens: number; ai_calls_count: number; est_cost_usd_max: number };
   }
   const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
   useEffect(() => {
@@ -2165,6 +2166,11 @@ export default function Gen4Editor({
               ) : (
                 <span className="rounded bg-green-100 px-1.5 py-0.5 font-semibold text-green-900">
                   ✓ Wszystkie wartości wypełnione
+                </span>
+              )}
+              {projectStatus.cost && projectStatus.cost.ai_calls_count > 0 && (
+                <span className="ml-auto text-slate-500" title={`${projectStatus.cost.total_in_tokens.toLocaleString()} in / ${projectStatus.cost.total_out_tokens.toLocaleString()} out · ${projectStatus.cost.ai_calls_count} AI calls`}>
+                  💰 ~${projectStatus.cost.est_cost_usd_max.toFixed(2)}
                 </span>
               )}
             </div>

@@ -32,6 +32,21 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
+  // Agregat kosztow z gen4_ai_calls — sum tokens_in/out, count calls per endpoint
+  const { data: aiCalls } = await sb
+    .from("gen4_ai_calls")
+    .select("model, tokens_in, tokens_out, endpoint")
+    .eq("project_id", projectId);
+  let totalInTokens = 0;
+  let totalOutTokens = 0;
+  for (const c of aiCalls ?? []) {
+    totalInTokens += c.tokens_in ?? 0;
+    totalOutTokens += c.tokens_out ?? 0;
+  }
+  // Estymacja kosztu: Claude Haiku 4.5 $0.80/1M in, $4/1M out. Gemini Flash $0.10/$0.40.
+  // Mieszane wywolania — uzywamy konserwatywnej sredniej (Haiku ceny).
+  const estCostUsd = (totalInTokens * 0.80 / 1_000_000) + (totalOutTokens * 4.0 / 1_000_000);
+
   const [pagesRes, elementsRes, imagesRes, docsRes] = await Promise.all([
     sb.from("gen4_pages").select("id, template").eq("project_id", projectId),
     sb.from("gen4_elements").select("type, properties, page_id").in(
@@ -88,6 +103,12 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
       text_placeholders: placeholders,
       image_missing_id: imageMissingId,
       total: placeholders + imageMissingId,
+    },
+    cost: {
+      total_in_tokens: totalInTokens,
+      total_out_tokens: totalOutTokens,
+      ai_calls_count: aiCalls?.length ?? 0,
+      est_cost_usd_max: Math.round(estCostUsd * 100) / 100, // konserwatywne (Haiku ceny)
     },
     completeness: {
       // % to "production ready" feel
