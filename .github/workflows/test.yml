@@ -30,7 +30,12 @@ jobs:
           cache: "npm"
 
       - name: Install deps
-        run: npm ci
+        # `npm install` zamiast `npm ci` bo dev odbywa sie na Windows a CI to
+        # Linux. Sharp + inne native modules instaluja optional bindings per
+        # platform → lockfile generowany na Windows NIE MA entries Linux-only
+        # (@emnapi/core, @emnapi/runtime). `npm ci` na Linux wtedy: "Missing
+        # from lock file". `npm install` toleruje brak i dociaga.
+        run: npm install --no-audit --no-fund
 
       - name: TypeScript check
         run: npm run typecheck
