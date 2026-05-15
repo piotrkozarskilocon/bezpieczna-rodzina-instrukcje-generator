@@ -125,6 +125,9 @@ export default function Gen4Editor({
   const [autofillBusy, setAutofillBusy] = useState(false);
   const [fixAllBusy, setFixAllBusy] = useState(false);
   const [fixAllProgress, setFixAllProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
+  const [batchEditInstr, setBatchEditInstr] = useState("");
+  const [batchEditBusy, setBatchEditBusy] = useState(false);
+  const [batchEditProgress, setBatchEditProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
   // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
   const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
@@ -551,6 +554,84 @@ export default function Gen4Editor({
       alert(`Regeneracja TOC failed: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
       setTocBusy(false);
+    }
+  };
+
+  /** AI batch edit — user wpisuje instrukcje, AI per strona stosuje przez ai-edit. */
+  const batchEditAll = async () => {
+    if (batchEditBusy || !batchEditInstr.trim()) return;
+    if (!confirm(`Zastosować instrukcję "${batchEditInstr.trim().slice(0, 80)}" do wszystkich stron projektu?`)) return;
+    setBatchEditBusy(true);
+    setBatchEditProgress({ current: 0, total: 0, title: null });
+    let fromOffset = 0;
+    let totalOk = 0;
+    let totalErr = 0;
+    try {
+      while (true) {
+        const res = await fetch(`${API}/projects/${projectId}/ai-batch-edit?from=${fromOffset}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ instruction: batchEditInstr.trim() }),
+        });
+        if (!res.ok || !res.body) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error ?? `HTTP ${res.status}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let nextOffset: number | null = null;
+        let hasMore = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() ?? "";
+          for (const evt of events) {
+            const lines = evt.split("\n");
+            let eventName = "message";
+            let dataStr = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+              else if (line.startsWith("data: ")) dataStr += line.slice(6);
+            }
+            if (!dataStr) continue;
+            try {
+              const data = JSON.parse(dataStr) as Record<string, unknown>;
+              if (eventName === "progress") {
+                if (data.status === "done") totalOk++;
+                else if (data.status === "error") totalErr++;
+                setBatchEditProgress({
+                  current: (data.current as number) ?? 0,
+                  total: (data.total as number) ?? 0,
+                  title: (data.title as string | null) ?? null,
+                });
+              } else if (eventName === "done") {
+                nextOffset = (data.next_offset as number | null) ?? null;
+                hasMore = !!data.has_more;
+              }
+            } catch { /* skip */ }
+          }
+        }
+        if (!hasMore || nextOffset === null) break;
+        fromOffset = nextOffset;
+      }
+      alert(`AI batch edit zakonczony: ${totalOk} OK, ${totalErr} błędów.`);
+      setBatchEditInstr("");
+      if (currentPageId) {
+        const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+    } catch (err) {
+      alert(`Batch edit failed: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setBatchEditBusy(false);
+      setBatchEditProgress(null);
     }
   };
 
@@ -1572,6 +1653,37 @@ export default function Gen4Editor({
                   ))}
                 </select>
               )}
+            </div>
+          </div>
+
+          {/* AI command bar — user pisze co AI ma zrobic, batch edit propaguje na strony */}
+          <div className="border-t border-slate-100 bg-indigo-50/40 px-3 py-1.5">
+            <div className="flex items-center gap-2">
+              <span className="text-[10px] font-semibold uppercase tracking-wide text-indigo-700">💬 AI command</span>
+              <input
+                type="text"
+                value={batchEditInstr}
+                onChange={(e) => setBatchEditInstr(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && batchEditInstr.trim() && !batchEditBusy) {
+                    void batchEditAll();
+                  }
+                }}
+                placeholder="np. 'Tłumacz wszystkie ostrzeżenia na BG', 'Skróć każdą stronę o 20%', 'Zmień kolor nagłówków na granatowy'…"
+                className="flex-1 rounded border border-indigo-200 bg-white px-2 py-0.5 text-xs focus:border-indigo-500 focus:outline-none"
+                disabled={batchEditBusy}
+              />
+              <button
+                type="button"
+                disabled={batchEditBusy || !batchEditInstr.trim() || pages.length < 1}
+                onClick={() => void batchEditAll()}
+                className="rounded bg-indigo-700 px-3 py-0.5 text-[11px] font-semibold text-white hover:bg-indigo-800 disabled:opacity-40 whitespace-nowrap"
+                title="AI zastosuje instrukcję per strona przez ai-edit (oszczędza klikania)"
+              >
+                {batchEditBusy && batchEditProgress
+                  ? `⚙️ ${batchEditProgress.current}/${batchEditProgress.total}`
+                  : "▶ Wykonaj"}
+              </button>
             </div>
           </div>
 
