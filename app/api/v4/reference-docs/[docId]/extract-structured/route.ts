@@ -14,7 +14,7 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callGemini, GEMINI_FLASH } from "@/lib/v4Gemini";
+import { callGeminiWithRetry, GEMINI_FLASH } from "@/lib/v4Gemini";
 import {
   SarReportSchema,
   TechSpecSchema,
@@ -238,7 +238,7 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
       }, 10000);
 
       try {
-        const ai = await callGemini({
+        const ai = await callGeminiWithRetry({
           system: cfg.system,
           user: userPrompt,
           model: GEMINI_FLASH,
@@ -249,6 +249,11 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
             schema: cfg.schema,
           },
           inlineFiles: [{ mimeType, data: base64 }],
+        }, {
+          onProgress: (info) => {
+            // Emituj do SSE zeby user widzial w UI ze trwa retry / fallback.
+            try { send(info.type, info); } catch { /* stream closed */ }
+          },
         });
 
         clearInterval(heartbeat);

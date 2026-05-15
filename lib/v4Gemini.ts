@@ -166,3 +166,89 @@ export async function callGemini<T = unknown>(opts: CallGeminiOpts<T>): Promise<
     latencyMs: Date.now() - start,
   };
 }
+
+/** Czy blad od Gemini API jest retryable (przejsciowy). 503 (high demand),
+ *  429 (rate limit), 504 (timeout), network errors — TAK. 400 (bad request),
+ *  401/403 (auth), schema errors — NIE. */
+function isRetryableGeminiError(err: unknown): boolean {
+  const msg = err instanceof Error ? err.message : String(err);
+  // Google SDK formatuje jako "[NNN Status]" w treści
+  if (/\[503\b/.test(msg)) return true;
+  if (/\[429\b/.test(msg)) return true;
+  if (/\[504\b/.test(msg)) return true;
+  if (/\bhigh demand\b/i.test(msg)) return true;
+  if (/\boverloaded\b/i.test(msg)) return true;
+  if (/network|fetch failed|ECONNRESET|ETIMEDOUT/i.test(msg)) return true;
+  return false;
+}
+
+export interface RetryProgress {
+  type: "retry" | "fallback";
+  attempt: number;
+  total_attempts: number;
+  model: string;
+  error: string;
+  wait_ms: number;
+}
+
+/** Domyslny chain modeli: szybkie i tanie najpierw, potem starsze ktore zwykle
+ *  maja mniejszy demand. Wszystkie maja native vision i structured output. */
+export const GEMINI_RETRY_CHAIN = [
+  GEMINI_FLASH,           // 2.5 flash (primary)
+  "gemini-2.0-flash",     // 2.0 flash (fallback gdy 2.5 przeciazone)
+  "gemini-flash-latest",  // alias do najnowszej Flash — w razie zmian Google
+] as const;
+
+/** Wrapper na callGemini z retry (exponential backoff) i model fallback.
+ *  Probuje: model[0] x retries → model[1] x retries → ... az zadziala albo
+ *  wszystko padnie. Niewazne ze np. final attempt to "ten sam model" co
+ *  primary — chodzi o tolerance na 503 spike.
+ *
+ *  onProgress jest opcjonalny — endpoint SSE moze emitowac event 'retry' zeby
+ *  user widzial w UI ze proba trwa. */
+export async function callGeminiWithRetry<T = unknown>(
+  opts: CallGeminiOpts<T>,
+  options?: {
+    models?: readonly string[];
+    retriesPerModel?: number;
+    baseBackoffMs?: number;
+    onProgress?: (info: RetryProgress) => void;
+  },
+): Promise<GeminiResponse<T>> {
+  const models = options?.models ?? GEMINI_RETRY_CHAIN;
+  const retriesPerModel = options?.retriesPerModel ?? 2;
+  const baseBackoff = options?.baseBackoffMs ?? 2000;
+  const totalAttempts = models.length * retriesPerModel;
+
+  let attemptIdx = 0;
+  let lastErr: unknown = null;
+  for (const model of models) {
+    for (let r = 0; r < retriesPerModel; r++) {
+      attemptIdx++;
+      try {
+        return await callGemini<T>({ ...opts, model });
+      } catch (err) {
+        lastErr = err;
+        const retryable = isRetryableGeminiError(err);
+        if (!retryable) throw err; // 400 / auth itp. — nie ma sensu probowac
+
+        const isLast = attemptIdx >= totalAttempts;
+        if (isLast) break;
+
+        // Backoff exp w obrebie jednego modelu, reset przy zmianie modelu.
+        const wait = baseBackoff * Math.pow(2, r);
+        options?.onProgress?.({
+          type: r === retriesPerModel - 1 ? "fallback" : "retry",
+          attempt: attemptIdx,
+          total_attempts: totalAttempts,
+          model,
+          error: err instanceof Error ? err.message.slice(0, 200) : String(err).slice(0, 200),
+          wait_ms: wait,
+        });
+        console.warn(`[gemini retry] model=${model} attempt=${r + 1}/${retriesPerModel} → wait ${wait}ms`);
+        await new Promise((res) => setTimeout(res, wait));
+      }
+    }
+  }
+  throw lastErr ?? new Error("callGeminiWithRetry: all attempts failed");
+}
