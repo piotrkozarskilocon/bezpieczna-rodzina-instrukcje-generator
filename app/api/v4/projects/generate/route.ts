@@ -155,7 +155,9 @@ export async function POST(request: NextRequest) {
     // Pliki referencyjne projektu (uploaded podczas wizardu lub wcześniej).
     const refDocs = await loadReferenceDocs(project.id);
     const refBlock = renderReferenceDocsForPrompt(refDocs);
-    const attachments = getAttachmentFileIds(refDocs);
+    // Anthropic 5MB request limit. Skeleton generation nie potrzebuje PDF bytes —
+    // refBlock zawiera juz summaries + structured z extracted_summary/extracted_structured.
+    const attachments: string[] = [];
 
     const baseSystem = buildSkeletonSystemPrompt({
       document_type: input.document_type,

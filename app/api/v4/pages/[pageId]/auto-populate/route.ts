@@ -223,7 +223,17 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const refBlock = renderReferenceDocsForPrompt(refDocs);
   const galleryImages = await loadProjectImagesForAi(page.project_id);
   const galleryBlock = renderImagesGalleryForPrompt(galleryImages);
-  const attachments = [...getAttachmentFileIds(refDocs), ...getImageAttachmentFileIds(galleryImages)];
+  // Anthropic API 'request too large' limit: cala suma base64 ~5MB max.
+  // 27 PDF + 7 obrazkow base64 = 100+ MB → 413. Strategia:
+  //   - PDF surowe bytes: NIE wysylamy (extracted_summary + extracted_structured
+  //     z refBlock daja tekstowe podsumowanie, AI nie musi czytac surowych bytes)
+  //   - Obrazki: tylko te z preferred_page_id == ta strona (AI musi widziec
+  //     bytes zeby wstawic odpowiedni image_id z poprawnym kontekstem)
+  const relevantImageFileIds = galleryImages
+    .filter((img) => img.preferred_page_id === page.id)
+    .map((img) => img.anthropic_file_id)
+    .filter((id): id is string => !!id);
+  const attachments = relevantImageFileIds;
 
   const finalSystem = [notesBlock, refBlock, galleryBlock, system].filter(Boolean).join("\n\n");
   const finalUser = userLines.join("\n");
