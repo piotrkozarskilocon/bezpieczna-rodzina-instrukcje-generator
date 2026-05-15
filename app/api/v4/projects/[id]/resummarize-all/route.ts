@@ -14,7 +14,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { callGeminiWithRetry, GEMINI_FLASH } from "@/lib/v4Gemini";
 import { logAiCall } from "@/lib/v4AiLog";
 import { prepareFileForAi } from "@/lib/v4FileExtract";
-import { countPdfPages, chunkPdf, MAX_PAGES_PER_CHUNK } from "@/lib/v4PdfChunk";
+import { countPdfPages, chunkPdf, extractPdfText, MAX_PAGES_PER_CHUNK } from "@/lib/v4PdfChunk";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -184,33 +184,61 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
               status: "chunking",
               pages: pageCount,
             });
-            const chunks = await chunkPdf(buf, MAX_PAGES_PER_CHUNK);
-            const partials: string[] = [];
-            for (let c = 0; c < chunks.length; c++) {
-              const chunk = chunks[c];
+            // Spróbuj chunkPdf (pdf-lib copyPages). Jeśli failuje (compressed
+            // xref streams którego pdf-lib nie obsługuje), fallback do
+            // extractPdfText i wyślij tekst do Gemini.
+            try {
+              const chunks = await chunkPdf(buf, MAX_PAGES_PER_CHUNK);
+              const partials: string[] = [];
+              for (let c = 0; c < chunks.length; c++) {
+                const chunk = chunks[c];
+                send("progress", {
+                  current: i + 1,
+                  total: allDocs.length,
+                  doc_name: doc.name,
+                  status: "chunk",
+                  chunk_index: c + 1,
+                  chunk_total: chunks.length,
+                  chunk_pages: `${chunk.startPage}-${chunk.endPage}`,
+                });
+                const chunkBase64 = chunk.bytes.toString("base64");
+                const chunkUser = `Streść zawartość załączonego fragmentu pliku ${kindLabel} (strony ${chunk.startPage}-${chunk.endPage} z ${pageCount}) w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`;
+                const chunkAi = await callGeminiWithRetry({
+                  system: sys,
+                  user: chunkUser,
+                  model: GEMINI_FLASH,
+                  maxTokens: 1000,
+                  inlineFiles: [{ mimeType: "application/pdf", data: chunkBase64 }],
+                });
+                partials.push(`Strony ${chunk.startPage}-${chunk.endPage}: ${chunkAi.text.trim()}`);
+                totalIn += chunkAi.inputTokens;
+                totalOut += chunkAi.outputTokens;
+              }
+              summary = partials.join("\n\n").slice(0, 2000);
+            } catch (chunkErr) {
+              // Fallback: pdf-parse extract text → wyślij tekst do Gemini (no inline file).
               send("progress", {
                 current: i + 1,
                 total: allDocs.length,
                 doc_name: doc.name,
-                status: "chunk",
-                chunk_index: c + 1,
-                chunk_total: chunks.length,
-                chunk_pages: `${chunk.startPage}-${chunk.endPage}`,
+                status: "text-fallback",
+                chunk_error: chunkErr instanceof Error ? chunkErr.message.slice(0, 200) : String(chunkErr),
               });
-              const chunkBase64 = chunk.bytes.toString("base64");
-              const chunkUser = `Streść zawartość załączonego fragmentu pliku ${kindLabel} (strony ${chunk.startPage}-${chunk.endPage} z ${pageCount}) w 1-3 zdaniach. Skup się na konkretnych wartościach które przydadzą się w generowaniu instrukcji obsługi modelu PL.`;
-              const chunkAi = await callGeminiWithRetry({
+              const extracted = await extractPdfText(buf);
+              // Tekst moze byc gigantyczny — tnij do ~500k char (~125k tokens) zeby
+              // Gemini Flash 1M context dał radę.
+              const trimmed = extracted.text.slice(0, 500_000);
+              const usr = `Plik ${kindLabel} (${pageCount} stron, wyekstrahowany tekst): ${trimmed}\n\nStreść powyższy tekst w 1-3 zdaniach. Skup się na konkretnych wartościach.`;
+              const ai = await callGeminiWithRetry({
                 system: sys,
-                user: chunkUser,
+                user: usr,
                 model: GEMINI_FLASH,
-                maxTokens: 1000,
-                inlineFiles: [{ mimeType: "application/pdf", data: chunkBase64 }],
+                maxTokens: 2000,
               });
-              partials.push(`Strony ${chunk.startPage}-${chunk.endPage}: ${chunkAi.text.trim()}`);
-              totalIn += chunkAi.inputTokens;
-              totalOut += chunkAi.outputTokens;
+              summary = ai.text.trim().slice(0, 2000);
+              totalIn = ai.inputTokens;
+              totalOut = ai.outputTokens;
             }
-            summary = partials.join("\n\n").slice(0, 2000);
           } else {
             if (buf.length > 20 * 1024 * 1024) {
               throw new Error(`za duzy plik (${(buf.length / 1024 / 1024).toFixed(1)}MB > 20MB)`);

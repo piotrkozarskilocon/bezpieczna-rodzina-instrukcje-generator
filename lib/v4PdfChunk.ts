@@ -43,22 +43,41 @@ export interface PdfChunk {
   bytes: Buffer;
 }
 
-/** Zwraca liczbe stron PDF bez pelnego ladowania (do decyzji czy chunkowac).
- *  Fallback: regex po '/Count NNN' w raw PDF gdy pdf-lib nie chce zaladowac. */
+/** Zwraca liczbe stron PDF. Najpierw pdf-lib (tolerant), jezeli failuje
+ *  fallback do pdf-parse (wraps pdf.js — robustny, obsluguje compressed streams). */
 export async function countPdfPages(buf: Buffer): Promise<number> {
   try {
     const pdf = await loadPdfTolerant(buf);
     return pdf.getPageCount();
   } catch {
-    // Heurystyka raw: szukaj '/Type /Pages\n/Count NNN' w pliku.
-    // PDF spec: gdy '/Type /Pages' to root Pages obiekt, '/Count' to liczba stron.
-    const text = buf.toString("latin1");
-    const matches = Array.from(text.matchAll(/\/Type\s*\/Pages[^]*?\/Count\s+(\d+)/g));
-    if (matches.length === 0) {
-      throw new Error("pdf-lib load failed, raw '/Count' tez nie znaleziono");
+    const { PDFParse } = await import("pdf-parse");
+    const parser = new PDFParse({ data: new Uint8Array(buf) });
+    try {
+      const info = await parser.getInfo();
+      // InfoResult ma 'numPages' lub 'numpages' — zalezne od wersji. Probe oba.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const n = (info as any).numPages ?? (info as any).numpages ?? 0;
+      return Number(n) || 0;
+    } finally {
+      await parser.destroy();
     }
-    // Bierzemy MAX z dopasowan — top-level Pages tree zwykle ma najwiekszy Count.
-    return Math.max(...matches.map((m) => parseInt(m[1], 10) || 0));
+  }
+}
+
+/** Wyciaga tekst z PDF (fallback gdy chunkPdf nie zadziala). */
+export async function extractPdfText(buf: Buffer): Promise<{ numpages: number; text: string }> {
+  const { PDFParse } = await import("pdf-parse");
+  const parser = new PDFParse({ data: new Uint8Array(buf) });
+  try {
+    const result = await parser.getText();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const r: any = result;
+    const pages = r.pages ?? [];
+    const text: string = r.text ?? pages.map((p: { text?: string }) => p.text ?? "").join("\n\n");
+    const numpages: number = r.numPages ?? r.numpages ?? pages.length ?? 0;
+    return { numpages, text };
+  } finally {
+    await parser.destroy();
   }
 }
 
