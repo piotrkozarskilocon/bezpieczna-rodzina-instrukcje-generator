@@ -242,7 +242,7 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
           system: cfg.system,
           user: userPrompt,
           model: GEMINI_FLASH,
-          maxTokens: 8000,
+          maxTokens: 16000,
           outputSchema: {
             name: cfg.name,
             description: cfg.description,
@@ -260,7 +260,12 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
 
         const structured = ai.parsed;
         if (!structured) {
-          send("error", { error: "Gemini did not return parsed structured output", raw: ai.text.slice(0, 500) });
+          send("error", {
+            error: "Gemini did not return parsed structured output (prawdopodobnie truncacja max_tokens lub niepoprawny JSON)",
+            raw: ai.text.slice(0, 2000),
+            output_tokens: ai.outputTokens,
+            text_length: ai.text.length,
+          });
           void logAiCall({
             project_id: doc.project_id,
             endpoint: "reference-docs/extract-structured",
@@ -269,7 +274,7 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
             system_prompt: cfg.system,
             user_prompt: userPrompt,
             model: ai.model,
-            max_tokens: 8000,
+            max_tokens: 16000,
             response_text: ai.text,
             tokens_in: ai.inputTokens,
             tokens_out: ai.outputTokens,
@@ -304,7 +309,7 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
           system_prompt: cfg.system,
           user_prompt: userPrompt,
           model: ai.model,
-          max_tokens: 8000,
+          max_tokens: 16000,
           response_text: ai.text,
           tokens_in: ai.inputTokens,
           tokens_out: ai.outputTokens,
@@ -332,7 +337,7 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
           system_prompt: cfg.system,
           user_prompt: userPrompt,
           model: GEMINI_FLASH,
-          max_tokens: 8000,
+          max_tokens: 16000,
           error: msg,
           duration_ms: Date.now() - startedAt,
           user_email: auth.email,

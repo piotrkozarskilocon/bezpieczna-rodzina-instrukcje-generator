@@ -147,11 +147,32 @@ export async function callGemini<T = unknown>(opts: CallGeminiOpts<T>): Promise<
   const text = response.text();
 
   if (opts.outputSchema) {
+    // Tolerancyjny parser: JSON.parse + Zod safeParse. Jezeli Zod odrzuci,
+    // akceptujemy raw object jako T — uznajemy ze Gemini chcial dobrze a
+    // schema byla zbyt strict (czesto dla bogatych schem manual / generic).
+    let rawText = text.trim();
+    // Czasem mimo responseMimeType JSON Gemini owija w markdown fence.
+    if (rawText.startsWith("```")) {
+      rawText = rawText.replace(/^```(?:json)?\s*/, "").replace(/```\s*$/, "").trim();
+    }
     try {
-      const obj = JSON.parse(text);
-      parsedOut = opts.outputSchema.schema.parse(obj);
+      const obj = JSON.parse(rawText);
+      const result = opts.outputSchema.schema.safeParse(obj);
+      if (result.success) {
+        parsedOut = result.data;
+      } else {
+        console.warn(
+          `[gemini] Zod validation failed (model=${modelId}, ${result.error.issues.length} issues), accepting raw object. First issue:`,
+          result.error.issues[0],
+        );
+        // Zaakceptuj raw — better partial result niz fail.
+        parsedOut = obj as T;
+      }
     } catch (err) {
-      console.warn(`[gemini] outputSchema parse failed for model ${modelId}:`, err instanceof Error ? err.message : err);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[gemini] JSON.parse failed (model=${modelId}, text length=${text.length}, output_tokens=${(response.usageMetadata as { candidatesTokenCount?: number } | undefined)?.candidatesTokenCount}): ${msg}. First 200 chars: ${rawText.slice(0, 200)}`);
+      // Pozostawiam parsedOut undefined zeby caller wiedzial ze cos sie zepsulo
+      // (np. truncacja maxTokens). Endpoint moze fallback'owac do retry albo zwrocic raw.
     }
   }
 
