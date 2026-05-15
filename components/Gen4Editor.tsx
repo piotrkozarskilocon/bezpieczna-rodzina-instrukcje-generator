@@ -1104,6 +1104,17 @@ export default function Gen4Editor({
             </div>
           )}
 
+          <PlaceholderPanel
+            projectId={projectId}
+            elementsCount={elements.length}
+            currentPageId={currentPageId}
+            onJump={async (item) => {
+              if (item.page_id !== currentPageId) {
+                setCurrentPageId(item.page_id);
+              }
+              setSelectedId(item.element_id);
+            }}
+          />
           <ul className="space-y-1">
             {pages.length === 0 && (
               <li className="rounded border border-dashed border-slate-300 p-3 text-center text-[11px] text-slate-500">
@@ -1594,6 +1605,18 @@ export default function Gen4Editor({
                         title="Duplikuj (Ctrl+D)"
                       >📑 Duplikuj</button>
                     </div>
+                    {(selectedElement.type === "text" || selectedElement.type === "callout") && (
+                      <AiQuickActions
+                        elementId={selectedElement.id}
+                        onApplied={async () => {
+                          const res = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+                          if (res.ok) {
+                            const j = (await res.json()) as { elements: ElementRow[] };
+                            setElements(j.elements ?? []);
+                          }
+                        }}
+                      />
+                    )}
                     <ElementProperties
                       element={selectedElement}
                       onUpdate={(patch) => void updateElement(selectedElement.id, patch)}
@@ -3745,6 +3768,166 @@ function ShortcutsModal({ onClose }: { onClose: () => void }): React.ReactElemen
             ℹ️ Skróty z modyfikatorem są wyłączone gdy fokus jest w polu edytowalnym (textarea/input).
           </p>
         </div>
+      </div>
+    </div>
+  );
+}
+
+interface PlaceholderItem {
+  page_id: string;
+  page_number: number;
+  page_title: string | null;
+  element_id: string;
+  element_type: string;
+  kind: "text_placeholder" | "image_missing" | "image_low_opacity";
+  label: string;
+  snippet: string;
+}
+
+/** Lista wszystkich '⚠️ DO UZUPELNIENIA' + brakujacych obrazkow w projekcie.
+ *  Pobierana z /api/v4/projects/[id]/placeholders. Klik na pozycje → przeniesie
+ *  do strony i zaznaczy konkretny element. */
+function PlaceholderPanel({
+  projectId,
+  elementsCount,
+  currentPageId,
+  onJump,
+}: {
+  projectId: string;
+  elementsCount: number;
+  currentPageId: string | null;
+  onJump: (item: PlaceholderItem) => Promise<void>;
+}): React.ReactElement {
+  const [items, setItems] = useState<PlaceholderItem[]>([]);
+  const [open, setOpen] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const refresh = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/placeholders`, { cache: "no-store" });
+      if (res.ok) {
+        const j = (await res.json()) as { items: PlaceholderItem[] };
+        setItems(j.items ?? []);
+      }
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  // Reload przy zmianie liczby elementow (proxy dla "cos sie zmienilo na stronie")
+  // albo zmianie aktualnej strony.
+  useEffect(() => {
+    const timer = setTimeout(() => void refresh(), 800);
+    return () => clearTimeout(timer);
+  }, [refresh, elementsCount, currentPageId]);
+
+  if (items.length === 0 && !loading) return <></>;
+
+  return (
+    <div className="mb-2 rounded-lg border border-amber-300 bg-amber-50">
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="flex w-full items-center justify-between px-2 py-1.5 text-left hover:bg-amber-100"
+      >
+        <span className="flex items-center gap-1.5 text-[11px] font-semibold text-amber-900">
+          ⚠️ Do uzupełnienia
+          {loading ? <span className="text-amber-600">…</span> : <span className="rounded bg-amber-300 px-1 text-amber-900">{items.length}</span>}
+        </span>
+        <span className="text-amber-700">{open ? "▾" : "▸"}</span>
+      </button>
+      {open && (
+        <ul className="max-h-64 overflow-auto border-t border-amber-300 p-1">
+          {items.map((item) => (
+            <li key={item.element_id}>
+              <button
+                type="button"
+                onClick={() => void onJump(item)}
+                className="block w-full rounded px-1.5 py-1 text-left hover:bg-amber-100"
+              >
+                <div className="flex items-baseline justify-between gap-1">
+                  <span className="text-[10px] font-semibold text-amber-900">
+                    #{item.page_number} {item.page_title ?? "(brak)"}
+                  </span>
+                  <span className="text-[9px] uppercase text-amber-600">
+                    {item.kind === "text_placeholder" ? "tekst" : item.kind === "image_missing" ? "obrazek" : "opacity"}
+                  </span>
+                </div>
+                <div className="truncate text-[10px] text-slate-700" title={item.snippet}>{item.label}</div>
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+/** Panel quick AI actions dla text/callout. Wywoluje /api/v4/elements/[id]/ai-quick. */
+function AiQuickActions({ elementId, onApplied }: { elementId: string; onApplied: () => Promise<void> }): React.ReactElement {
+  const [busy, setBusy] = useState<string | null>(null);
+  const [translateLang, setTranslateLang] = useState("en");
+
+  const run = async (action: string, target_lang?: string) => {
+    setBusy(action);
+    try {
+      const res = await fetch(`${API}/elements/${elementId}/ai-quick`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, target_lang }),
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; error?: string };
+      if (!res.ok || !j.ok) {
+        alert(`AI quick action failed: ${j.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+      await onApplied();
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <div className="mb-2 rounded border border-purple-200 bg-purple-50 p-2">
+      <div className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-purple-800">✨ AI quick actions</div>
+      <div className="flex flex-wrap gap-1">
+        <button type="button" disabled={!!busy} onClick={() => void run("shorten")}
+          className="rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
+          {busy === "shorten" ? "..." : "✂️ Skróć"}
+        </button>
+        <button type="button" disabled={!!busy} onClick={() => void run("expand")}
+          className="rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
+          {busy === "expand" ? "..." : "📏 Rozszerz"}
+        </button>
+        <button type="button" disabled={!!busy} onClick={() => void run("fix-grammar")}
+          className="rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
+          {busy === "fix-grammar" ? "..." : "✓ Gramatyka"}
+        </button>
+        <button type="button" disabled={!!busy} onClick={() => void run("improve")}
+          className="rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
+          {busy === "improve" ? "..." : "💎 Popraw styl"}
+        </button>
+        <button type="button" disabled={!!busy} onClick={() => void run("simplify")}
+          className="rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
+          {busy === "simplify" ? "..." : "🧒 Uprość"}
+        </button>
+      </div>
+      <div className="mt-1.5 flex items-center gap-1">
+        <select value={translateLang} onChange={(e) => setTranslateLang(e.target.value)}
+          className="rounded border border-purple-300 bg-white px-1 py-0.5 text-[10px] text-purple-700"
+          disabled={!!busy}>
+          <option value="en">EN</option>
+          <option value="bg">BG</option>
+          <option value="hr">HR</option>
+          <option value="ro">RO</option>
+          <option value="mk">MK</option>
+          <option value="sq">SQ</option>
+        </select>
+        <button type="button" disabled={!!busy} onClick={() => void run("translate", translateLang)}
+          className="flex-1 rounded border border-purple-300 bg-white px-1.5 py-0.5 text-[10px] text-purple-700 hover:bg-purple-100 disabled:opacity-40">
+          {busy === "translate" ? "..." : `🌐 Tłumacz → ${translateLang.toUpperCase()}`}
+        </button>
       </div>
     </div>
   );
