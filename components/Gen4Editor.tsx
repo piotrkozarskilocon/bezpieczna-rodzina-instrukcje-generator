@@ -128,6 +128,33 @@ export default function Gen4Editor({
   const [batchEditInstr, setBatchEditInstr] = useState("");
   const [batchEditBusy, setBatchEditBusy] = useState(false);
   const [batchEditProgress, setBatchEditProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
+
+  // Projekt status (agregaty: liczba placeholderów, plików, obrazków)
+  interface ProjectStatus {
+    counts: {
+      pages_total: number; pages_content: number; elements_total: number;
+      images_total: number; images_assigned: number;
+      docs_total: number; docs_with_summary: number; docs_with_structured: number;
+    };
+    issues: { text_placeholders: number; image_missing_id: number; total: number };
+    completeness: { summaries_pct: number; structured_pct: number; images_assigned_pct: number; placeholders_filled_pct: number };
+  }
+  const [projectStatus, setProjectStatus] = useState<ProjectStatus | null>(null);
+  useEffect(() => {
+    let cancelled = false;
+    const fetchStatus = async () => {
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/status`, { cache: "no-store" });
+        if (res.ok && !cancelled) {
+          const j = (await res.json()) as ProjectStatus;
+          setProjectStatus(j);
+        }
+      } catch { /* zignoruj */ }
+    };
+    void fetchStatus();
+    const timer = setInterval(fetchStatus, 30000); // re-fetch co 30s
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [projectId, elements.length, pages.length]);
   // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
   const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
@@ -1857,6 +1884,35 @@ export default function Gen4Editor({
               )}
             </div>
           </div>
+
+          {/* Project status banner — agregowane staty na pierwszy rzut oka */}
+          {projectStatus && (
+            <div className="border-t border-slate-100 bg-slate-50 px-3 py-1 text-[10px] text-slate-700 flex items-center gap-3 flex-wrap">
+              <span title="Strony">📄 <strong>{projectStatus.counts.pages_total}</strong></span>
+              <span title="Pliki referencyjne">📎 <strong>{projectStatus.counts.docs_total}</strong>
+                {projectStatus.counts.docs_total > 0 && (
+                  <span className="ml-0.5 text-slate-500">
+                    ({projectStatus.completeness.summaries_pct}% sum, {projectStatus.completeness.structured_pct}% wartości)
+                  </span>
+                )}
+              </span>
+              <span title="Obrazki">🖼️ <strong>{projectStatus.counts.images_total}</strong>
+                {projectStatus.counts.images_total > 0 && (
+                  <span className="ml-0.5 text-slate-500">({projectStatus.counts.images_assigned} przypisanych)</span>
+                )}
+              </span>
+              <span className="text-slate-400">·</span>
+              {projectStatus.issues.total > 0 ? (
+                <span className="rounded bg-amber-100 px-1.5 py-0.5 font-semibold text-amber-900" title="Placeholdery + brakujące obrazki">
+                  ⚠️ {projectStatus.issues.total} do uzupełnienia
+                </span>
+              ) : (
+                <span className="rounded bg-green-100 px-1.5 py-0.5 font-semibold text-green-900">
+                  ✓ Wszystkie wartości wypełnione
+                </span>
+              )}
+            </div>
+          )}
 
           {/* AI command bar — user pisze co AI ma zrobic, batch edit propaguje na strony */}
           <div className="border-t border-slate-100 bg-indigo-50/40 px-3 py-1.5">
