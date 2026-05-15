@@ -12,6 +12,7 @@ import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callGeminiWithRetry, GEMINI_FLASH } from "@/lib/v4Gemini";
+import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { logAiCall } from "@/lib/v4AiLog";
 import { prepareFileForAi } from "@/lib/v4FileExtract";
 import { countPdfPages, chunkPdf, extractPdfText, MAX_PAGES_PER_CHUNK } from "@/lib/v4PdfChunk";
@@ -216,7 +217,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
               }
               summary = partials.join("\n\n").slice(0, 2000);
             } catch (chunkErr) {
-              // Fallback: pdf-parse extract text → wyślij tekst do Gemini (no inline file).
+              // Fallback: pdf-parse extract text → wyślij CZYSTY TEKST.
+              // Uzywamy Claude (Anthropic prepaid) bo:
+              //  1. Gemini free-tier ma daily quota ktore latwo wyczerpac
+              //  2. Claude nie ma limitu stron PDF gdy dostaje JUZ wyekstrahowany text
+              //  3. User explicit prosił o uzywanie Claude prepaid dla case'ow ktorych Gemini nie obsluzy
               send("progress", {
                 current: i + 1,
                 total: allDocs.length,
@@ -225,14 +230,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
                 chunk_error: chunkErr instanceof Error ? chunkErr.message.slice(0, 200) : String(chunkErr),
               });
               const extracted = await extractPdfText(buf);
-              // Tekst moze byc gigantyczny — tnij do ~500k char (~125k tokens) zeby
-              // Gemini Flash 1M context dał radę.
-              const trimmed = extracted.text.slice(0, 500_000);
-              const usr = `Plik ${kindLabel} (${pageCount} stron, wyekstrahowany tekst): ${trimmed}\n\nStreść powyższy tekst w 1-3 zdaniach. Skup się na konkretnych wartościach.`;
-              const ai = await callGeminiWithRetry({
+              // Tekst moze byc gigantyczny — tnij do ~150k char (~37k tokens) zeby
+              // Claude Haiku 4.5 (200k context) dał radę bez problemu.
+              const trimmed = extracted.text.slice(0, 150_000);
+              const usr = `Plik ${kindLabel} (${pageCount} stron, wyekstrahowany tekst):\n\n${trimmed}\n\nStreść powyższy tekst w 1-3 zdaniach. Skup się na konkretnych wartościach.`;
+              const ai = await callClaude({
                 system: sys,
                 user: usr,
-                model: GEMINI_FLASH,
+                model: EDIT_MODEL,
                 maxTokens: 2000,
               });
               summary = ai.text.trim().slice(0, 2000);
