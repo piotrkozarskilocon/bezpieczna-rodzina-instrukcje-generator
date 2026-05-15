@@ -249,6 +249,69 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     });
     void incrementUsedCount(notes.map((n) => n.id));
     const parsed = parsePageEditResponse(ai.text);
+
+    // POST-PROCESSING: deterministycznie wymus preferred images.
+    // AI czesto pomija jeden z preferred (zwlaszcza gdy strona ma 3 preferred)
+    // albo wstawia obcy image_id. Sprawdzamy ktorych preferred AI nie wstawil
+    // i dodajemy je rece z heurystycznym layoutem.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const elementsArr = (parsed as { elements: any[] }).elements;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const insertedImageIds = new Set<string>(elementsArr
+      .filter((el: { type: string; properties?: { image_id?: string } }) => el.type === "image" && el.properties?.image_id)
+      .map((el: { properties?: { image_id?: string } }) => el.properties!.image_id as string));
+    const missingPreferred = preferredImages.filter((img) => !insertedImageIds.has(img.id));
+    if (missingPreferred.length > 0) {
+      // Layout heurystyka: ulozenie w pionowej kolumnie po PRAWEJ stronie,
+      // od y=14 mm (poniżej tytulu) w dol. Maks 30mm szerokosc, 30mm wysokosc.
+      const imgW = Math.min(30, pw - 2 * margin - 30); // zostaw min 30mm na text po lewej
+      const imgH = 28;
+      const imgX = pw - margin - imgW;
+      let imgY = 14;
+      for (const img of missingPreferred) {
+        if (imgY + imgH > ph - margin) break; // brak miejsca, zostawiamy resztę
+        elementsArr.push({
+          type: "image",
+          x_mm: imgX,
+          y_mm: imgY,
+          w_mm: imgW,
+          h_mm: imgH,
+          z_index: 2,
+          rotation_deg: 0,
+          properties: {
+            image_id: img.id,
+            fit_mode: "contain",
+          },
+        });
+        imgY += imgH + 2;
+      }
+    }
+    // Usun duplikaty image_id (AI moze wstawic 2 razy ten sam) — zachowaj
+    // pierwszy.
+    const seenIds = new Set<string>();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (parsed as { elements: any[] }).elements = elementsArr.filter((el: { type: string; properties?: { image_id?: string } }) => {
+      if (el.type !== "image" || !el.properties?.image_id) return true;
+      if (seenIds.has(el.properties.image_id)) return false;
+      seenIds.add(el.properties.image_id);
+      return true;
+    });
+
+    // Usun image elementy z image_id ktore NIE pasuje do tej strony
+    // (AI czasem wybiera obrazek przypisany do innej strony). Tolerujemy obrazki
+    // bez preferred_page_id (AI decision) i te ktore preferred dla TEJ strony.
+    const otherStrPreferred = new Set<string>(
+      projectImages
+        .filter((img) => img.preferred_page_id && img.preferred_page_id !== page.id)
+        .map((img) => img.id),
+    );
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (parsed as { elements: any[] }).elements = (parsed as { elements: any[] }).elements.filter((el: { type: string; properties?: { image_id?: string } }) => {
+      if (el.type !== "image" || !el.properties?.image_id) return true;
+      // Jezeli image_id jest preferred dla innej strony, usun.
+      return !otherStrPreferred.has(el.properties.image_id);
+    });
+
     const count = await replacePageElements(pageId, parsed);
 
     // Pelna konwersacja AI dla panelu debug — gen4_ai_calls.

@@ -36,6 +36,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return new Response(JSON.stringify({ error: "not found" }), { status: 404 });
   }
 
+  // Query params: ?from=N (start od page_number >= N), ?limit=M (max stron per invoke).
+  // Vercel 300s max → ~12s per strona → max ~25 stron per invoke. Default 15 dla safety.
+  const reqUrl = new URL(request.url);
+  const fromPage = parseInt(reqUrl.searchParams.get("from") ?? "0", 10) || 0;
+  const limitPerInvoke = Math.min(
+    parseInt(reqUrl.searchParams.get("limit") ?? "15", 10) || 15,
+    25,
+  );
+
   const { data: pages } = await sb
     .from("gen4_pages")
     .select("id, page_number, template, title")
@@ -44,10 +53,14 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const allPages = pages ?? [];
   // Pomijamy cover (nie ma elementow do regeneracji w sensie tresci)
   // i toc (deterministyczny — osobny endpoint regenerate-toc).
-  const targetPages = allPages.filter((p) => p.template !== "cover" && p.template !== "toc");
+  const eligible = allPages.filter((p) => p.template !== "cover" && p.template !== "toc");
+  const remaining = eligible.filter((p) => p.page_number >= fromPage);
+  const targetPages = remaining.slice(0, limitPerInvoke);
+  // next_offset = page_number pierwszej nie-przetworzonej strony, lub null gdy koniec.
+  const nextOffset = remaining.length > limitPerInvoke ? remaining[limitPerInvoke].page_number : null;
 
   if (targetPages.length === 0) {
-    return new Response(JSON.stringify({ error: "Brak stron do regeneracji (filter cover/toc)" }), { status: 400 });
+    return new Response(JSON.stringify({ error: "Brak stron do regeneracji" }), { status: 400 });
   }
 
   // Url to ourselves zeby wywolac auto-populate per stronę. VERCEL_URL zwraca
@@ -77,7 +90,13 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       const send = (event: string, data: unknown) => {
         controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
       };
-      send("started", { total: targetPages.length, project_id: projectId });
+      send("started", {
+        total: targetPages.length,
+        total_eligible: eligible.length,
+        from: fromPage,
+        next_offset: nextOffset,
+        project_id: projectId,
+      });
 
       const heartbeat = setInterval(() => {
         try { send("ping", { elapsed_ms: Date.now() - startedAt }); } catch { /* closed */ }
@@ -140,6 +159,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
         ok: okCount,
         err: errCount,
         errors,
+        next_offset: nextOffset,
+        has_more: nextOffset !== null,
         duration_ms: Date.now() - startedAt,
       });
       controller.close();

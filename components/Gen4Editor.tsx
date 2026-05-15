@@ -120,6 +120,8 @@ export default function Gen4Editor({
   const [applyStyleProgress, setApplyStyleProgress] = useState<{ done: number; total: number } | null>(null);
   const [applyStyleErr, setApplyStyleErr] = useState<string | null>(null);
   const [tocBusy, setTocBusy] = useState(false);
+  const [regenPagesBusy, setRegenPagesBusy] = useState(false);
+  const [regenPagesProgress, setRegenPagesProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
   // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
   const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
@@ -539,6 +541,89 @@ export default function Gen4Editor({
       alert(`Regeneracja TOC failed: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
       setTocBusy(false);
+    }
+  };
+
+  /** Regeneruj treść WSZYSTKICH stron projektu (poza cover/toc) — AI auto-populate
+   *  per strona. Chunked: max 15 stron per invoke, recovery z next_offset. */
+  const regenerateAllPages = async () => {
+    if (regenPagesBusy) return;
+    if (!confirm("Zregenerować treść wszystkich stron (poza okładką i spisem treści)? Aktualne elementy stron zostaną zastąpione.")) return;
+    setRegenPagesBusy(true);
+    setRegenPagesProgress({ current: 0, total: 0, title: null });
+    let fromOffset = 0;
+    let totalOk = 0;
+    let totalErr = 0;
+    try {
+      while (true) {
+        const res = await fetch(`${API}/projects/${projectId}/regenerate-pages?from=${fromOffset}`, {
+          method: "POST",
+        });
+        if (!res.ok || !res.body) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error ?? `HTTP ${res.status}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let nextOffset: number | null = null;
+        let hasMore = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() ?? "";
+          for (const evt of events) {
+            const lines = evt.split("\n");
+            let eventName = "message";
+            let dataStr = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+              else if (line.startsWith("data: ")) dataStr += line.slice(6);
+            }
+            if (!dataStr) continue;
+            try {
+              const data = JSON.parse(dataStr) as Record<string, unknown>;
+              if (eventName === "progress" && data.status === "done") {
+                totalOk++;
+                setRegenPagesProgress({
+                  current: totalOk + totalErr,
+                  total: (data.total as number) ?? 0,
+                  title: (data.title as string | null) ?? null,
+                });
+              } else if (eventName === "progress" && data.status === "error") {
+                totalErr++;
+                setRegenPagesProgress({
+                  current: totalOk + totalErr,
+                  total: (data.total as number) ?? 0,
+                  title: (data.title as string | null) ?? null,
+                });
+              } else if (eventName === "done") {
+                nextOffset = (data.next_offset as number | null) ?? null;
+                hasMore = !!data.has_more;
+              }
+            } catch { /* skip */ }
+          }
+        }
+        if (!hasMore || nextOffset === null) break;
+        fromOffset = nextOffset;
+      }
+      alert(`Regeneracja stron zakonczona: ${totalOk} OK, ${totalErr} blędow.`);
+      // Refresh aktualnej strony.
+      if (currentPageId) {
+        const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+    } catch (err) {
+      alert(`Regeneracja stron failed: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setRegenPagesBusy(false);
+      setRegenPagesProgress(null);
     }
   };
 
@@ -1048,6 +1133,17 @@ export default function Gen4Editor({
                 title="Deterministycznie regeneruje strone Spis Treści na podstawie aktualnej listy stron (bez AI)."
               >
                 {tocBusy ? "🔄 Odświeżam TOC..." : "🔄 Spis treści"}
+              </button>
+              <button
+                type="button"
+                disabled={regenPagesBusy || pages.length < 3}
+                onClick={() => void regenerateAllPages()}
+                className="rounded border border-orange-300 bg-orange-50 px-2 py-0.5 font-medium text-orange-700 hover:border-orange-500 hover:bg-orange-100 disabled:opacity-30"
+                title="AI regeneruje treść wszystkich stron (poza okładką i spisem treści). Auto-recovery dla projektow > 15 stron (chunking)."
+              >
+                {regenPagesBusy && regenPagesProgress
+                  ? `🔄 ${regenPagesProgress.current}/${regenPagesProgress.total}: ${(regenPagesProgress.title ?? "...").slice(0, 20)}`
+                  : "🔄 Regeneruj treść stron"}
               </button>
               <select
                 value={editorAiModel}
