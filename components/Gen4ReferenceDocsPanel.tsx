@@ -160,7 +160,7 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
     setBusyExtract(docId);
     setError(null);
     try {
-      const res = await fetch(`${API}/reference-docs/${docId}/extract-structured/`, {
+      const res = await fetch(`${API}/reference-docs/${docId}/extract-structured`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "sar" }),
