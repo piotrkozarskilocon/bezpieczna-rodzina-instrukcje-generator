@@ -123,6 +123,8 @@ export default function Gen4Editor({
   const [regenPagesBusy, setRegenPagesBusy] = useState(false);
   const [regenPagesProgress, setRegenPagesProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
   const [autofillBusy, setAutofillBusy] = useState(false);
+  const [fixAllBusy, setFixAllBusy] = useState(false);
+  const [fixAllProgress, setFixAllProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
   // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
   const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
@@ -549,6 +551,82 @@ export default function Gen4Editor({
       alert(`Regeneracja TOC failed: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
       setTocBusy(false);
+    }
+  };
+
+  /** Bulk fix wszystkich validation issues w projekcie — SSE z progress + chunking. */
+  const fixAllIssuesProject = async () => {
+    if (fixAllBusy) return;
+    if (!confirm("AI naprawi WSZYSTKIE problemy layoutu we wszystkich stronach (overflow, overlap, niska opacity, margin breach). Aktualne elementy zostaną zmienione.")) return;
+    setFixAllBusy(true);
+    setFixAllProgress({ current: 0, total: 0, title: null });
+    let fromOffset = 0;
+    let totalFixed = 0;
+    let totalErr = 0;
+    try {
+      while (true) {
+        const res = await fetch(`${API}/projects/${projectId}/fix-all-issues?from=${fromOffset}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok || !res.body) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error ?? `HTTP ${res.status}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let nextOffset: number | null = null;
+        let hasMore = false;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() ?? "";
+          for (const evt of events) {
+            const lines = evt.split("\n");
+            let eventName = "message";
+            let dataStr = "";
+            for (const line of lines) {
+              if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+              else if (line.startsWith("data: ")) dataStr += line.slice(6);
+            }
+            if (!dataStr) continue;
+            try {
+              const data = JSON.parse(dataStr) as Record<string, unknown>;
+              if (eventName === "progress") {
+                if (data.status === "done" && typeof data.fixed === "number") totalFixed += data.fixed;
+                if (data.status === "error") totalErr++;
+                setFixAllProgress({
+                  current: (data.current as number) ?? 0,
+                  total: (data.total as number) ?? 0,
+                  title: (data.title as string | null) ?? null,
+                });
+              } else if (eventName === "done") {
+                nextOffset = (data.next_offset as number | null) ?? null;
+                hasMore = !!data.has_more;
+              }
+            } catch { /* skip */ }
+          }
+        }
+        if (!hasMore || nextOffset === null) break;
+        fromOffset = nextOffset;
+      }
+      alert(`Naprawiono ${totalFixed} problemów (${totalErr} błędów).`);
+      if (currentPageId) {
+        const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+    } catch (err) {
+      alert(`Fix all failed: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setFixAllBusy(false);
+      setFixAllProgress(null);
     }
   };
 
@@ -1381,6 +1459,17 @@ export default function Gen4Editor({
                 title="AI wypełnia placeholdery '⚠️ DO UZUPEŁNIENIA: X' wartościami z extracted_structured plików referencyjnych (SAR W/kg, IP rating, NIP, etc.)"
               >
                 {autofillBusy ? "🪄 Wypełniam..." : "🪄 Auto-wypełnij"}
+              </button>
+              <button
+                type="button"
+                disabled={fixAllBusy || pages.length < 1}
+                onClick={() => void fixAllIssuesProject()}
+                className="rounded border border-red-300 bg-red-50 px-2 py-0.5 font-medium text-red-700 hover:border-red-500 hover:bg-red-100 disabled:opacity-30"
+                title="AI naprawia WSZYSTKIE problemy layoutu we wszystkich stronach (overflow, overlap, margin breach)"
+              >
+                {fixAllBusy && fixAllProgress
+                  ? `🔧 ${fixAllProgress.current}/${fixAllProgress.total}: ${(fixAllProgress.title ?? "...").slice(0, 18)}`
+                  : "🔧 Napraw wszystkie"}
               </button>
               <select
                 value={editorAiModel}
