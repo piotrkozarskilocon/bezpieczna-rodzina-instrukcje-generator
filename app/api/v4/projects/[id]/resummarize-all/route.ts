@@ -159,7 +159,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           let totalOut = 0;
 
           const isPdf = mime === "application/pdf";
-          const pageCount = isPdf ? await countPdfPages(buf).catch(() => 0) : 0;
+          let pageCount = 0;
+          let pageCountError: string | null = null;
+          if (isPdf) {
+            try {
+              pageCount = await countPdfPages(buf);
+            } catch (countErr) {
+              pageCountError = countErr instanceof Error ? countErr.message : String(countErr);
+              send("progress", {
+                current: i + 1,
+                total: allDocs.length,
+                doc_name: doc.name,
+                status: "warning",
+                pdf_count_failed: pageCountError,
+              });
+            }
+          }
 
           if (isPdf && pageCount > MAX_PAGES_PER_CHUNK) {
             send("progress", {
