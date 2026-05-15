@@ -1,5 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { z, type ZodSchema } from "zod";
+import { getSupabaseAdmin } from "@/lib/supabase";
 
 /**
  * Server-only Anthropic client. ANTHROPIC_API_KEY lives in the project env;
@@ -131,47 +132,94 @@ function inferMediaType(filename: string): { mediaType: string; blockType: "imag
   }
 }
 
+/** Cache helper: map anthropic_file_id → { bucket, path, filename, mime } z Supabase.
+ *  Anthropic Files API NIE pozwala pobierac user-uploaded plikow (download zwraca
+ *  400 "File is not downloadable"). Wiec bytes pobieramy z Supabase Storage
+ *  gdzie i tak ten sam plik siedzi po POST /reference-docs / POST /images.
+ *  Pre-fetch jednym query zamiast 34 osobnych retrieveMetadata calls. */
+interface AttachmentBytesSource {
+  bucket: string;
+  path: string;
+  filename: string;
+  mime: string;
+}
+async function resolveAttachmentSources(fileIds: string[]): Promise<Map<string, AttachmentBytesSource>> {
+  const sb = getSupabaseAdmin();
+  const [refDocsRes, imagesRes] = await Promise.all([
+    sb.from("gen4_reference_docs")
+      .select("anthropic_file_id, file_path, name, mime_type")
+      .in("anthropic_file_id", fileIds),
+    sb.from("gen4_images")
+      .select("anthropic_file_id, path, name, mime_type")
+      .in("anthropic_file_id", fileIds),
+  ]);
+  const map = new Map<string, AttachmentBytesSource>();
+  for (const r of refDocsRes.data ?? []) {
+    if (!r.anthropic_file_id) continue;
+    map.set(r.anthropic_file_id, {
+      bucket: "gen4-reference-docs",
+      path: r.file_path,
+      filename: r.name,
+      mime: r.mime_type ?? "",
+    });
+  }
+  for (const r of imagesRes.data ?? []) {
+    if (!r.anthropic_file_id) continue;
+    map.set(r.anthropic_file_id, {
+      bucket: "gen4-images",
+      path: r.path,
+      filename: r.name,
+      mime: r.mime_type ?? "",
+    });
+  }
+  return map;
+}
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function buildAttachmentBlocks(client: any, fileIds: string[] | undefined): Promise<unknown[]> {
+async function buildAttachmentBlocks(_client: any, fileIds: string[] | undefined): Promise<unknown[]> {
   if (!fileIds?.length) return [];
 
-  // Anthropic Files API zapisuje mime ZAWSZE jako application/octet-stream
-  // (bug w SDK toFile() multipart upload). Messages API odrzuca octet-stream
-  // file source z 400 "Unsupported document file format". Workaround: dla
-  // octet-stream pobieramy bytes i wysylamy jako source: base64 z jawnym
-  // media_type (z extension).
+  // ZNANY BUG Anthropic Files API: pliki uploadowane przez client.beta.files.upload()
+  // sa NIE-DOWNLOADOWALNE — client.beta.files.download() zwraca 400 "File is not
+  // downloadable". To znaczy ze cala scieżka base64-z-Anthropic byla MARTWA i AI
+  // dostawal 0 attachments dla kazdego summary/generate call. (tokens_in ~180 =
+  // sam prompt bez bajtow pliku.)
   //
-  // KRYTYCZNE: Promise.all zamiast for-of. Bez tego 11 plikow leci
-  // sekwencyjnie (~10s narzutu) i Vercel middleware/function timeoutuje przy
-  // wolniejszych modelach (Opus 4.7) → 504 MIDDLEWARE_INVOCATION_TIMEOUT.
+  // FIX: bytes pobieramy z Supabase Storage (gen4-reference-docs / gen4-images),
+  // gdzie ten sam plik siedzi po uploadzie. Mapowanie anthropic_file_id → path
+  // robione jest jednym query in() na obu tabelach.
+  const sb = getSupabaseAdmin();
+  const sourceMap = await resolveAttachmentSources(fileIds);
+
+  // Promise.all zamiast for-of bo storage.download moze trwac ~200ms per plik
+  // i 30 plikow sekwencyjnie ladowaloby 6s.
   const blocks = await Promise.all(
     fileIds.map(async (fileId): Promise<unknown | null> => {
+      const src = sourceMap.get(fileId);
+      if (!src) {
+        console.warn(`[anthropic] attachment ${fileId}: brak w Supabase (refDoc/image map). SKIP.`);
+        return null;
+      }
+      const inferred = inferMediaType(src.filename) ?? (
+        src.mime.startsWith("image/")
+          ? { mediaType: src.mime, blockType: "image" as const }
+          : { mediaType: "application/pdf", blockType: "document" as const }
+      );
       try {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const meta: any = await client.beta.files.retrieveMetadata(fileId);
-        const fname = (meta?.filename ?? "") as string;
-        const apiMime = (meta?.mime_type ?? "") as string;
-        const inferred = inferMediaType(fname);
-
-        const mimeIsBroken = apiMime === "application/octet-stream" || apiMime === "";
-        if (mimeIsBroken && inferred) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const downloaded: any = await client.beta.files.download(fileId);
-          const arrayBuf = downloaded.arrayBuffer ? await downloaded.arrayBuffer() : downloaded;
-          const base64 = Buffer.from(arrayBuf as ArrayBuffer).toString("base64");
-          console.log(`[anthropic] attachment ${fileId}: ${fname} → base64, media=${inferred.mediaType}, block=${inferred.blockType}`);
-          return {
-            type: inferred.blockType,
-            source: { type: "base64", media_type: inferred.mediaType, data: base64 },
-          };
+        const { data, error } = await sb.storage.from(src.bucket).download(src.path);
+        if (error || !data) {
+          console.warn(`[anthropic] attachment ${fileId}: Supabase download fail (${src.bucket}/${src.path}): ${error?.message}. SKIP.`);
+          return null;
         }
-
-        // Sciezka happy: mime jest poprawny, lekki file source.
-        const blockType: "document" | "image" = apiMime.startsWith("image/") ? "image" : "document";
-        console.log(`[anthropic] attachment ${fileId}: ${fname} → file, mime=${apiMime}, block=${blockType}`);
-        return { type: blockType, source: { type: "file", file_id: fileId } };
+        const arrayBuf = await data.arrayBuffer();
+        const base64 = Buffer.from(arrayBuf).toString("base64");
+        console.log(`[anthropic] attachment ${fileId}: ${src.filename} → Supabase base64 (${arrayBuf.byteLength} bytes), media=${inferred.mediaType}, block=${inferred.blockType}`);
+        return {
+          type: inferred.blockType,
+          source: { type: "base64", media_type: inferred.mediaType, data: base64 },
+        };
       } catch (err) {
-        console.warn(`[anthropic] attachment ${fileId} failed, skipping:`, err);
+        console.warn(`[anthropic] attachment ${fileId} (${src.filename}) failed:`, err);
         return null;
       }
     }),
