@@ -23,7 +23,10 @@ jobs:
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
-          node-version: "20"
+          # Next 16 wymaga >=22.13. Node 20 + stary npm zlostriwie czytaja
+          # lockfile v3 z optional deps (@emnapi/*) i wywalaja "Missing from
+          # lock file" mimo ze entry istnieje.
+          node-version: "22"
           cache: "npm"
 
       - name: Install deps
