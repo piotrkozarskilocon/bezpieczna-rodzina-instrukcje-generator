@@ -26,7 +26,9 @@ import { logAiCall } from "@/lib/v4AiLog";
 import type { ZodSchema } from "zod";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// Vercel Hobby + fluid compute = do 300s max. Ekstrakcja bogatej schemy z
+// 9MB+ PDF Gemini Flash trwa 60-180s — 60s default Hobby to za malo.
+export const maxDuration = 300;
 
 interface RouteContext {
   params: Promise<{ docId: string }>;
@@ -219,83 +221,129 @@ Wyciagnij strukturalne wartosci z zalaczonego dokumentu wg schemy ${cfg.name}.
 Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jako sar_report ale to manual) — wypelnij co potrafisz, a w polu 'notes' opisz krotko realny typ dokumentu.`;
 
   const startedAt = Date.now();
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  let ai: any;
-  try {
-    ai = await callGemini({
-      system: cfg.system,
-      user: userPrompt,
-      model: GEMINI_FLASH,
-      maxTokens: 8000,
-      outputSchema: {
-        name: cfg.name,
-        description: cfg.description,
-        schema: cfg.schema,
-      },
-      inlineFiles: [{ mimeType, data: base64 }],
-    });
-  } catch (err) {
-    const msg = err instanceof Error ? err.message : "Gemini call failed";
-    void logAiCall({
-      project_id: doc.project_id,
-      endpoint: "reference-docs/extract-structured",
-      context_type: "project",
-      user_instruction: `extract structured from ${doc.name}`,
-      system_prompt: cfg.system,
-      user_prompt: userPrompt,
-      model: GEMINI_FLASH,
-      max_tokens: 8000,
-      error: msg,
-      duration_ms: Date.now() - startedAt,
-      user_email: auth.email,
-    });
-    return NextResponse.json({ error: `Gemini extraction failed: ${msg}` }, { status: 502 });
-  }
 
-  // Log success
-  void logAiCall({
-    project_id: doc.project_id,
-    endpoint: "reference-docs/extract-structured",
-    context_type: "project",
-    user_instruction: `extract structured from ${doc.name}`,
-    system_prompt: SAR_SYSTEM,
-    user_prompt: userPrompt,
-    model: ai.model,
-    max_tokens: 4000,
-    response_text: ai.text,
-    tokens_in: ai.inputTokens,
-    tokens_out: ai.outputTokens,
-    duration_ms: Date.now() - startedAt,
-    user_email: auth.email,
+  // SSE streaming — Gemini call moze trwac 60-180s dla bogatej schemy + 9MB PDF.
+  // Hub Edge middleware proxy zamyka polaczenie po ~25-30s bezruchu, wiec wysylamy
+  // heartbeat co 10s. Frontend zbiera chunki, finalny event 'done' niesie wynik.
+  const encoder = new TextEncoder();
+  const sse = new ReadableStream({
+    async start(controller) {
+      const send = (event: string, data: unknown) => {
+        controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+      };
+      send("started", { doc_name: doc.name, kind: doc.kind, file_size_bytes: buf.length });
+
+      const heartbeat = setInterval(() => {
+        try { send("ping", { elapsed_ms: Date.now() - startedAt }); } catch { /* stream closed */ }
+      }, 10000);
+
+      try {
+        const ai = await callGemini({
+          system: cfg.system,
+          user: userPrompt,
+          model: GEMINI_FLASH,
+          maxTokens: 8000,
+          outputSchema: {
+            name: cfg.name,
+            description: cfg.description,
+            schema: cfg.schema,
+          },
+          inlineFiles: [{ mimeType, data: base64 }],
+        });
+
+        clearInterval(heartbeat);
+
+        const structured = ai.parsed;
+        if (!structured) {
+          send("error", { error: "Gemini did not return parsed structured output", raw: ai.text.slice(0, 500) });
+          void logAiCall({
+            project_id: doc.project_id,
+            endpoint: "reference-docs/extract-structured",
+            context_type: "project",
+            user_instruction: `extract structured from ${doc.name}`,
+            system_prompt: cfg.system,
+            user_prompt: userPrompt,
+            model: ai.model,
+            max_tokens: 8000,
+            response_text: ai.text,
+            tokens_in: ai.inputTokens,
+            tokens_out: ai.outputTokens,
+            duration_ms: Date.now() - startedAt,
+            error: "no parsed output",
+            user_email: auth.email,
+          });
+          controller.close();
+          return;
+        }
+
+        const { error: updateErr } = await sb
+          .from("gen4_reference_docs")
+          .update({
+            extracted_structured: structured,
+            extracted_structured_at: new Date().toISOString(),
+            extracted_structured_model: ai.model,
+          })
+          .eq("id", docId);
+
+        if (updateErr) {
+          send("error", { error: `DB update failed: ${updateErr.message}` });
+          controller.close();
+          return;
+        }
+
+        void logAiCall({
+          project_id: doc.project_id,
+          endpoint: "reference-docs/extract-structured",
+          context_type: "project",
+          user_instruction: `extract structured from ${doc.name}`,
+          system_prompt: cfg.system,
+          user_prompt: userPrompt,
+          model: ai.model,
+          max_tokens: 8000,
+          response_text: ai.text,
+          tokens_in: ai.inputTokens,
+          tokens_out: ai.outputTokens,
+          duration_ms: Date.now() - startedAt,
+          user_email: auth.email,
+        });
+
+        send("done", {
+          ok: true,
+          extracted: structured,
+          model: ai.model,
+          tokens_in: ai.inputTokens,
+          tokens_out: ai.outputTokens,
+          duration_ms: Date.now() - startedAt,
+        });
+        controller.close();
+      } catch (err) {
+        clearInterval(heartbeat);
+        const msg = err instanceof Error ? err.message : "Gemini call failed";
+        void logAiCall({
+          project_id: doc.project_id,
+          endpoint: "reference-docs/extract-structured",
+          context_type: "project",
+          user_instruction: `extract structured from ${doc.name}`,
+          system_prompt: cfg.system,
+          user_prompt: userPrompt,
+          model: GEMINI_FLASH,
+          max_tokens: 8000,
+          error: msg,
+          duration_ms: Date.now() - startedAt,
+          user_email: auth.email,
+        });
+        send("error", { error: `Gemini extraction failed: ${msg}` });
+        controller.close();
+      }
+    },
   });
 
-  const structured = ai.parsed;
-  if (!structured) {
-    return NextResponse.json(
-      { error: "Gemini did not return parsed structured output", raw: ai.text.slice(0, 500) },
-      { status: 502 },
-    );
-  }
-
-  // Zapis do bazy.
-  const { error: updateErr } = await sb
-    .from("gen4_reference_docs")
-    .update({
-      extracted_structured: structured,
-      extracted_structured_at: new Date().toISOString(),
-      extracted_structured_model: ai.model,
-    })
-    .eq("id", docId);
-  if (updateErr) {
-    return NextResponse.json({ error: `DB update failed: ${updateErr.message}` }, { status: 500 });
-  }
-
-  return NextResponse.json({
-    ok: true,
-    extracted: structured,
-    model: ai.model,
-    tokens_in: ai.inputTokens,
-    tokens_out: ai.outputTokens,
-    duration_ms: Date.now() - startedAt,
+  return new Response(sse, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection": "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
   });
 }

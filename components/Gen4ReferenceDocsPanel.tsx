@@ -160,30 +160,65 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
     setBusyExtract(docId);
     setError(null);
     try {
+      // Endpoint zwraca SSE — Gemini moze trwac 60-180s, plain JSON nie przejdzie
+      // przez hub Edge middleware (~25-30s timeout). Czytamy chunki, szukamy
+      // event 'done' (final wynik) lub 'error'.
       const res = await fetch(`${API}/reference-docs/${docId}/extract-structured`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ kind: "sar" }),
       });
-      if (!res.ok) {
+      if (!res.ok || !res.body) {
         const j = (await res.json().catch(() => ({}))) as { error?: string };
         throw new Error(j.error ?? `HTTP ${res.status}`);
       }
-      const j = (await res.json()) as {
-        ok: boolean;
-        extracted: Record<string, unknown>;
-        model: string;
-        duration_ms: number;
-      };
-      // Update lokalny stan żeby user od razu widział wynik
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let finalResult: { extracted: Record<string, unknown>; model: string } | null = null;
+      let errorMsg: string | null = null;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        // SSE format: "event: <name>\ndata: <json>\n\n"
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? ""; // ostatni moze byc niepelny
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr += line.slice(6);
+          }
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr) as Record<string, unknown>;
+            if (eventName === "done") {
+              finalResult = data as { extracted: Record<string, unknown>; model: string };
+            } else if (eventName === "error") {
+              errorMsg = (data.error as string) ?? "extract failed";
+            }
+            // 'started' / 'ping' — ignore (mogliby pokazac progres ale UI go nie ma)
+          } catch {
+            /* zignoruj nie-JSON chunk */
+          }
+        }
+      }
+
+      if (errorMsg) throw new Error(errorMsg);
+      if (!finalResult) throw new Error("stream zakonczyl sie bez wyniku");
+
       setDocs((prev) =>
         prev.map((d) =>
           d.id === docId
             ? {
                 ...d,
-                extracted_structured: j.extracted,
+                extracted_structured: finalResult.extracted,
                 extracted_structured_at: new Date().toISOString(),
-                extracted_structured_model: j.model,
+                extracted_structured_model: finalResult.model,
               }
             : d,
         ),
