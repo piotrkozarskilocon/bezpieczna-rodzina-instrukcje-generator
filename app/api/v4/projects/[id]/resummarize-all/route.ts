@@ -13,6 +13,7 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callGeminiWithRetry, GEMINI_FLASH } from "@/lib/v4Gemini";
 import { logAiCall } from "@/lib/v4AiLog";
+import { prepareFileForAi } from "@/lib/v4FileExtract";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -128,12 +129,20 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
           if (dlErr || !dl) {
             throw new Error(`download fail: ${dlErr?.message ?? "no data"}`);
           }
-          const buf = Buffer.from(await dl.arrayBuffer());
+          let buf = Buffer.from(await dl.arrayBuffer());
+          let mime = doc.mime_type || "application/pdf";
+
+          // Gemini nie obsluguje DOCX/XLSX inline. prepareFileForAi konwertuje
+          // DOCX -> tekst i XLSX -> CSV (lokalnie po stronie serwera).
+          if (mime.includes("officedocument") || mime.includes("opendocument")) {
+            const prepared = await prepareFileForAi(buf, doc.name, mime);
+            buf = Buffer.from(prepared.bytes);
+            mime = prepared.mimeType;
+          }
           if (buf.length > 20 * 1024 * 1024) {
             throw new Error(`za duzy plik (${(buf.length / 1024 / 1024).toFixed(1)}MB > 20MB)`);
           }
           const base64 = buf.toString("base64");
-          const mime = doc.mime_type || "application/pdf";
 
           const kind = doc.kind ?? "other";
           const sys = "Jesteś asystentem analizującym dokumenty techniczne dla generatora instrukcji obsługi smartwatchy Locon. Streszczasz pliki referencyjne w 1-3 zdaniach po POLSKU. Wyciągaj konkretne wartości techniczne (np. SAR head/body w W/kg, normy, częstotliwości, IP rating, pojemność baterii, wymiary). Bez fence, bez prozy poza treścią.";
