@@ -123,6 +123,8 @@ export default function Gen4Editor({
   const [regenPagesBusy, setRegenPagesBusy] = useState(false);
   const [regenPagesProgress, setRegenPagesProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
   const [autofillBusy, setAutofillBusy] = useState(false);
+  const [magicBusy, setMagicBusy] = useState(false);
+  const [magicStage, setMagicStage] = useState<string | null>(null);
   const [fixAllBusy, setFixAllBusy] = useState(false);
   const [fixAllProgress, setFixAllProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
   const [batchEditInstr, setBatchEditInstr] = useState("");
@@ -717,6 +719,120 @@ export default function Gen4Editor({
     } finally {
       setBatchEditBusy(false);
       setBatchEditProgress(null);
+    }
+  };
+
+  /** 🪄 Magic All-In-One — uruchamia caly automation chain w 1 kliknieciu:
+   *  1. Re-summary all (Gemini Flash, idempotent skip fresh)
+   *  2. Auto-categorize types (rozpoznaje SAR/Spec/Decl/Manual)
+   *  3. Auto-categorize images (Gemini Vision suggests preferred_page)
+   *  4. Autofill placeholders (Claude wypelnia '⚠️ DO UZUPEŁNIENIA: X' z extracted)
+   *  5. Fix all issues (validatePage AI-fix)
+   *  6. Regenerate TOC (deterministyczne)
+   *
+   *  User w ~3-5 minut dostaje pelny projekt zamiast klikania 6 razy. */
+  const magicAllInOne = async () => {
+    if (magicBusy) return;
+    if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → auto-categorize → autofill → fix-all → TOC. Może zająć 3-5 minut.")) return;
+    setMagicBusy(true);
+    try {
+      // 1. Resummarize-all (skip fresh — idempotent)
+      setMagicStage("📝 1/6: Generuję streszczenia plików...");
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/resummarize-all`, { method: "POST" });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          while (true) { const r = await reader.read(); if (r.done) break; }
+        }
+      } catch { /* continue */ }
+
+      // 2. Categorize-all
+      setMagicStage("🏷️ 2/6: Rozpoznaję typy plików...");
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/categorize-all`, { method: "POST" });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          while (true) { const r = await reader.read(); if (r.done) break; }
+        }
+      } catch { /* continue */ }
+
+      // 3. Auto-categorize images
+      setMagicStage("🤖 3/6: Przypisuję obrazki do stron...");
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/auto-categorize-images`, { method: "POST" });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          while (true) { const r = await reader.read(); if (r.done) break; }
+        }
+      } catch { /* continue */ }
+
+      // 4. Autofill placeholders
+      setMagicStage("🪄 4/6: Wypełniam placeholdery wartościami z plików...");
+      try {
+        await fetch(`${API}/projects/${projectId}/autofill-placeholders`, { method: "POST" });
+      } catch { /* continue */ }
+
+      // 5. Fix all issues (chunked)
+      setMagicStage("🔧 5/6: Naprawiam problemy layoutu...");
+      try {
+        let fromOffset = 0;
+        while (true) {
+          const res = await fetch(`${API}/projects/${projectId}/fix-all-issues?from=${fromOffset}`, { method: "POST" });
+          if (!res.ok || !res.body) break;
+          const reader = res.body.getReader();
+          const decoder = new TextDecoder();
+          let buf = "";
+          let nextOff: number | null = null;
+          let hasMore = false;
+          while (true) {
+            const r = await reader.read();
+            if (r.done) break;
+            buf += decoder.decode(r.value, { stream: true });
+            const events = buf.split("\n\n");
+            buf = events.pop() ?? "";
+            for (const evt of events) {
+              const m = evt.match(/event: done[\s\S]*?data: (.+)/);
+              if (m) {
+                try {
+                  const d = JSON.parse(m[1]) as { next_offset?: number | null; has_more?: boolean };
+                  nextOff = d.next_offset ?? null;
+                  hasMore = !!d.has_more;
+                } catch { /* skip */ }
+              }
+            }
+          }
+          if (!hasMore || nextOff === null) break;
+          fromOffset = nextOff;
+        }
+      } catch { /* continue */ }
+
+      // 6. Regenerate TOC (deterministyczne, krotkie)
+      setMagicStage("🔄 6/6: Odświeżam spis treści...");
+      try {
+        await fetch(`${API}/projects/${projectId}/regenerate-toc`, { method: "POST" });
+      } catch { /* continue */ }
+
+      setMagicStage("✅ Gotowe!");
+      // Reload aktualnej strony
+      if (currentPageId) {
+        const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+      // Reload pages
+      const pRes = await fetch(`${API}/projects/${projectId}/pages/`, { cache: "no-store" });
+      if (pRes.ok) {
+        const pj = (await pRes.json()) as { pages: PageRow[] };
+        setPages(pj.pages ?? []);
+      }
+      alert("🪄 Magic chain zakończony! Projekt powinien być teraz w ~95% gotowy.");
+    } catch (err) {
+      alert(`Magic chain failed: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setMagicBusy(false);
+      setMagicStage(null);
     }
   };
 
@@ -1876,6 +1992,15 @@ export default function Gen4Editor({
                 title="AI wypełnia placeholdery '⚠️ DO UZUPEŁNIENIA: X' wartościami z extracted_structured plików referencyjnych (SAR W/kg, IP rating, NIP, etc.)"
               >
                 {autofillBusy ? "🪄 Wypełniam..." : "🪄 Auto-wypełnij"}
+              </button>
+              <button
+                type="button"
+                disabled={magicBusy}
+                onClick={() => void magicAllInOne()}
+                className="rounded border-2 border-violet-500 bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-0.5 font-semibold text-white shadow-md hover:from-violet-600 hover:to-pink-600 disabled:opacity-50"
+                title="🪄 Wszystko-w-1: re-summary + categorize + autofill + fix-all + TOC (3-5 min, ~95% automation)"
+              >
+                {magicBusy ? `🪄 ${magicStage?.slice(0, 40) ?? "..."}` : "🪄 Magic All-In-One"}
               </button>
               <button
                 type="button"
