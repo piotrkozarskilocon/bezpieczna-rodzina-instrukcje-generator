@@ -1119,6 +1119,75 @@ export default function Gen4Editor({
     setSelectedIds(new Set(newIds));
   }, [currentPageId, clipboard, elements, pushHistory]);
 
+  /** Align zaznaczonych do siebie (lub do strony jeśli < 2). */
+  const alignSelected = useCallback((mode: "left" | "right" | "center-h" | "top" | "bottom" | "center-v") => {
+    if (selectedIds.size === 0) return;
+    pushHistory(elements);
+    const selected = elements.filter((e) => selectedIds.has(e.id));
+    if (selected.length === 0) return;
+
+    // Bounding box selekcji
+    const xs = selected.map((e) => e.x_mm);
+    const xe = selected.map((e) => e.x_mm + e.w_mm);
+    const ys = selected.map((e) => e.y_mm);
+    const ye = selected.map((e) => e.y_mm + e.h_mm);
+    const minX = Math.min(...xs);
+    const maxX = Math.max(...xe);
+    const minY = Math.min(...ys);
+    const maxY = Math.max(...ye);
+
+    for (const el of selected) {
+      const patch: Partial<ElementRow> = {};
+      if (mode === "left") patch.x_mm = minX;
+      else if (mode === "right") patch.x_mm = maxX - el.w_mm;
+      else if (mode === "center-h") patch.x_mm = (minX + maxX) / 2 - el.w_mm / 2;
+      else if (mode === "top") patch.y_mm = minY;
+      else if (mode === "bottom") patch.y_mm = maxY - el.h_mm;
+      else if (mode === "center-v") patch.y_mm = (minY + maxY) / 2 - el.h_mm / 2;
+      void updateElement(el.id, patch);
+    }
+  }, [selectedIds, elements, pushHistory, updateElement]);
+
+  /** Distribute (rownomierne rozmieszczenie) zaznaczonych. */
+  const distributeSelected = useCallback((axis: "horizontal" | "vertical") => {
+    if (selectedIds.size < 3) return;
+    pushHistory(elements);
+    const selected = elements
+      .filter((e) => selectedIds.has(e.id))
+      .sort((a, b) => axis === "horizontal" ? a.x_mm - b.x_mm : a.y_mm - b.y_mm);
+    const first = selected[0];
+    const last = selected[selected.length - 1];
+    const totalSpan = axis === "horizontal"
+      ? (last.x_mm + last.w_mm) - first.x_mm
+      : (last.y_mm + last.h_mm) - first.y_mm;
+    const sumSizes = selected.reduce((s, e) => s + (axis === "horizontal" ? e.w_mm : e.h_mm), 0);
+    const gap = (totalSpan - sumSizes) / (selected.length - 1);
+    let pos = axis === "horizontal" ? first.x_mm : first.y_mm;
+    for (const el of selected) {
+      const patch: Partial<ElementRow> = {};
+      if (axis === "horizontal") {
+        patch.x_mm = pos;
+        pos += el.w_mm + gap;
+      } else {
+        patch.y_mm = pos;
+        pos += el.h_mm + gap;
+      }
+      void updateElement(el.id, patch);
+    }
+  }, [selectedIds, elements, pushHistory, updateElement]);
+
+  /** Bulk style apply — zmien color lub font_size_pt dla wszystkich zaznaczonych text/callout. */
+  const bulkSetProperty = useCallback((key: "color" | "font_size_pt" | "align", value: string | number) => {
+    if (selectedIds.size === 0) return;
+    pushHistory(elements);
+    for (const id of selectedIds) {
+      const el = elements.find((e) => e.id === id);
+      if (!el || (el.type !== "text" && el.type !== "callout")) continue;
+      const newProps = { ...el.properties, [key]: value };
+      void updateElement(id, { properties: newProps });
+    }
+  }, [selectedIds, elements, pushHistory, updateElement]);
+
   /** Nudge zaznaczonych strzałkami. delta w mm. */
   const nudgeSelected = useCallback((dx: number, dy: number) => {
     if (selectedIds.size === 0) return;
@@ -1437,32 +1506,49 @@ export default function Gen4Editor({
               </span>
             )}
             {selectedIds.size > 1 && (
-              <span className="flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">
-                <strong>{selectedIds.size}</strong> zaznaczonych
-                <button
-                  type="button"
-                  onClick={() => void duplicateSelected()}
-                  className="ml-1 rounded bg-blue-700 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-800"
-                  title="Ctrl+D"
-                >
-                  Duplikuj
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void deleteSelected()}
+              <span className="flex flex-wrap items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-[11px] text-blue-800">
+                <strong>{selectedIds.size}</strong> zazn.
+                <button type="button" onClick={() => alignSelected("left")} title="Wyrównaj do lewej"
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">⫷L</button>
+                <button type="button" onClick={() => alignSelected("center-h")} title="Wyrównaj poziomo do środka"
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">═H</button>
+                <button type="button" onClick={() => alignSelected("right")} title="Wyrównaj do prawej"
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">R⫸</button>
+                <button type="button" onClick={() => alignSelected("top")} title="Wyrównaj do góry"
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">⫷T</button>
+                <button type="button" onClick={() => alignSelected("center-v")} title="Wyrównaj pionowo do środka"
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">═V</button>
+                <button type="button" onClick={() => alignSelected("bottom")} title="Wyrównaj do dołu"
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">B⫸</button>
+                {selectedIds.size >= 3 && (
+                  <>
+                    <button type="button" onClick={() => distributeSelected("horizontal")} title="Rozłóż równomiernie poziomo"
+                      className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">↔ Distr</button>
+                    <button type="button" onClick={() => distributeSelected("vertical")} title="Rozłóż równomiernie pionowo"
+                      className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px] hover:bg-blue-100">↕ Distr</button>
+                  </>
+                )}
+                <span className="mx-1 text-blue-400">|</span>
+                <input type="color" onChange={(e) => bulkSetProperty("color", e.target.value)}
+                  className="h-5 w-5 cursor-pointer rounded border border-blue-300" title="Bulk kolor tekstu" />
+                <select onChange={(e) => bulkSetProperty("font_size_pt", parseInt(e.target.value, 10))}
+                  defaultValue=""
+                  className="rounded border border-blue-300 bg-white px-1 py-0.5 text-[10px]" title="Bulk font_size_pt">
+                  <option value="" disabled>font…</option>
+                  <option value="4">4pt</option><option value="5">5pt</option><option value="6">6pt</option>
+                  <option value="7">7pt</option><option value="8">8pt</option><option value="9">9pt</option>
+                  <option value="10">10pt</option><option value="11">11pt</option><option value="12">12pt</option>
+                  <option value="14">14pt</option><option value="16">16pt</option><option value="18">18pt</option>
+                </select>
+                <button type="button" onClick={() => void duplicateSelected()}
+                  className="rounded bg-blue-700 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-blue-800"
+                  title="Ctrl+D">Dup</button>
+                <button type="button" onClick={() => void deleteSelected()}
                   className="rounded bg-red-700 px-1.5 py-0.5 text-[10px] font-semibold text-white hover:bg-red-800"
-                  title="Del"
-                >
-                  Usuń
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setSelectedIds(new Set())}
+                  title="Del">Usuń</button>
+                <button type="button" onClick={() => setSelectedIds(new Set())}
                   className="rounded border border-blue-300 bg-white px-1.5 py-0.5 text-[10px] text-blue-700 hover:bg-blue-100"
-                  title="Esc"
-                >
-                  Odznacz
-                </button>
+                  title="Esc">✕</button>
               </span>
             )}
             <div className="ml-auto flex items-center gap-2">
