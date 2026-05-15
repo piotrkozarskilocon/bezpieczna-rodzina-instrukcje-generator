@@ -58,6 +58,7 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [busyExtract, setBusyExtract] = useState<string | null>(null);
+  const [busyResummarize, setBusyResummarize] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   // Pending upload — user wybrał plik, jeszcze wybiera kind + lang
@@ -153,6 +154,35 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
       setError(err instanceof Error ? err.message : "upload failed");
     } finally {
       setBusy(false);
+    }
+  };
+
+  /** Ponowne wygenerowanie streszczenia (extracted_summary) dla pliku.
+   *  Uzywane gdy stare summary mowi "Nie widze pliku" — po fixie attachments
+   *  z Supabase Storage trzeba odswiezyc. */
+  const resummarize = async (docId: string) => {
+    setBusyResummarize(docId);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/reference-docs/${docId}/resummarize`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; extracted_summary?: string; error?: string };
+      if (!res.ok || !j.ok) {
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      setDocs((prev) =>
+        prev.map((d) =>
+          d.id === docId
+            ? { ...d, extracted_summary: j.extracted_summary ?? null }
+            : d,
+        ),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "resummarize failed");
+    } finally {
+      setBusyResummarize(null);
     }
   };
 
@@ -370,6 +400,15 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
                       ↓ Pobierz
                     </a>
                   )}
+                  <button
+                    type="button"
+                    onClick={() => void resummarize(d.id)}
+                    disabled={busyResummarize === d.id}
+                    className="rounded border border-amber-300 bg-amber-50 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40"
+                    title="Ponownie wygeneruj krótkie streszczenie pliku (uzywane np. gdy stare mowi 'nie widzialem pliku')"
+                  >
+                    {busyResummarize === d.id ? "Streszczam..." : "📝 Re-summary"}
+                  </button>
                   <button
                     type="button"
                     onClick={() => void extractStructured(d.id)}
