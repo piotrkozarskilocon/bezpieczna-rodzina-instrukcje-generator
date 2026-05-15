@@ -218,6 +218,13 @@ export const TechSpecSchema = z.object({
   })).optional(),
   connectivity: z.array(z.string()).optional().describe("np. ['4G LTE', 'Bluetooth 5.0', 'Wi-Fi 2.4GHz', 'GPS']"),
   sensors: z.array(z.string()).optional().describe("np. ['akcelerometr', 'puls', 'SpO2']"),
+  feature_descriptions: z.array(z.object({
+    feature: z.string().describe("Nazwa funkcji np. 'Przycisk SOS', 'Monitor pulsu', 'Geofencing', 'Powiadomienia z telefonu'"),
+    description: z.string().describe("Opis dzialania 1-3 zdania — co robi i jak uzytkownik z tego korzysta"),
+  })).optional().describe("Opisy funkcji urzadzenia — przydatne do generacji sekcji 'Glowne funkcje' w QSG"),
+  key_use_cases: z.array(z.string()).optional().describe(
+    "Glowne scenariusze uzycia urzadzenia, ktore producent eksponuje (np. 'Monitorowanie dziecka w drodze do szkoly', 'Tracking aktywnosci sportowej')",
+  ),
   notes: z.string().optional(),
 });
 export type TechSpec = z.infer<typeof TechSpecSchema>;
@@ -252,11 +259,33 @@ export const ManufacturerManualSchema = z.object({
     label: z.string().describe("np. 'Battery', 'IP rating', 'Frequencies'"),
     value: z.string().describe("Surowa wartosc jak w manualu"),
   })).optional().describe("Kluczowe specyfikacje wymienione w manualu"),
+  feature_descriptions: z.array(z.object({
+    feature: z.string().describe("Nazwa funkcji urzadzenia np. 'Przycisk SOS', 'Monitor pulsu', 'GPS tracking', 'Geofencing/Strefy bezpieczenstwa'"),
+    description: z.string().describe(
+      "Pelen opis dzialania 2-5 zdan — jak funkcja dziala, kiedy sie wlacza, jakie ma ograniczenia. Cytuj producenta tam gdzie warto.",
+    ),
+  })).optional().describe(
+    "BARDZO WAZNE: szczegolowe opisy funkcjonalnosci urzadzenia. To zrodlo do generacji sekcji 'Glowne funkcje' i opisow w QSG. Wyciagnij KAZDA funkcje opisana w manualu, nie tylko 3-4 najwazniejsze.",
+  ),
+  setup_steps: z.array(z.object({
+    step_number: z.number(),
+    title: z.string().describe("np. 'Wloz karte SIM', 'Naladuj zegarek', 'Pobierz aplikacje'"),
+    description: z.string().describe("Pelny opis kroku z manualu"),
+  })).optional().describe("Krok-po-kroku procedura pierwszego uruchomienia urzadzenia"),
+  app_pairing: z.object({
+    app_name: z.string().optional().describe("Nazwa aplikacji do parowania np. 'CALMEAN', 'Setracker'"),
+    procedure: z.string().optional().describe("Pelny opis procesu parowania zegarka z aplikacja"),
+    qr_code_required: z.boolean().optional(),
+  }).optional().describe("Procedura parowania urzadzenia z aplikacja mobilna"),
   key_procedures: z.array(z.object({
-    title: z.string().describe("np. 'How to charge', 'How to insert SIM'"),
-    summary: z.string().describe("Krotki opis kroku 1-2 zdania"),
-  })).optional().describe("Procedury opisane w manualu — przydatne dla generacji QSG"),
-  warnings: z.array(z.string()).optional().describe("Ostrzezenia i przeciwwskazania z manualu"),
+    title: z.string().describe("np. 'Jak wlaczyc SOS', 'Jak zaktualizowac firmware', 'Jak zresetowac'"),
+    summary: z.string().describe("Pelny opis kroku — 2-5 zdan zeby user mogl powtorzyc"),
+  })).optional().describe("Procedury operacyjne (poza initial setup) — np. SOS, reset, aktualizacja"),
+  troubleshooting: z.array(z.object({
+    problem: z.string().describe("Opis problemu z manuala FAQ np. 'Zegarek nie laduje sie'"),
+    solution: z.string().describe("Sugerowane rozwiazanie"),
+  })).optional().describe("FAQ / troubleshooting z manuala — przydatne do sekcji 'Najczestsze problemy' w QSG"),
+  warnings: z.array(z.string()).optional().describe("Ostrzezenia i przeciwwskazania z manuala"),
   notes: z.string().optional(),
 });
 export type ManufacturerManual = z.infer<typeof ManufacturerManualSchema>;
@@ -280,7 +309,24 @@ export const GenericDocSchema = z.object({
   })).optional().describe(
     "Lista najistotniejszych wartosci wyciagnietych z dokumentu — to co bedzie pozniej wstawione w treści instrukcji zamiast placeholderow",
   ),
-  summary: z.string().describe("Krotkie streszczenie dokumentu, 1-3 zdania"),
+  feature_descriptions: z.array(z.object({
+    feature: z.string().describe("Nazwa funkcji / sekcji"),
+    description: z.string().describe("Pelny opis 2-5 zdan"),
+  })).optional().describe(
+    "Jezeli dokument zawiera opisy funkcji urzadzenia (czesto w manualach, broszurach, opisach produktowych) — wyciagnij je. To zrodlo do generacji opisow w QSG.",
+  ),
+  procedures: z.array(z.object({
+    title: z.string().describe("np. 'Jak naladowac', 'Jak sparowac z aplikacja', 'Jak zresetowac'"),
+    summary: z.string().describe("Pelny opis kroku — 2-5 zdan"),
+  })).optional().describe("Procedury obslugi (jezeli dokument je zawiera) — krok-po-kroku jak cos zrobic"),
+  warnings: z.array(z.string()).optional().describe("Ostrzezenia, ograniczenia, przeciwwskazania"),
+  quoted_passages: z.array(z.object({
+    context: z.string().describe("O czym jest fragment np. 'Charging instruction', 'IP rating note'"),
+    text: z.string().describe("Cytat z dokumentu (do 200 znakow)"),
+  })).optional().describe(
+    "Wartosciowe cytaty z dokumentu ktore moga byc parafrazowane w QSG. Maks 5-10 cytatow.",
+  ),
+  summary: z.string().describe("Krotkie streszczenie dokumentu, 2-4 zdania — co tam jest i co przydatne dla generacji QSG"),
   notes: z.string().optional(),
 });
 export type GenericDoc = z.infer<typeof GenericDocSchema>;
