@@ -122,6 +122,7 @@ export default function Gen4Editor({
   const [tocBusy, setTocBusy] = useState(false);
   const [regenPagesBusy, setRegenPagesBusy] = useState(false);
   const [regenPagesProgress, setRegenPagesProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
+  const [autofillBusy, setAutofillBusy] = useState(false);
   // Model picker per akcja AI. Default Haiku. Used by apply-style toolbar btn.
   const [editorAiModel, setEditorAiModel] = useState<string>("claude-haiku-4-5-20251001");
   const [fixStartedAt, setFixStartedAt] = useState<number | null>(null);
@@ -547,6 +548,44 @@ export default function Gen4Editor({
       alert(`Regeneracja TOC failed: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
       setTocBusy(false);
+    }
+  };
+
+  /** AI auto-fill placeholderow '⚠️ DO UZUPELNIENIA' wartosciami z extracted_structured. */
+  const autofillPlaceholders = async () => {
+    if (autofillBusy) return;
+    setAutofillBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/autofill-placeholders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        filled?: number;
+        placeholders_found?: number;
+        unfilled?: number;
+        message?: string;
+        error?: string;
+      };
+      if (!res.ok || !j.ok) {
+        alert(`Auto-fill failed: ${j.error ?? `HTTP ${res.status}`}`);
+        return;
+      }
+      const msg = j.message ?? `✅ Wypelniono ${j.filled} z ${j.placeholders_found} placeholderow (${j.unfilled} pozostalo do wpisania recznie).`;
+      alert(msg);
+      // Refresh aktualnej strony
+      if (currentPageId) {
+        const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+    } catch (err) {
+      alert(`Auto-fill failed: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setAutofillBusy(false);
     }
   };
 
@@ -1320,6 +1359,15 @@ export default function Gen4Editor({
                 {regenPagesBusy && regenPagesProgress
                   ? `🔄 ${regenPagesProgress.current}/${regenPagesProgress.total}: ${(regenPagesProgress.title ?? "...").slice(0, 20)}`
                   : "🔄 Regeneruj treść stron"}
+              </button>
+              <button
+                type="button"
+                disabled={autofillBusy}
+                onClick={() => void autofillPlaceholders()}
+                className="rounded border border-pink-300 bg-pink-50 px-2 py-0.5 font-medium text-pink-700 hover:border-pink-500 hover:bg-pink-100 disabled:opacity-30"
+                title="AI wypełnia placeholdery '⚠️ DO UZUPEŁNIENIA: X' wartościami z extracted_structured plików referencyjnych (SAR W/kg, IP rating, NIP, etc.)"
+              >
+                {autofillBusy ? "🪄 Wypełniam..." : "🪄 Auto-wypełnij"}
               </button>
               <select
                 value={editorAiModel}
