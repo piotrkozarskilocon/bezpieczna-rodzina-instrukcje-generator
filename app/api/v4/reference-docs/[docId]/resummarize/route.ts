@@ -91,7 +91,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       system: summarySystem,
       user: summaryUser,
       model: GEMINI_FLASH,
-      maxTokens: 500,
+      maxTokens: 2000,
       inlineFiles: [{ mimeType: fileMime, data: base64 }],
     });
     const extractedSummary = summaryAi.text.trim().slice(0, 2000);
@@ -109,7 +109,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       system_prompt: summarySystem,
       user_prompt: summaryUser,
       model: summaryAi.model,
-      max_tokens: 500,
+      max_tokens: 2000,
       response_text: summaryAi.text,
       tokens_in: summaryAi.inputTokens,
       tokens_out: summaryAi.outputTokens,
@@ -134,7 +134,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       system_prompt: summarySystem,
       user_prompt: summaryUser,
       model: GEMINI_FLASH,
-      max_tokens: 500,
+      max_tokens: 2000,
       error: msg,
       duration_ms: Date.now() - startedAt,
       user_email: auth.email,
