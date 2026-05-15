@@ -186,6 +186,7 @@ export default function Gen4Editor({
   const [previewOpen, setPreviewOpen] = useState(false);
   const [shortcutsOpen, setShortcutsOpen] = useState(false);
   const [findReplaceOpen, setFindReplaceOpen] = useState(false);
+  const [contextMenu, setContextMenu] = useState<{ x: number; y: number; elementId: string } | null>(null);
   // Side-by-side language preview — gdy != null, obok głównego canvasa
   // pokazujemy ten sam page ze swapem tekstów na wybrany język.
   const [compareLang, setCompareLang] = useState<string | null>(null);
@@ -1249,6 +1250,36 @@ export default function Gen4Editor({
     void updateElement(selectedId, { z_index: newZ });
   }, [selectedId, elements, updateElement]);
 
+  // Right-click context menu — przechwytujemy contextmenu na elementach z data-el-id.
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (!target) return;
+      // Szukaj najbliższego przodka z data-el-id (atrybut elementu w canvas)
+      let el: HTMLElement | null = target;
+      while (el && !el.dataset.elId) {
+        el = el.parentElement;
+      }
+      if (!el || !el.dataset.elId) return;
+      e.preventDefault();
+      setContextMenu({ x: e.clientX, y: e.clientY, elementId: el.dataset.elId });
+      if (!selectedIds.has(el.dataset.elId)) {
+        setSelectedId(el.dataset.elId);
+      }
+    };
+    window.addEventListener("contextmenu", handler);
+    return () => window.removeEventListener("contextmenu", handler);
+  }, [selectedIds, setSelectedId]);
+
+  // Close context menu on outside click or Escape
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener("click", close);
+    window.addEventListener("keydown", (e) => { if (e.key === "Escape") close(); });
+    return () => { window.removeEventListener("click", close); };
+  }, [contextMenu]);
+
   // Image paste — Ctrl+V z obrazkiem w schowku → upload do gen4_images,
   // automatic add do biblioteki obrazków projektu.
   useEffect(() => {
@@ -2216,6 +2247,40 @@ export default function Gen4Editor({
         />
       )}
       {shortcutsOpen && <ShortcutsModal onClose={() => setShortcutsOpen(false)} />}
+      {contextMenu && (
+        <div
+          className="fixed z-50 min-w-[180px] rounded-md border border-slate-300 bg-white py-1 text-xs shadow-lg"
+          style={{ left: contextMenu.x, top: contextMenu.y }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <button type="button" onClick={() => { copySelected(); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100">
+            📋 Kopiuj <span className="float-right text-slate-400">Ctrl+C</span>
+          </button>
+          <button type="button" disabled={clipboard.length === 0}
+            onClick={() => { void pasteFromClipboard(); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100 disabled:opacity-40">
+            📌 Wklej <span className="float-right text-slate-400">Ctrl+V</span>
+          </button>
+          <button type="button" onClick={() => { void duplicateElement(contextMenu.elementId); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100">
+            📑 Duplikuj <span className="float-right text-slate-400">Ctrl+D</span>
+          </button>
+          <button type="button" onClick={() => { void deleteElement(contextMenu.elementId); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left text-red-700 hover:bg-red-50">
+            🗑️ Usuń <span className="float-right text-slate-400">Del</span>
+          </button>
+          <div className="my-1 border-t border-slate-200" />
+          <button type="button" onClick={() => { changeZOrder("front"); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100">⏶ Wyniesć na wierzch</button>
+          <button type="button" onClick={() => { changeZOrder("forward"); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100">▲ O 1 do przodu</button>
+          <button type="button" onClick={() => { changeZOrder("backward"); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100">▼ O 1 do tyłu</button>
+          <button type="button" onClick={() => { changeZOrder("back"); setContextMenu(null); }}
+            className="block w-full px-3 py-1 text-left hover:bg-slate-100">⏷ Wysłać pod spód</button>
+        </div>
+      )}
       {findReplaceOpen && (
         <FindReplaceModal
           projectId={projectId}
