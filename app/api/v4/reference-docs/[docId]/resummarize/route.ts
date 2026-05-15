@@ -14,11 +14,13 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
+import { callGeminiWithRetry, GEMINI_FLASH } from "@/lib/v4Gemini";
 import { logAiCall } from "@/lib/v4AiLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
+
+const BUCKET = "gen4-reference-docs";
 
 interface RouteContext {
   params: Promise<{ docId: string }>;
@@ -28,8 +30,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const auth = await authenticate(request);
   if (!auth) return NextResponse.json({ error: "unauthorized" }, { status: 401 });
 
-  if (!process.env.ANTHROPIC_API_KEY) {
-    return NextResponse.json({ error: "ANTHROPIC_API_KEY not configured" }, { status: 503 });
+  if (!process.env.GEMINI_API_KEY) {
+    return NextResponse.json({ error: "GEMINI_API_KEY not configured" }, { status: 503 });
   }
 
   const { docId } = await ctx.params;
@@ -37,7 +39,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const { data: doc, error: selErr } = await sb
     .from("gen4_reference_docs")
-    .select("id, project_id, kind, name, mime_type, anthropic_file_id")
+    .select("id, project_id, kind, name, file_path, mime_type, anthropic_file_id")
     .eq("id", docId)
     .single();
   if (!doc) {
@@ -56,12 +58,22 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "not found" }, { status: 404 });
   }
 
-  if (!doc.anthropic_file_id) {
+  // Pobieramy bytes z Supabase Storage (Gemini Flash bezposrednio przez inlineFiles).
+  // Plus to obchodzi limit Anthropic 100 stron PDF — Gemini ma 1M context i czyta
+  // wieloset-stronicowe raporty SAR bez problemu.
+  const { data: download, error: dlErr } = await sb.storage.from(BUCKET).download(doc.file_path);
+  if (dlErr || !download) {
+    return NextResponse.json({ error: `Supabase download fail: ${dlErr?.message ?? "unknown"}` }, { status: 500 });
+  }
+  const buf = Buffer.from(await download.arrayBuffer());
+  if (buf.length > 20 * 1024 * 1024) {
     return NextResponse.json(
-      { error: "doc nie ma anthropic_file_id (upload byc moze sie nie zakonczyl)" },
-      { status: 400 },
+      { error: `Plik za duzy dla Gemini inline (${(buf.length / 1024 / 1024).toFixed(1)}MB > 20MB)` },
+      { status: 413 },
     );
   }
+  const base64 = buf.toString("base64");
+  const fileMime = doc.mime_type || "application/pdf";
 
   const kind = doc.kind ?? "other";
   const summarySystem = "Jesteś asystentem analizującym dokumenty techniczne dla generatora instrukcji obsługi smartwatchy Locon. Streszczasz pliki referencyjne w 1-3 zdaniach po POLSKU. Wyciągaj konkretne wartości techniczne (np. SAR head/body w W/kg, normy, częstotliwości, IP rating, pojemność baterii, wymiary). Bez fence, bez prozy poza treścią.";
@@ -75,12 +87,12 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const startedAt = Date.now();
   try {
-    const summaryAi = await callClaude({
+    const summaryAi = await callGeminiWithRetry({
       system: summarySystem,
       user: summaryUser,
-      model: EDIT_MODEL,
+      model: GEMINI_FLASH,
       maxTokens: 500,
-      attachments: [doc.anthropic_file_id],
+      inlineFiles: [{ mimeType: fileMime, data: base64 }],
     });
     const extractedSummary = summaryAi.text.trim().slice(0, 2000);
 
@@ -121,7 +133,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
       user_instruction: `resummarize ${doc.name}`,
       system_prompt: summarySystem,
       user_prompt: summaryUser,
-      model: EDIT_MODEL,
+      model: GEMINI_FLASH,
       max_tokens: 500,
       error: msg,
       duration_ms: Date.now() - startedAt,
