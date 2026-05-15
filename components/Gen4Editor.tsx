@@ -1409,7 +1409,7 @@ export default function Gen4Editor({
           </div>
           {showAddPage && (
             <div className="mb-3 rounded border border-slate-200 bg-white p-2">
-              <p className="mb-2 text-[11px] text-slate-500">Wybierz szablon:</p>
+              <p className="mb-2 text-[11px] text-slate-500">Wybierz szablon lub AI z opisu:</p>
               <div className="space-y-1">
                 {TEMPLATES.map((t) => (
                   <button
@@ -1422,6 +1422,48 @@ export default function Gen4Editor({
                     <div className="text-[10px] text-slate-500">{t.description}</div>
                   </button>
                 ))}
+                <AiAddPageOption
+                  onAdd={async (prompt) => {
+                    setShowAddPage(false);
+                    setError(null);
+                    try {
+                      // 1. Utwórz pustą stronę step
+                      const res = await fetch(`${API}/projects/${projectId}/pages/`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ template: "step", title: prompt.slice(0, 50) }),
+                      });
+                      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                      const j = (await res.json()) as { page: PageRow };
+                      setPages((prev) => [...prev, j.page]);
+                      setCurrentPageId(j.page.id);
+
+                      // 2. Wywołaj ai-edit z user promptem jako instruction
+                      // (auto-populate generuje od zera, ai-edit prowadzi przez instruction)
+                      await fetch(`${API}/pages/${j.page.id}/auto-populate/`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({}),
+                      });
+                      // 3. Zastosuj user prompt jako edit (AI dorzuca specyfike)
+                      await fetch(`${API}/pages/${j.page.id}/ai-edit/`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          instruction: `Strona ma byc o: ${prompt}. Wygeneruj odpowiednia tresc, zachowujac layout strony.`,
+                        }),
+                      });
+                      // Reload elementów
+                      const elRes = await fetch(`${API}/pages/${j.page.id}/elements/`, { cache: "no-store" });
+                      if (elRes.ok) {
+                        const ej = (await elRes.json()) as { elements: ElementRow[] };
+                        setElements(ej.elements ?? []);
+                      }
+                    } catch (err) {
+                      setError(err instanceof Error ? err.message : "AI add page failed");
+                    }
+                  }}
+                />
               </div>
             </div>
           )}
@@ -4198,6 +4240,49 @@ function ShortcutsModal({ onClose }: { onClose: () => void }): React.ReactElemen
         </div>
       </div>
     </div>
+  );
+}
+
+/** UI fragment do "+ Dodaj" sidebar: button "✨ AI z opisu" + collapse z textarea. */
+function AiAddPageOption({ onAdd }: { onAdd: (prompt: string) => Promise<void> }): React.ReactElement {
+  const [open, setOpen] = useState(false);
+  const [prompt, setPrompt] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  return (
+    <>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        className="block w-full rounded border border-purple-300 bg-purple-50 px-2 py-1 text-left text-xs hover:border-purple-500 hover:bg-purple-100"
+      >
+        <div className="font-medium text-purple-800">✨ AI z opisu</div>
+        <div className="text-[10px] text-purple-600">Wpisz krótko o czym ma być strona — AI dobierze treść</div>
+      </button>
+      {open && (
+        <div className="rounded border border-purple-200 bg-purple-50 p-2">
+          <textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            placeholder="np. 'Strona o funkcji Geofencing — opis działania, krok-po-kroku jak ustawić, ostrzeżenie o GPS'"
+            rows={3}
+            className="w-full rounded border border-purple-300 bg-white px-1.5 py-1 text-[10px] text-slate-700 focus:border-purple-500 focus:outline-none"
+          />
+          <button
+            type="button"
+            disabled={busy || !prompt.trim()}
+            onClick={async () => {
+              setBusy(true);
+              try { await onAdd(prompt.trim()); setPrompt(""); setOpen(false); }
+              finally { setBusy(false); }
+            }}
+            className="mt-1 w-full rounded bg-purple-700 px-2 py-1 text-[11px] font-semibold text-white hover:bg-purple-800 disabled:opacity-40"
+          >
+            {busy ? "✨ AI generuje stronę..." : "✨ Generuj"}
+          </button>
+        </div>
+      )}
+    </>
   );
 }
 
