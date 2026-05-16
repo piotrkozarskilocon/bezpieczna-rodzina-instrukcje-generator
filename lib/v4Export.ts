@@ -512,8 +512,13 @@ export async function exportProjectToPdf(
       fs.readFile(regularPath),
       fs.readFile(boldPath),
     ]);
-    fontRegular = await pdfDoc.embedFont(regularBytes, { subset: true });
-    fontBold = await pdfDoc.embedFont(boldBytes, { subset: true });
+    // subset: false — pelne embedding fontu. Z subset=true pdf-lib/fontkit
+    // psul Unicode→glyph mapping dla polskich diakrytykow: litery renderowaly
+    // sie jako pojedyncze rozsypane glyphs zamiast spojnych slow + 'fi'
+    // ligatury zamiast wlasciwych znakow. Tradeoff: PDF ~1MB wiekszy (font
+    // ~300KB × 2 wagi embedded w pelni), ale rendering jest POPRAWNY.
+    fontRegular = await pdfDoc.embedFont(regularBytes);
+    fontBold = await pdfDoc.embedFont(boldBytes);
   } catch (err) {
     console.warn("[v4 export] Inter not found, falling back to Helvetica:", err);
     fontRegular = await pdfDoc.embedFont(StandardFonts.Helvetica);
