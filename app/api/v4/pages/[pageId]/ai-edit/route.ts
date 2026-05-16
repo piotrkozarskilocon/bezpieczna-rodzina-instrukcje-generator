@@ -112,7 +112,15 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     // oryginal jako fallback do logu.
     const patches = (ai.parsed.patches ?? []) as Operation[];
     if (patches.length === 0) {
-      throw new Error("AI returned 0 patches (no changes proposed)");
+      // AI poprawnie zdecydowal ze nie ma co zmieniac — no-op success, nie blad.
+      // (zdarza sie przy bulk batch-edit gdy strona juz jest OK)
+      return NextResponse.json({
+        ok: true,
+        page_id: pageId,
+        elements: built.elements.length,
+        no_op: true,
+        reason: "AI did not propose any changes (page already OK)",
+      });
     }
     const currentDoc = { elements: built.elements.map((e) => ({
       type: e.type,
