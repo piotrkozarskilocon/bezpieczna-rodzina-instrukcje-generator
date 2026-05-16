@@ -9,6 +9,7 @@
     "lint": "eslint",
     "test": "vitest run",
     "test:e2e": "node tests/e2e/smoke.mjs",
+    "test:visual": "node tests/e2e/pdf-visual.mjs",
     "test:watch": "vitest",
     "test:ui": "vitest --ui",
     "test:coverage": "vitest run --coverage",
