@@ -146,10 +146,19 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
         try { parsed = JSON.parse(text); } catch { /* ignore */ }
         throw new Error(parsed.error ?? `HTTP ${finRes.status} (finalize)`);
       }
+      const finJson = (await finRes.json().catch(() => ({}))) as { doc?: { id: string } };
+      const newDocId = finJson.doc?.id;
       setPendingFile(null);
       setPendingKind("tech_spec");
       setPendingLang("pl");
       await refresh();
+      // Auto-trigger ekstrakcji wartości AI dla nowego pliku — fire-and-forget.
+      // User widzi w UI że plik się ładuje + wartości pojawią się gdy ekstrakcja
+      // skończy (60-180s). NIE blokujemy UI uploadu — jeśli klient zamknie kartę,
+      // można zawsze później kliknąć "✨ Wyciągnij wartości" bulk.
+      if (newDocId) {
+        void extractStructured(newDocId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : "upload failed");
     } finally {
@@ -336,6 +345,81 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
     }
   };
 
+  const [extractBulkProgress, setExtractBulkProgress] = useState<{ current: number; total: number; doc_name: string } | null>(null);
+  const [extractBulkResult, setExtractBulkResult] = useState<{ ok: number; err: number } | null>(null);
+
+  /** Bulk extract structured: Gemini per-doc wyciaga wartosci wg schemy (SAR/
+   *  tech_spec/manual/declaration/generic). Idempotent — pomija pliki z istniejacymi
+   *  wartosciami. Force=true zeby re-extract wszystko. */
+  const extractStructuredAll = async (force = false) => {
+    const todo = force
+      ? docs.length
+      : docs.filter((d) => d.extracted_structured == null).length;
+    if (todo === 0 && !force) {
+      setError("Wszystkie pliki maja juz wyciagniete wartosci. Uzyj 'Re-extract all' aby zregenerowac.");
+      return;
+    }
+    const msg = force
+      ? `Re-extract wartosci AI dla wszystkich ${docs.length} plikow? Zostana nadpisane istniejace.`
+      : `Wyciagnac wartosci AI dla ${todo} plikow bez wynikow? Pominiete: ${docs.length - todo}. Moze zajac kilka minut.`;
+    if (!confirm(msg)) return;
+    setExtractBulkProgress({ current: 0, total: todo, doc_name: "..." });
+    setExtractBulkResult(null);
+    setError(null);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/extract-structured-all${force ? "?force=1" : ""}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      if (!res.ok || !res.body) {
+        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        throw new Error(j.error ?? `HTTP ${res.status}`);
+      }
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      let okCount = 0;
+      let errCount = 0;
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+        const events = buffer.split("\n\n");
+        buffer = events.pop() ?? "";
+        for (const evt of events) {
+          const lines = evt.split("\n");
+          let eventName = "message";
+          let dataStr = "";
+          for (const line of lines) {
+            if (line.startsWith("event: ")) eventName = line.slice(7).trim();
+            else if (line.startsWith("data: ")) dataStr += line.slice(6);
+          }
+          if (!dataStr) continue;
+          try {
+            const data = JSON.parse(dataStr) as Record<string, unknown>;
+            if (eventName === "progress") {
+              setExtractBulkProgress({
+                current: (data.current as number) ?? 0,
+                total: (data.total as number) ?? todo,
+                doc_name: (data.doc_name as string) ?? "...",
+              });
+            } else if (eventName === "done") {
+              okCount = (data.ok as number) ?? 0;
+              errCount = (data.err as number) ?? 0;
+              setExtractBulkResult({ ok: okCount, err: errCount });
+              void refresh();
+            }
+          } catch { /* skip */ }
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "bulk extract failed");
+    } finally {
+      setExtractBulkProgress(null);
+    }
+  };
+
   /** Bulk auto-categorize: AI rozpoznaje kind plików (sar/spec/decl/manual/other). */
   const categorizeAll = async (force = false) => {
     if (categorizeBusy) return;
@@ -445,12 +529,28 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
                 ? `📝 ${bulkProgress.current}/${bulkProgress.total}: ${bulkProgress.doc_name.slice(0, 20)}...`
                 : "📝 Re-summary all"}
             </button>
+            <button
+              type="button"
+              onClick={() => void extractStructuredAll(false)}
+              disabled={!!extractBulkProgress}
+              className="rounded border border-purple-300 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-800 hover:bg-purple-100 disabled:opacity-40 whitespace-nowrap"
+              title="Wyciagnij wartosci AI (SAR/spec/manual values) dla wszystkich plikow ktore jeszcze ich nie maja. Idempotent."
+            >
+              {extractBulkProgress
+                ? `✨ ${extractBulkProgress.current}/${extractBulkProgress.total}: ${extractBulkProgress.doc_name.slice(0, 20)}...`
+                : "✨ Wyciągnij wartości all"}
+            </button>
           </div>
         )}
       </div>
       {bulkResult && (
         <div className={`mb-2 rounded border px-2 py-1 text-[11px] ${bulkResult.err > 0 ? "border-amber-400 bg-amber-50 text-amber-800" : "border-green-400 bg-green-50 text-green-800"}`}>
           ✅ Bulk re-summary: {bulkResult.ok} OK, {bulkResult.err} blędow.
+        </div>
+      )}
+      {extractBulkResult && (
+        <div className={`mb-2 rounded border px-2 py-1 text-[11px] ${extractBulkResult.err > 0 ? "border-amber-400 bg-amber-50 text-amber-800" : "border-green-400 bg-green-50 text-green-800"}`}>
+          ✨ Bulk ekstrakcja wartosci: {extractBulkResult.ok} OK, {extractBulkResult.err} blędow.
         </div>
       )}
 
