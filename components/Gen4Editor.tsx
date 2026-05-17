@@ -731,16 +731,18 @@ export default function Gen4Editor({
    *  4. Auto-categorize images (Gemini Vision suggests preferred_page)
    *  5. Autofill placeholders (Claude wypelnia '⚠️ DO UZUPEŁNIENIA: X' z extracted)
    *  6. Fix all issues (validatePage AI-fix)
-   *  7. Dedupe overlap (deterministyczny resolver text-text nakładań)
-   *  8. Regenerate TOC (deterministyczne)
+   *  7. Auto-split przepełnionych stron (AI dzieli na 2 z (1/2)(2/2))
+   *  8. Dedupe overlap (deterministyczny resolver text-text nakładań)
+   *  9. Regenerate TOC (deterministyczne)
    *
-   *  User w ~5-8 minut dostaje pelny projekt zamiast klikania 8 razy.
+   *  User w ~6-10 minut dostaje pelny projekt zamiast klikania 9 razy.
    *  KOLEJNOSC WAZNA: extract MUSI byc przed autofill — autofill korzysta
    *  z extracted_structured w prompt (renderReferenceDocsForPrompt).
-   *  Dedupe na koncu — naprawia overlap'y po wszystkich AI zmianach. */
+   *  Auto-split przed dedupe — nowe strony moga miec overlap do rozwiazania.
+   *  TOC na koncu — po splicie page_numbers sie zmieniaja. */
   const magicAllInOne = async () => {
     if (magicBusy) return;
-    if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → categorize → extract values → autofill → fix-all → TOC. Może zająć 5-8 minut.")) return;
+    if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → categorize → extract values → autofill → fix-all → auto-split przepełnionych stron → dedupe overlap → TOC. Może zająć 6-10 minut.")) return;
     setMagicBusy(true);
     try {
       // 1. Resummarize-all (skip fresh — idempotent)
@@ -824,16 +826,29 @@ export default function Gen4Editor({
         }
       } catch { /* continue */ }
 
-      // 7. Dedupe overlap — deterministyczny resolver dla text-text nakładań.
+      // 7. Auto-split przepełnionych stron — AI dzieli strony z overflow/niemozliwym
+      // overlap na 2 strony z (1/2) (2/2) suffix. Per-page Claude tool_use ~5-10s
+      // wiec dla 5-stronnego splitu moze trwac ~30s. SSE consumed.
+      setMagicStage("📑 7/9: Auto-split przepełnionych stron...");
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/auto-split-pages`, { method: "POST" });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          while (true) { const r = await reader.read(); if (r.done) break; }
+        }
+      } catch { /* continue */ }
+
+      // 8. Dedupe overlap — deterministyczny resolver dla text-text nakładań.
       // BARDZO szybki (~1-3s dla 20 stron, bez AI). Naprawia bug AI wstawiajacych
-      // 2-3 boxy na te same koordynaty.
-      setMagicStage("🛠️ 7/8: Naprawiam nakładania tekstów...");
+      // 2-3 boxy na te same koordynaty. Po split tez bo nowe strony moga miec overlap.
+      setMagicStage("🛠️ 8/9: Naprawiam nakładania tekstów...");
       try {
         await fetch(`${API}/projects/${projectId}/dedupe-overlap-all`, { method: "POST" });
       } catch { /* continue */ }
 
-      // 8. Regenerate TOC (deterministyczne, krotkie)
-      setMagicStage("🔄 8/8: Odświeżam spis treści...");
+      // 9. Regenerate TOC (deterministyczne, krotkie). Po splitcie page_numbers
+      // zmieniły się — TOC musi byc odświeżony.
+      setMagicStage("🔄 9/9: Odświeżam spis treści...");
       try {
         await fetch(`${API}/projects/${projectId}/regenerate-toc`, { method: "POST" });
       } catch { /* continue */ }
