@@ -413,37 +413,59 @@ export async function replacePageElements(
   return rows.length;
 }
 
-/** Pobiera pageHeight + świeże elementy, oblicza overlap patches, aplikuje update. */
+/** Pobiera pageHeight/pageWidth + świeże elementy, sekwencyjnie:
+ *  1. clamp to bounds (deterministyczny — twardy nakaz: nic poza marginesem)
+ *  2. resolve text overlaps (deterministyczny — text-text nakładania)
+ *  Każdy krok ma własny refresh z DB. */
 async function applyAutoDedupeOverlap(pageId: string): Promise<void> {
   const { findOverlapGroups, resolveTextOverlaps } = await import("@/lib/v4OverlapResolver");
+  const { clampToBounds, hasOutOfBoundsElements } = await import("@/lib/v4BoundsClamp");
   const sb = getSupabaseAdmin();
 
   const { data: page } = await sb
     .from("gen4_pages")
-    .select("height_mm")
+    .select("width_mm, height_mm")
     .eq("id", pageId)
     .single();
   if (!page) return;
 
-  const { data: freshElements } = await sb
+  // ── STEP 1: clamp to bounds — twardy nakaz brak wychodzenia poza margines.
+  const { data: el0 } = await sb
     .from("gen4_elements")
     .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
     .eq("page_id", pageId);
-
-  const els = (freshElements ?? []).map((e) => ({
-    id: e.id,
-    type: e.type,
-    x_mm: e.x_mm,
-    y_mm: e.y_mm,
-    w_mm: e.w_mm,
-    h_mm: e.h_mm,
-    z_index: e.z_index,
+  const els0 = (el0 ?? []).map((e) => ({
+    id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
+    w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
   }));
 
-  const groups = findOverlapGroups(els);
+  if (hasOutOfBoundsElements(els0, page.width_mm, page.height_mm, 3)) {
+    const clampPatches = clampToBounds(els0, page.width_mm, page.height_mm, 3);
+    for (const p of clampPatches) {
+      const update: Record<string, number> = {};
+      if (p.x_mm !== undefined) update.x_mm = p.x_mm;
+      if (p.y_mm !== undefined) update.y_mm = p.y_mm;
+      if (p.w_mm !== undefined) update.w_mm = p.w_mm;
+      if (p.h_mm !== undefined) update.h_mm = p.h_mm;
+      if (Object.keys(update).length === 0) continue;
+      await sb.from("gen4_elements").update(update).eq("id", p.id);
+    }
+  }
+
+  // ── STEP 2: dedupe text overlap — refresh i sprawdz po clamp.
+  const { data: el1 } = await sb
+    .from("gen4_elements")
+    .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
+    .eq("page_id", pageId);
+  const els1 = (el1 ?? []).map((e) => ({
+    id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
+    w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
+  }));
+
+  const groups = findOverlapGroups(els1);
   if (groups.length === 0) return;
 
-  const patches = resolveTextOverlaps(els, page.height_mm, 3, 1.0);
+  const patches = resolveTextOverlaps(els1, page.height_mm, 3, 1.0);
   for (const p of patches) {
     const update: Record<string, number> = {};
     if (p.y_mm !== undefined) update.y_mm = p.y_mm;
