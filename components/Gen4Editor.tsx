@@ -726,19 +726,22 @@ export default function Gen4Editor({
   /** 🪄 Magic All-In-One — uruchamia caly automation chain w 1 kliknieciu:
    *  1. Re-summary all (Gemini Flash, idempotent skip fresh)
    *  2. Auto-categorize types (rozpoznaje SAR/Spec/Decl/Manual)
-   *  3. Auto-categorize images (Gemini Vision suggests preferred_page)
-   *  4. Autofill placeholders (Claude wypelnia '⚠️ DO UZUPEŁNIENIA: X' z extracted)
-   *  5. Fix all issues (validatePage AI-fix)
-   *  6. Regenerate TOC (deterministyczne)
+   *  3. Extract structured values (Gemini per-doc — SAR/spec/manual values)
+   *  4. Auto-categorize images (Gemini Vision suggests preferred_page)
+   *  5. Autofill placeholders (Claude wypelnia '⚠️ DO UZUPEŁNIENIA: X' z extracted)
+   *  6. Fix all issues (validatePage AI-fix)
+   *  7. Regenerate TOC (deterministyczne)
    *
-   *  User w ~3-5 minut dostaje pelny projekt zamiast klikania 6 razy. */
+   *  User w ~5-8 minut dostaje pelny projekt zamiast klikania 7 razy.
+   *  KOLEJNOSC WAZNA: extract MUSI byc przed autofill — autofill korzysta
+   *  z extracted_structured w prompt (renderReferenceDocsForPrompt). */
   const magicAllInOne = async () => {
     if (magicBusy) return;
-    if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → auto-categorize → autofill → fix-all → TOC. Może zająć 3-5 minut.")) return;
+    if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → categorize → extract values → autofill → fix-all → TOC. Może zająć 5-8 minut.")) return;
     setMagicBusy(true);
     try {
       // 1. Resummarize-all (skip fresh — idempotent)
-      setMagicStage("📝 1/6: Generuję streszczenia plików...");
+      setMagicStage("📝 1/7: Generuję streszczenia plików...");
       try {
         const res = await fetch(`${API}/projects/${projectId}/resummarize-all`, { method: "POST" });
         if (res.ok && res.body) {
@@ -748,7 +751,7 @@ export default function Gen4Editor({
       } catch { /* continue */ }
 
       // 2. Categorize-all
-      setMagicStage("🏷️ 2/6: Rozpoznaję typy plików...");
+      setMagicStage("🏷️ 2/7: Rozpoznaję typy plików...");
       try {
         const res = await fetch(`${API}/projects/${projectId}/categorize-all`, { method: "POST" });
         if (res.ok && res.body) {
@@ -757,8 +760,19 @@ export default function Gen4Editor({
         }
       } catch { /* continue */ }
 
-      // 3. Auto-categorize images
-      setMagicStage("🤖 3/6: Przypisuję obrazki do stron...");
+      // 3. Extract structured values (Gemini per-doc — SAR/spec/manual/decl/generic)
+      // MUSI byc przed autofill — autofill prompt wstawia extracted_structured.
+      setMagicStage("✨ 3/7: Wyciągam wartości z plików (SAR/spec/manual)...");
+      try {
+        const res = await fetch(`${API}/projects/${projectId}/extract-structured-all`, { method: "POST" });
+        if (res.ok && res.body) {
+          const reader = res.body.getReader();
+          while (true) { const r = await reader.read(); if (r.done) break; }
+        }
+      } catch { /* continue */ }
+
+      // 4. Auto-categorize images
+      setMagicStage("🤖 4/7: Przypisuję obrazki do stron...");
       try {
         const res = await fetch(`${API}/projects/${projectId}/auto-categorize-images`, { method: "POST" });
         if (res.ok && res.body) {
@@ -767,14 +781,14 @@ export default function Gen4Editor({
         }
       } catch { /* continue */ }
 
-      // 4. Autofill placeholders
-      setMagicStage("🪄 4/6: Wypełniam placeholdery wartościami z plików...");
+      // 5. Autofill placeholders
+      setMagicStage("🪄 5/7: Wypełniam placeholdery wartościami z plików...");
       try {
         await fetch(`${API}/projects/${projectId}/autofill-placeholders`, { method: "POST" });
       } catch { /* continue */ }
 
-      // 5. Fix all issues (chunked)
-      setMagicStage("🔧 5/6: Naprawiam problemy layoutu...");
+      // 6. Fix all issues (chunked)
+      setMagicStage("🔧 6/7: Naprawiam problemy layoutu...");
       try {
         let fromOffset = 0;
         while (true) {
@@ -807,8 +821,8 @@ export default function Gen4Editor({
         }
       } catch { /* continue */ }
 
-      // 6. Regenerate TOC (deterministyczne, krotkie)
-      setMagicStage("🔄 6/6: Odświeżam spis treści...");
+      // 7. Regenerate TOC (deterministyczne, krotkie)
+      setMagicStage("🔄 7/7: Odświeżam spis treści...");
       try {
         await fetch(`${API}/projects/${projectId}/regenerate-toc`, { method: "POST" });
       } catch { /* continue */ }
@@ -2023,7 +2037,7 @@ export default function Gen4Editor({
                 disabled={magicBusy}
                 onClick={() => void magicAllInOne()}
                 className="rounded border-2 border-violet-500 bg-gradient-to-r from-violet-500 to-pink-500 px-3 py-0.5 font-semibold text-white shadow-md hover:from-violet-600 hover:to-pink-600 disabled:opacity-50"
-                title="🪄 Wszystko-w-1: re-summary + categorize + autofill + fix-all + TOC (3-5 min, ~95% automation)"
+                title="🪄 Wszystko-w-1: re-summary + categorize + extract values + autofill + fix-all + TOC (5-8 min, ~95% automation)"
               >
                 {magicBusy ? `🪄 ${magicStage?.slice(0, 40) ?? "..."}` : "🪄 Magic All-In-One"}
               </button>

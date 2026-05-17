@@ -374,6 +374,84 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
 
   const [extractBulkProgress, setExtractBulkProgress] = useState<{ current: number; total: number; doc_name: string } | null>(null);
   const [extractBulkResult, setExtractBulkResult] = useState<{ ok: number; err: number } | null>(null);
+  const [applyBusy, setApplyBusy] = useState<"autofill" | "regenerate" | null>(null);
+
+  /** Wypełnij placeholdery '⚠️ DO UZUPEŁNIENIA' wartościami z extracted_structured.
+   *  Bezpieczne — tylko placeholdery, nie ruchne edycji. */
+  const applyValuesAutofill = async () => {
+    if (applyBusy) return;
+    setApplyBusy("autofill");
+    setError(null);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/autofill-placeholders`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const j = (await res.json().catch(() => ({}))) as { ok?: boolean; filled?: number; total?: number; error?: string };
+      if (!res.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      setExtractBulkResult(null);
+      alert(`✅ Wypełniono ${j.filled ?? 0} z ${j.total ?? 0} placeholderów wartościami z plików.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "autofill failed");
+    } finally {
+      setApplyBusy(null);
+    }
+  };
+
+  /** Regeneruj WSZYSTKIE strony od zera z nowymi wartościami. UWAGA: nadpisze
+   *  ręczne edycje stron. Pyta o potwierdzenie. */
+  const applyValuesRegenerate = async () => {
+    if (applyBusy) return;
+    if (!confirm("⚠️ REGENERACJA STRON nadpisze WSZYSTKIE ręczne edycje stron. Pewien? (Wypełnianie samych placeholderów jest bezpieczniejsze.)")) return;
+    setApplyBusy("regenerate");
+    setError(null);
+    try {
+      // regenerate-pages jest chunked (?from=N, has_more, next_offset).
+      let fromOffset = 0;
+      let totalOk = 0;
+      while (true) {
+        const res = await fetch(`${API}/projects/${projectId}/regenerate-pages?from=${fromOffset}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+        });
+        if (!res.ok || !res.body) {
+          const j = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(j.error ?? `HTTP ${res.status}`);
+        }
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        let nextOff: number | null = null;
+        let hasMore = false;
+        while (true) {
+          const r = await reader.read();
+          if (r.done) break;
+          buffer += decoder.decode(r.value, { stream: true });
+          const events = buffer.split("\n\n");
+          buffer = events.pop() ?? "";
+          for (const evt of events) {
+            const m = evt.match(/event: done[\s\S]*?data: (.+)/);
+            if (m) {
+              try {
+                const d = JSON.parse(m[1]) as { ok?: number; next_offset?: number | null; has_more?: boolean };
+                totalOk += d.ok ?? 0;
+                nextOff = d.next_offset ?? null;
+                hasMore = !!d.has_more;
+              } catch { /* skip */ }
+            }
+          }
+        }
+        if (!hasMore || nextOff === null) break;
+        fromOffset = nextOff;
+      }
+      setExtractBulkResult(null);
+      alert(`✅ Zregenerowano ${totalOk} stron z nowymi wartościami.`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "regenerate failed");
+    } finally {
+      setApplyBusy(null);
+    }
+  };
 
   /** Bulk extract structured: Gemini per-doc wyciaga wartosci wg schemy (SAR/
    *  tech_spec/manual/declaration/generic). Idempotent — pomija pliki z istniejacymi
@@ -610,8 +688,45 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
         </div>
       )}
       {extractBulkResult && (
-        <div className={`mb-2 rounded border px-2 py-1 text-[11px] ${extractBulkResult.err > 0 ? "border-amber-400 bg-amber-50 text-amber-800" : "border-green-400 bg-green-50 text-green-800"}`}>
-          ✨ Bulk ekstrakcja wartosci: {extractBulkResult.ok} OK, {extractBulkResult.err} blędow.
+        <div className={`mb-2 rounded border px-3 py-2 text-[12px] ${extractBulkResult.err > 0 ? "border-amber-400 bg-amber-50 text-amber-800" : "border-green-400 bg-green-50 text-green-900"}`}>
+          <div className="font-semibold">
+            ✨ Bulk ekstrakcja: {extractBulkResult.ok} OK, {extractBulkResult.err} błędów.
+          </div>
+          {extractBulkResult.ok > 0 && (
+            <div className="mt-2 space-y-1">
+              <div className="text-[11px] text-slate-700">
+                Wartości są teraz w bazie — kolejne generacje/edycje AI będą ich używać automatycznie.
+                Chcesz <strong>od razu zastosować je do projektu</strong>?
+              </div>
+              <div className="mt-1.5 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => void applyValuesAutofill()}
+                  disabled={applyBusy !== null}
+                  className="rounded border border-purple-300 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-800 hover:bg-purple-100 disabled:opacity-40 whitespace-nowrap"
+                  title="Wypełnij placeholdery ⚠️ DO UZUPEŁNIENIA wartościami z plików. Bezpieczne — zmienia tylko placeholdery, nie ruchne edycji."
+                >
+                  {applyBusy === "autofill" ? "🪄 Wypełniam..." : "🪄 Wypełnij placeholdery"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => void applyValuesRegenerate()}
+                  disabled={applyBusy !== null}
+                  className="rounded border border-orange-300 bg-orange-50 px-2 py-1 text-[11px] font-semibold text-orange-800 hover:bg-orange-100 disabled:opacity-40 whitespace-nowrap"
+                  title="Regeneruj WSZYSTKIE strony od zera z nowymi wartościami. UWAGA: nadpisze ręczne edycje stron."
+                >
+                  {applyBusy === "regenerate" ? "🔄 Regeneruję..." : "🔄 Regeneruj strony (nadpisze edycje)"}
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setExtractBulkResult(null)}
+                  className="rounded border border-slate-300 bg-white px-2 py-1 text-[11px] text-slate-700 hover:bg-slate-50 whitespace-nowrap"
+                >
+                  Nie teraz
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
