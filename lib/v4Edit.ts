@@ -413,13 +413,16 @@ export async function replacePageElements(
   return rows.length;
 }
 
-/** Pobiera pageHeight/pageWidth + świeże elementy, sekwencyjnie:
- *  1. clamp to bounds (deterministyczny — twardy nakaz: nic poza marginesem)
- *  2. resolve text overlaps (deterministyczny — text-text nakładania)
+/** Pobiera pageHeight/pageWidth + świeże elementy, sekwencyjnie 3 deterministyczne kroki:
+ *  1. clamp to bounds (twardy nakaz: nic poza marginesem)
+ *  2. resolve text overlaps (text-text nakładania, układa pionowo)
+ *  3. shrink text to fit (gdy tekst wystaje z h_mm → zmniejsz font_size_pt, min 6pt)
  *  Każdy krok ma własny refresh z DB. */
 async function applyAutoDedupeOverlap(pageId: string): Promise<void> {
   const { findOverlapGroups, resolveTextOverlaps } = await import("@/lib/v4OverlapResolver");
   const { clampToBounds, hasOutOfBoundsElements } = await import("@/lib/v4BoundsClamp");
+  const { shrinkTextToFit } = await import("@/lib/v4FontShrinker");
+  type ShrinkElement = Parameters<typeof shrinkTextToFit>[0][number];
   const sb = getSupabaseAdmin();
 
   const { data: page } = await sb
@@ -463,14 +466,37 @@ async function applyAutoDedupeOverlap(pageId: string): Promise<void> {
   }));
 
   const groups = findOverlapGroups(els1);
-  if (groups.length === 0) return;
+  if (groups.length > 0) {
+    const patches = resolveTextOverlaps(els1, page.height_mm, 3, 1.0);
+    for (const p of patches) {
+      const update: Record<string, number> = {};
+      if (p.y_mm !== undefined) update.y_mm = p.y_mm;
+      if (p.h_mm !== undefined) update.h_mm = p.h_mm;
+      if (Object.keys(update).length === 0) continue;
+      await sb.from("gen4_elements").update(update).eq("id", p.id);
+    }
+  }
 
-  const patches = resolveTextOverlaps(els1, page.height_mm, 3, 1.0);
-  for (const p of patches) {
-    const update: Record<string, number> = {};
-    if (p.y_mm !== undefined) update.y_mm = p.y_mm;
-    if (p.h_mm !== undefined) update.h_mm = p.h_mm;
-    if (Object.keys(update).length === 0) continue;
-    await sb.from("gen4_elements").update(update).eq("id", p.id);
+  // ── STEP 3: shrink text to fit — refresh z properties bo potrzebne content/font_size_pt.
+  const { data: el2 } = await sb
+    .from("gen4_elements")
+    .select("id, type, w_mm, h_mm, properties")
+    .eq("page_id", pageId);
+  const els2: ShrinkElement[] = (el2 ?? []).map((e) => ({
+    id: e.id,
+    type: e.type,
+    w_mm: e.w_mm,
+    h_mm: e.h_mm,
+    properties: (e.properties ?? {}) as ShrinkElement["properties"],
+  }));
+
+  const shrinkResults = shrinkTextToFit(els2);
+  for (const r of shrinkResults) {
+    if (r.font_size_pt === undefined) continue;
+    // Pobierz właściwe properties, update font_size_pt zachowując pozostałe pola.
+    const original = els2.find((e) => e.id === r.id);
+    if (!original) continue;
+    const newProps = { ...original.properties, font_size_pt: r.font_size_pt };
+    await sb.from("gen4_elements").update({ properties: newProps }).eq("id", r.id);
   }
 }

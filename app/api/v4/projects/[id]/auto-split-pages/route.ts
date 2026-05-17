@@ -23,6 +23,7 @@ import { getSupabaseAdmin } from "@/lib/supabase";
 import { callClaude, EDIT_MODEL } from "@/lib/anthropic";
 import { findOverlapGroups } from "@/lib/v4OverlapResolver";
 import { hasOutOfBoundsElements } from "@/lib/v4BoundsClamp";
+import { shrinkTextToFit, type ShrinkElement } from "@/lib/v4FontShrinker";
 import { z } from "zod";
 import { logAiCall } from "@/lib/v4AiLog";
 
@@ -92,7 +93,7 @@ async function detectOverflowPages(projectId: string): Promise<Array<{
 
     const { data: elements } = await sb
       .from("gen4_elements")
-      .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
+      .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index, properties")
       .eq("page_id", page.id);
 
     if (!elements || elements.length === 0) continue;
@@ -119,6 +120,21 @@ async function detectOverflowPages(projectId: string): Promise<Array<{
       if (totalH > available + 5) {
         reasons.push(`overcrowded: ${textEls.length} bloków tekstu razem ${totalH.toFixed(0)}mm > ${available}mm dostępne`);
       }
+    }
+
+    // Heurystyka 4: shrink-font flag needs_split — tekst wymaga >6pt aby się zmieścić
+    // = nawet zmniejszony font nie wystarcza, jedyne wyjście to split na 2 strony.
+    const elsForShrink: ShrinkElement[] = elements.map((e) => ({
+      id: e.id,
+      type: e.type,
+      w_mm: e.w_mm,
+      h_mm: e.h_mm,
+      properties: (e.properties ?? {}) as ShrinkElement["properties"],
+    }));
+    const shrinkResults = shrinkTextToFit(elsForShrink);
+    const needsSplitCount = shrinkResults.filter((r) => r.needs_split).length;
+    if (needsSplitCount > 0) {
+      reasons.push(`${needsSplitCount} elementów wymaga splitu (tekst za długi nawet przy 6pt)`);
     }
 
     if (reasons.length > 0) {

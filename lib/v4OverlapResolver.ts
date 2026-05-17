@@ -108,17 +108,20 @@ export function resolveTextOverlaps(
     for (const el of sorted) {
       const remainingSpace = maxY - cursorY;
       if (remainingSpace <= 0) {
-        // Nie ma juz miejsca w stronie — przesuń na koniec, skróć do min 4mm.
+        // Nie ma juz miejsca w stronie — to nie znaczy że element jest "niemożliwy".
+        // Zostaw go z oryginalnymi wymiarami w pozycji minimum-margin-bottom; auto-split
+        // potem zauważy że strona ma overflow i podzieli ją na 2. Lub fontShrinker
+        // zmniejszy font dla wszystkich elementów strony żeby się zmieściły.
+        // NIE skracaj do 4mm bo to ukrywa tekst — lepiej zostawić widoczny problem
+        // który następna warstwa naprawi.
         patches.push({
           id: el.id,
-          y_mm: Math.max(margin, maxY - 4),
-          h_mm: 4,
-          reason: `overflow: brak miejsca w stronie po układaniu grupy ${group.length} nakładających`,
+          y_mm: Math.max(margin, maxY - el.h_mm),
+          reason: `overflow: brak miejsca po ułożeniu grupy ${group.length} elementów — strona wymaga splitu lub mniejszego fontu`,
         });
         continue;
       }
       const targetH = Math.min(el.h_mm, remainingSpace);
-      // Patch tylko jeśli rzeczywiście różni się od oryginalu
       const patch: OverlapPatch = { id: el.id, reason: `dedupe-overlap: grupa ${group.length} elementów ułożona pionowo` };
       if (Math.abs(el.y_mm - cursorY) > 0.05) patch.y_mm = +cursorY.toFixed(2);
       if (Math.abs(el.h_mm - targetH) > 0.05) patch.h_mm = +targetH.toFixed(2);

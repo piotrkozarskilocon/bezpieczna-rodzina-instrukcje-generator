@@ -77,19 +77,22 @@ describe("resolveTextOverlaps", () => {
     expect(patches).toEqual([]);
   });
 
-  it("overflow: gdy nie mieści się, skraca h_mm do dostępnej przestrzeni", () => {
+  it("overflow: gdy nie mieści się, skraca h_mm a overflow zostawia oryginalne wymiary", () => {
     const elements = [
       el("a", "text", 5, 60, 60, 15, 1),
       el("b", "text", 5, 62, 60, 15, 2),
     ];
     // pageHeight 76, margin 3 → maxY = 73
     // top = 60, cursor = 60. Element a (h=15) ma 73-60=13 → skrocony do 13
-    // cursor po a: 60+13+1=74 → b nie miesci sie wcale (74 > 73)
+    // cursor po a: 60+13+1=74 → b nie mieści się (74 > 73)
+    // b zostaje z oryginalnymi wymiarami h=15 ale przesunięty na maxY-h (=58)
+    // — to nie znaczy że jest "niemożliwy", auto-split / fontShrink to naprawi.
     const patches = resolveTextOverlaps(elements, 76, 3, 1.0);
     const byId = new Map(patches.map((p) => [p.id, p]));
     expect(byId.get("a")?.h_mm).toBeCloseTo(13, 1);
-    // b dostaje fallback "przesun na koniec, h=4"
-    expect(byId.get("b")?.h_mm).toBe(4);
+    // b: oryginalne h=15 zachowane, y_mm=maxY-h=73-15=58
+    expect(byId.get("b")?.h_mm).toBeUndefined(); // h_mm bez zmian → brak w patch
+    expect(byId.get("b")?.y_mm).toBeCloseTo(58, 1);
     expect(byId.get("b")?.reason).toContain("overflow");
   });
 

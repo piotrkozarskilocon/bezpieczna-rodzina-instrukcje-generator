@@ -13,6 +13,7 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { findOverlapGroups, resolveTextOverlaps, type OverlapElement } from "@/lib/v4OverlapResolver";
 import { clampToBounds, hasOutOfBoundsElements } from "@/lib/v4BoundsClamp";
+import { shrinkTextToFit, type ShrinkElement } from "@/lib/v4FontShrinker";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -49,9 +50,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   let totalPatches = 0;
   let totalClampPatches = 0;
+  let totalShrinkPatches = 0;
+  let totalNeedsSplit = 0;
   let pagesWithOverlaps = 0;
   let pagesWithOutOfBounds = 0;
-  const perPage: Array<{ page_number: number; groups_before: number; clamp_patches: number; patches: number; groups_after: number }> = [];
+  const perPage: Array<{ page_number: number; groups_before: number; clamp_patches: number; patches: number; groups_after: number; shrink_patches?: number; needs_split?: number }> = [];
 
   for (const page of pages) {
     const { data: elements } = await sb
@@ -137,7 +140,44 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     totalPatches += applied;
 
     const groupsAfter = findOverlapGroups(currentEls);
-    perPage.push({ page_number: page.page_number, groups_before: groupsBefore.length, clamp_patches: clampApplied, patches: applied, groups_after: groupsAfter.length });
+
+    // STEP 3: shrink text to fit — pobierz properties dla wszystkich text elementów,
+    // sprawdz czy tekst sie miesci w boxie, jak nie zmniejsz font do 6pt min.
+    const { data: elProps } = await sb
+      .from("gen4_elements")
+      .select("id, type, w_mm, h_mm, properties")
+      .eq("page_id", page.id);
+    const elsForShrink: ShrinkElement[] = (elProps ?? []).map((e) => ({
+      id: e.id,
+      type: e.type,
+      w_mm: e.w_mm,
+      h_mm: e.h_mm,
+      properties: (e.properties ?? {}) as ShrinkElement["properties"],
+    }));
+    const shrinkResults = shrinkTextToFit(elsForShrink);
+    let shrinkApplied = 0;
+    let needsSplit = 0;
+    for (const r of shrinkResults) {
+      if (r.needs_split) { needsSplit++; continue; }
+      if (r.font_size_pt === undefined) continue;
+      const original = elsForShrink.find((e) => e.id === r.id);
+      if (!original) continue;
+      const newProps = { ...original.properties, font_size_pt: r.font_size_pt };
+      const { error } = await sb.from("gen4_elements").update({ properties: newProps }).eq("id", r.id);
+      if (!error) shrinkApplied++;
+    }
+    totalShrinkPatches += shrinkApplied;
+    totalNeedsSplit += needsSplit;
+
+    perPage.push({
+      page_number: page.page_number,
+      groups_before: groupsBefore.length,
+      clamp_patches: clampApplied,
+      patches: applied,
+      groups_after: groupsAfter.length,
+      shrink_patches: shrinkApplied,
+      needs_split: needsSplit,
+    });
   }
 
   return NextResponse.json({
@@ -147,6 +187,8 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     pages_with_out_of_bounds: pagesWithOutOfBounds,
     clamp_patches_total: totalClampPatches,
     patches_applied_total: totalPatches,
+    shrink_patches_total: totalShrinkPatches,
+    needs_split_total: totalNeedsSplit,
     per_page: perPage,
   });
 }
