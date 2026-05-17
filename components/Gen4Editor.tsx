@@ -127,6 +127,7 @@ export default function Gen4Editor({
   const [magicStage, setMagicStage] = useState<string | null>(null);
   const [fixAllBusy, setFixAllBusy] = useState(false);
   const [fixAllProgress, setFixAllProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
+  const [dedupeBusy, setDedupeBusy] = useState(false);
   const [batchEditInstr, setBatchEditInstr] = useState("");
   const [batchEditBusy, setBatchEditBusy] = useState(false);
   const [batchEditProgress, setBatchEditProgress] = useState<{ current: number; total: number; title: string | null } | null>(null);
@@ -730,11 +731,13 @@ export default function Gen4Editor({
    *  4. Auto-categorize images (Gemini Vision suggests preferred_page)
    *  5. Autofill placeholders (Claude wypelnia '⚠️ DO UZUPEŁNIENIA: X' z extracted)
    *  6. Fix all issues (validatePage AI-fix)
-   *  7. Regenerate TOC (deterministyczne)
+   *  7. Dedupe overlap (deterministyczny resolver text-text nakładań)
+   *  8. Regenerate TOC (deterministyczne)
    *
-   *  User w ~5-8 minut dostaje pelny projekt zamiast klikania 7 razy.
+   *  User w ~5-8 minut dostaje pelny projekt zamiast klikania 8 razy.
    *  KOLEJNOSC WAZNA: extract MUSI byc przed autofill — autofill korzysta
-   *  z extracted_structured w prompt (renderReferenceDocsForPrompt). */
+   *  z extracted_structured w prompt (renderReferenceDocsForPrompt).
+   *  Dedupe na koncu — naprawia overlap'y po wszystkich AI zmianach. */
   const magicAllInOne = async () => {
     if (magicBusy) return;
     if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → categorize → extract values → autofill → fix-all → TOC. Może zająć 5-8 minut.")) return;
@@ -821,8 +824,16 @@ export default function Gen4Editor({
         }
       } catch { /* continue */ }
 
-      // 7. Regenerate TOC (deterministyczne, krotkie)
-      setMagicStage("🔄 7/7: Odświeżam spis treści...");
+      // 7. Dedupe overlap — deterministyczny resolver dla text-text nakładań.
+      // BARDZO szybki (~1-3s dla 20 stron, bez AI). Naprawia bug AI wstawiajacych
+      // 2-3 boxy na te same koordynaty.
+      setMagicStage("🛠️ 7/8: Naprawiam nakładania tekstów...");
+      try {
+        await fetch(`${API}/projects/${projectId}/dedupe-overlap-all`, { method: "POST" });
+      } catch { /* continue */ }
+
+      // 8. Regenerate TOC (deterministyczne, krotkie)
+      setMagicStage("🔄 8/8: Odświeżam spis treści...");
       try {
         await fetch(`${API}/projects/${projectId}/regenerate-toc`, { method: "POST" });
       } catch { /* continue */ }
@@ -852,6 +863,45 @@ export default function Gen4Editor({
   };
 
   /** Bulk fix wszystkich validation issues w projekcie — SSE z progress + chunking. */
+  /** Deterministyczny dedupe overlap — szybki, bez AI. Wywołuje
+   *  /projects/[id]/dedupe-overlap-all endpoint. */
+  const dedupeOverlapProject = async () => {
+    if (dedupeBusy) return;
+    setDedupeBusy(true);
+    try {
+      const res = await fetch(`${API}/projects/${projectId}/dedupe-overlap-all`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+      });
+      const j = (await res.json().catch(() => ({}))) as {
+        ok?: boolean;
+        pages_total?: number;
+        pages_with_overlaps?: number;
+        patches_applied_total?: number;
+        error?: string;
+      };
+      if (!res.ok || !j.ok) throw new Error(j.error ?? `HTTP ${res.status}`);
+      alert(
+        `🛠️ Dedupe overlap zakończony:\n` +
+        `  • Stron sprawdzonych: ${j.pages_total ?? 0}\n` +
+        `  • Stron z nakładaniami: ${j.pages_with_overlaps ?? 0}\n` +
+        `  • Patches zaaplikowanych: ${j.patches_applied_total ?? 0}`,
+      );
+      // Reload elementów aktualnej strony
+      if (currentPageId) {
+        const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
+        if (elRes.ok) {
+          const elJson = (await elRes.json()) as { elements: ElementRow[] };
+          setElements(elJson.elements ?? []);
+        }
+      }
+    } catch (err) {
+      alert(`Błąd dedupe: ${err instanceof Error ? err.message : "unknown"}`);
+    } finally {
+      setDedupeBusy(false);
+    }
+  };
+
   const fixAllIssuesProject = async () => {
     if (fixAllBusy) return;
     if (!confirm("AI naprawi WSZYSTKIE problemy layoutu we wszystkich stronach (overflow, overlap, niska opacity, margin breach). Aktualne elementy zostaną zmienione.")) return;
@@ -2051,6 +2101,15 @@ export default function Gen4Editor({
                 {fixAllBusy && fixAllProgress
                   ? `🔧 ${fixAllProgress.current}/${fixAllProgress.total}: ${(fixAllProgress.title ?? "...").slice(0, 18)}`
                   : "🔧 Napraw wszystkie"}
+              </button>
+              <button
+                type="button"
+                disabled={dedupeBusy || pages.length < 1}
+                onClick={() => void dedupeOverlapProject()}
+                className="rounded border border-orange-300 bg-orange-50 px-2 py-0.5 font-medium text-orange-700 hover:border-orange-500 hover:bg-orange-100 disabled:opacity-30"
+                title="Deterministyczny resolver — układa nakładające się bloki tekstu pionowo (1mm gap). Szybkie (~3s), bez AI."
+              >
+                {dedupeBusy ? "🛠️ Naprawiam nakładania..." : "🛠️ Napraw nakładania"}
               </button>
               <select
                 value={editorAiModel}

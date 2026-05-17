@@ -376,6 +376,7 @@ export function parsePageEditResponse(raw: string): ParsedElements {
 export async function replacePageElements(
   pageId: string,
   parsed: ParsedElements,
+  opts: { autoDedupe?: boolean } = {},
 ): Promise<number> {
   const sb = getSupabaseAdmin();
   const { error: delErr } = await sb.from("gen4_elements").delete().eq("page_id", pageId);
@@ -397,5 +398,57 @@ export async function replacePageElements(
   }));
   const { error } = await sb.from("gen4_elements").insert(rows);
   if (error) throw new Error(error.message);
+
+  // Post-process: deterministyczne rozwiązanie text-text overlap. AI często
+  // dodaje 2-3 nakładające bloki na te same koordynaty, mimo zakazów w prompt.
+  // Resolver układa je pionowo z 1mm gap — zapisuje patches do DB.
+  if (opts.autoDedupe !== false) {
+    try {
+      await applyAutoDedupeOverlap(pageId);
+    } catch (err) {
+      console.warn(`[replacePageElements] auto-dedupe failed for page ${pageId}:`, err);
+    }
+  }
+
   return rows.length;
+}
+
+/** Pobiera pageHeight + świeże elementy, oblicza overlap patches, aplikuje update. */
+async function applyAutoDedupeOverlap(pageId: string): Promise<void> {
+  const { findOverlapGroups, resolveTextOverlaps } = await import("@/lib/v4OverlapResolver");
+  const sb = getSupabaseAdmin();
+
+  const { data: page } = await sb
+    .from("gen4_pages")
+    .select("height_mm")
+    .eq("id", pageId)
+    .single();
+  if (!page) return;
+
+  const { data: freshElements } = await sb
+    .from("gen4_elements")
+    .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
+    .eq("page_id", pageId);
+
+  const els = (freshElements ?? []).map((e) => ({
+    id: e.id,
+    type: e.type,
+    x_mm: e.x_mm,
+    y_mm: e.y_mm,
+    w_mm: e.w_mm,
+    h_mm: e.h_mm,
+    z_index: e.z_index,
+  }));
+
+  const groups = findOverlapGroups(els);
+  if (groups.length === 0) return;
+
+  const patches = resolveTextOverlaps(els, page.height_mm, 3, 1.0);
+  for (const p of patches) {
+    const update: Record<string, number> = {};
+    if (p.y_mm !== undefined) update.y_mm = p.y_mm;
+    if (p.h_mm !== undefined) update.h_mm = p.h_mm;
+    if (Object.keys(update).length === 0) continue;
+    await sb.from("gen4_elements").update(update).eq("id", p.id);
+  }
 }

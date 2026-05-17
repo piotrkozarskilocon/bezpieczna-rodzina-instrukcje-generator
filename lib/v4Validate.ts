@@ -194,6 +194,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
 
   // 8. Overlap między elementami (z wyłączeniem tła i page_number który zwykle nakłada się z tłem)
   const overlapPairs = new Set<string>();
+  const textTypes = new Set(["text", "callout"]);
   for (let i = 0; i < page.elements.length; i++) {
     for (let j = i + 1; j < page.elements.length; j++) {
       const a = page.elements[i];
@@ -205,13 +206,18 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
       const key = [a.id, b.id].sort().join("|");
       if (overlapPairs.has(key)) continue;
       overlapPairs.add(key);
+      // Text-text overlap to RZECZYWISTY BUG (czytelnosc zniszczona) — error
+      // severity. Pozostale (np. image-text watermark) to info — moze byc celowe.
+      const bothText = textTypes.has(a.type) && textTypes.has(b.type);
       issues.push({
-        severity: "info",
+        severity: bothText ? "error" : "info",
         element_id: a.id,
         element_type: a.type,
-        message: `${a.type} nakłada się na ${b.type} (sąsiednie boxy zachodzą na siebie)`,
-        fix_hint: `Sprawdź czy to celowe — jeśli nie, przesuń jeden z elementów (${a.type} ${a.id} lub ${b.type} ${b.id}).`,
-        ai_fixable: true, // AI może przesunąć jeden z elementów żeby się nie nakładały
+        message: `${a.type} nakłada się na ${b.type}${bothText ? " (NIECZYTELNE — bloki tekstu na sobie)" : " (sąsiednie boxy zachodzą)"}`,
+        fix_hint: bothText
+          ? `Uruchom dedupe-overlap (deterministyczny resolver ułoży pionowo) lub przesuń jeden z elementów (${a.type} ${a.id} albo ${b.type} ${b.id}).`
+          : `Sprawdź czy to celowe — jeśli nie, przesuń jeden z elementów (${a.type} ${a.id} lub ${b.type} ${b.id}).`,
+        ai_fixable: true,
       });
     }
   }
