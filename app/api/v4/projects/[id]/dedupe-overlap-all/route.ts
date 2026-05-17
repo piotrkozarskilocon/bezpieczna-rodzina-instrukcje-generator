@@ -73,35 +73,39 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     }
 
     pagesWithOverlaps++;
-    const patches = resolveTextOverlaps(els, page.height_mm, 3, 1.0);
 
+    // ITERATIVE: niektóre strony mają złożone overlap (4+ elementów z różnymi
+    // bounds), 1 przebieg nie wystarcza — po przesunięciu jednego elementu
+    // pojawia się nowy overlap z innym. Iterujemy do 5 przebiegów lub stable.
     let applied = 0;
-    for (const p of patches) {
-      const update: Record<string, number> = {};
-      if (p.y_mm !== undefined) update.y_mm = p.y_mm;
-      if (p.h_mm !== undefined) update.h_mm = p.h_mm;
-      if (Object.keys(update).length === 0) continue;
-      const { error } = await sb.from("gen4_elements").update(update).eq("id", p.id);
-      if (!error) applied++;
+    let currentEls = els;
+    for (let iter = 0; iter < 5; iter++) {
+      const groups = findOverlapGroups(currentEls);
+      if (groups.length === 0) break;
+      const patches = resolveTextOverlaps(currentEls, page.height_mm, 3, 1.0);
+      if (patches.length === 0) break;
+      for (const p of patches) {
+        const update: Record<string, number> = {};
+        if (p.y_mm !== undefined) update.y_mm = p.y_mm;
+        if (p.h_mm !== undefined) update.h_mm = p.h_mm;
+        if (Object.keys(update).length === 0) continue;
+        const { error } = await sb.from("gen4_elements").update(update).eq("id", p.id);
+        if (!error) applied++;
+      }
+      // Refresh z DB do następnej iteracji
+      const { data: fresh } = await sb
+        .from("gen4_elements")
+        .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
+        .eq("page_id", page.id);
+      currentEls = (fresh ?? []).map((e) => ({
+        id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
+        w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
+      }));
     }
 
     totalPatches += applied;
 
-    // Po zmianach — sprawdz ile zostalo
-    const { data: fresh } = await sb
-      .from("gen4_elements")
-      .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
-      .eq("page_id", page.id);
-    const freshEls: OverlapElement[] = (fresh ?? []).map((e) => ({
-      id: e.id,
-      type: e.type,
-      x_mm: e.x_mm,
-      y_mm: e.y_mm,
-      w_mm: e.w_mm,
-      h_mm: e.h_mm,
-      z_index: e.z_index,
-    }));
-    const groupsAfter = findOverlapGroups(freshEls);
+    const groupsAfter = findOverlapGroups(currentEls);
     perPage.push({ page_number: page.page_number, groups_before: groupsBefore.length, patches: applied, groups_after: groupsAfter.length });
   }
 
