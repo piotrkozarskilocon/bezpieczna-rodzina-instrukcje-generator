@@ -275,14 +275,41 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
   const [categorizeProgress, setCategorizeProgress] = useState<{ current: number; total: number; doc_name: string } | null>(null);
 
   /** Bulk re-summary dla WSZYSTKICH plikow projektu — uzywa SSE stream
-   *  z progress updates. */
-  const resummarizeAll = async () => {
-    if (!confirm(`Ponownie wygenerowac streszczenia dla wszystkich ${docs.length} plikow? Moze zajac kilka minut.`)) return;
-    setBulkProgress({ current: 0, total: docs.length, doc_name: "..." });
+   *  z progress updates. Bez force = tylko broken summaries (puste lub
+   *  "nie widzę pliku"). Force=true = re-summary wszystkie, nadpisuje. */
+  const resummarizeAll = async (force = false) => {
+    // Heurystyka kliencka — broken summary = pusty lub fraza "nie widzę" / "I notice"
+    const isBroken = (s: string | null) => {
+      if (!s) return true;
+      const lc = s.toLowerCase();
+      return (
+        lc.includes("nie widz") ||
+        lc.includes("nie mam dostępu") ||
+        lc.includes("czekam na plik") ||
+        lc.includes("i notice you") ||
+        lc.includes("załączonego pliku") ||
+        lc.includes("oczekuję na zawartość") ||
+        lc.includes("nie zobaczyłem") ||
+        lc.includes("brakuje załączonego") ||
+        lc.includes("brak załączonego")
+      );
+    };
+    const broken = docs.filter((d) => isBroken(d.extracted_summary)).length;
+    const already = docs.length - broken;
+    if (broken === 0 && !force) {
+      setError(`Wszystkie ${docs.length} plikow ma juz prawidlowe streszczenia. Uzyj '🔄 Re-summary wszystkie' aby zregenerowac.`);
+      return;
+    }
+    const todo = force ? docs.length : broken;
+    const msg = force
+      ? `RE-SUMMARY WSZYSTKIE ${docs.length} plikow?\n\nNadpisze ${already} istniejace summaries + zrobi ${broken} brakujace/zlamane.\nKoszt: ~$${(docs.length * 0.001).toFixed(2)} Gemini · ~${Math.ceil(docs.length * 0.5)} min.`
+      : `Re-summary ${todo} plikow ze zlamanymi/brakujacymi summary?\n\n${already > 0 ? `Pominiete ${already} plikow z prawidlowymi summary (idempotency — nie marnujemy tokenow).\n\n` : ""}Koszt: ~$${(todo * 0.001).toFixed(2)} Gemini · ~${Math.ceil(todo * 0.5)} min.`;
+    if (!confirm(msg)) return;
+    setBulkProgress({ current: 0, total: todo, doc_name: "..." });
     setBulkResult(null);
     setError(null);
     try {
-      const res = await fetch(`${API}/projects/${projectId}/resummarize-all`, {
+      const res = await fetch(`${API}/projects/${projectId}/resummarize-all${force ? "?force=1" : ""}`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
       });
@@ -518,17 +545,40 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
                 ? `🏷️ ${categorizeProgress.current}/${categorizeProgress.total}: ${categorizeProgress.doc_name.slice(0, 20)}...`
                 : "🏷️ Auto-rozpoznaj typy"}
             </button>
-            <button
-              type="button"
-              onClick={() => void resummarizeAll()}
-              disabled={!!bulkProgress}
-              className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
-              title="Ponownie wygeneruj streszczenia dla wszystkich plikow"
-            >
-              {bulkProgress
-                ? `📝 ${bulkProgress.current}/${bulkProgress.total}: ${bulkProgress.doc_name.slice(0, 20)}...`
-                : "📝 Re-summary all"}
-            </button>
+            {(() => {
+              const isBrokenSummary = (s: string | null) => {
+                if (!s) return true;
+                const lc = s.toLowerCase();
+                return lc.includes("nie widz") || lc.includes("nie mam dostępu") || lc.includes("i notice you") || lc.includes("oczekuję na zawartość");
+              };
+              const brokenCount = docs.filter((d) => isBrokenSummary(d.extracted_summary)).length;
+              return (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => void resummarizeAll(false)}
+                    disabled={!!bulkProgress}
+                    className="rounded border border-amber-300 bg-amber-50 px-2 py-1 text-[11px] font-semibold text-amber-800 hover:bg-amber-100 disabled:opacity-40 whitespace-nowrap"
+                    title="Re-summary plikow ktore maja zlamane/brakujace streszczenia (puste lub 'nie widzę pliku'). Pliki z prawidlowymi summary sa pominiete (oszczednosc tokenow)."
+                  >
+                    {bulkProgress
+                      ? `📝 ${bulkProgress.current}/${bulkProgress.total}: ${bulkProgress.doc_name.slice(0, 20)}...`
+                      : `📝 Re-summary zlamane (${brokenCount})`}
+                  </button>
+                  {docs.length - brokenCount > 0 && (
+                    <button
+                      type="button"
+                      onClick={() => void resummarizeAll(true)}
+                      disabled={!!bulkProgress}
+                      className="rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-40 whitespace-nowrap"
+                      title="RE-SUMMARY wszystkie pliki (nadpisze istniejace). Uzyj gdy zmieniles prompt summarizacji lub chcesz odswiezyc wyniki."
+                    >
+                      🔄 Re-summary wszystkie ({docs.length})
+                    </button>
+                  )}
+                </>
+              );
+            })()}
             <button
               type="button"
               onClick={() => void extractStructuredAll(false)}
