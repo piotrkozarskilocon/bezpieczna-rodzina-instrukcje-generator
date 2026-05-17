@@ -352,16 +352,16 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
    *  tech_spec/manual/declaration/generic). Idempotent — pomija pliki z istniejacymi
    *  wartosciami. Force=true zeby re-extract wszystko. */
   const extractStructuredAll = async (force = false) => {
-    const todo = force
-      ? docs.length
-      : docs.filter((d) => d.extracted_structured == null).length;
-    if (todo === 0 && !force) {
-      setError("Wszystkie pliki maja juz wyciagniete wartosci. Uzyj 'Re-extract all' aby zregenerowac.");
+    const missing = docs.filter((d) => d.extracted_structured == null).length;
+    const already = docs.length - missing;
+    if (missing === 0 && !force) {
+      setError(`Wszystkie ${docs.length} plikow ma juz wartosci AI. Uzyj '🔄 Re-extract wszystkie' aby zregenerowac.`);
       return;
     }
+    const todo = force ? docs.length : missing;
     const msg = force
-      ? `Re-extract wartosci AI dla wszystkich ${docs.length} plikow? Zostana nadpisane istniejace.`
-      : `Wyciagnac wartosci AI dla ${todo} plikow bez wynikow? Pominiete: ${docs.length - todo}. Moze zajac kilka minut.`;
+      ? `RE-EXTRACT WSZYSTKIE ${docs.length} plikow?\n\nNadpisze ${already} istniejace wyniki + zrobi ${missing} brakujace.\nKoszt: ~$${(docs.length * 0.005).toFixed(2)} Gemini · ~${Math.ceil(docs.length * 1.5)} min.`
+      : `Wyciagnac wartosci AI dla ${todo} brakujacych plikow?\n\n${already > 0 ? `Pominiete ${already} plikow ktore JUZ MAJA wartosci (idempotency — nie marnujemy tokenow).\n\n` : ""}Koszt: ~$${(todo * 0.005).toFixed(2)} Gemini · ~${Math.ceil(todo * 1.5)} min.`;
     if (!confirm(msg)) return;
     setExtractBulkProgress({ current: 0, total: todo, doc_name: "..." });
     setExtractBulkResult(null);
@@ -534,12 +534,23 @@ export default function Gen4ReferenceDocsPanel({ projectId }: Props): React.Reac
               onClick={() => void extractStructuredAll(false)}
               disabled={!!extractBulkProgress}
               className="rounded border border-purple-300 bg-purple-50 px-2 py-1 text-[11px] font-semibold text-purple-800 hover:bg-purple-100 disabled:opacity-40 whitespace-nowrap"
-              title="Wyciagnij wartosci AI (SAR/spec/manual values) dla wszystkich plikow ktore jeszcze ich nie maja. Idempotent."
+              title="Wyciagnij wartosci AI (SAR/spec/manual values) dla wszystkich plikow KTORE JESZCZE NIE MAJA wynikow. Pliki z istniejacymi wartosciami sa pominiete (oszczednosc tokenow)."
             >
               {extractBulkProgress
                 ? `✨ ${extractBulkProgress.current}/${extractBulkProgress.total}: ${extractBulkProgress.doc_name.slice(0, 20)}...`
-                : "✨ Wyciągnij wartości all"}
+                : `✨ Wyciągnij brakujące (${docs.filter((d) => d.extracted_structured == null).length})`}
             </button>
+            {docs.some((d) => d.extracted_structured != null) && (
+              <button
+                type="button"
+                onClick={() => void extractStructuredAll(true)}
+                disabled={!!extractBulkProgress}
+                className="rounded border border-red-300 bg-red-50 px-2 py-1 text-[11px] font-semibold text-red-800 hover:bg-red-100 disabled:opacity-40 whitespace-nowrap"
+                title="RE-EXTRACT wszystkie pliki (nadpisze istniejace wartosci). Uzyj gdy schema sie zmienila lub chcesz odswiezyc wyniki."
+              >
+                🔄 Re-extract wszystkie ({docs.length})
+              </button>
+            )}
           </div>
         )}
       </div>
