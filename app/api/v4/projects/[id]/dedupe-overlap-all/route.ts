@@ -11,9 +11,8 @@ import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
-import { findOverlapGroups, resolveTextOverlaps, type OverlapElement } from "@/lib/v4OverlapResolver";
-import { clampToBounds, hasOutOfBoundsElements } from "@/lib/v4BoundsClamp";
-import { shrinkTextToFit, type ShrinkElement } from "@/lib/v4FontShrinker";
+import { findOverlapGroups, type OverlapElement } from "@/lib/v4OverlapResolver";
+import { finalizePageLayout, type LayoutElement } from "@/lib/v4FinalizeLayout";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -48,135 +47,52 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: "no pages" }, { status: 404 });
   }
 
-  let totalPatches = 0;
-  let totalClampPatches = 0;
-  let totalShrinkPatches = 0;
+  let totalChanged = 0;
   let totalNeedsSplit = 0;
   let pagesWithOverlaps = 0;
-  let pagesWithOutOfBounds = 0;
-  const perPage: Array<{ page_number: number; groups_before: number; clamp_patches: number; patches: number; groups_after: number; shrink_patches?: number; needs_split?: number }> = [];
+  const perPage: Array<{ page_number: number; groups_before: number; groups_after: number; changed: number; needs_split: number }> = [];
+
+  const toOverlap = (els: LayoutElement[]): OverlapElement[] =>
+    els.map((e) => ({ id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm, w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index ?? 0 }));
 
   for (const page of pages) {
-    const { data: elements } = await sb
+    // Jeden select per strona (z properties + z_index). Finalizacja w pamięci,
+    // zapis TYLKO zmienionych — usuwa stary N+1 (selecty + update-per-element
+    // w 5 iteracjach × 20 stron = setki round-tripów, ryzyko 300s).
+    const { data: rows } = await sb
       .from("gen4_elements")
-      .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
+      .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index, properties")
       .eq("page_id", page.id);
 
-    const els: OverlapElement[] = (elements ?? []).map((e) => ({
-      id: e.id,
-      type: e.type,
-      x_mm: e.x_mm,
-      y_mm: e.y_mm,
-      w_mm: e.w_mm,
-      h_mm: e.h_mm,
-      z_index: e.z_index,
+    const input: LayoutElement[] = (rows ?? []).map((e) => ({
+      id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm, w_mm: e.w_mm, h_mm: e.h_mm,
+      z_index: e.z_index, properties: (e.properties ?? {}) as LayoutElement["properties"],
     }));
 
-    // STEP 1: clamp to bounds — twardy nakaz: nic poza marginesem.
-    let clampApplied = 0;
-    if (hasOutOfBoundsElements(els, page.width_mm, page.height_mm, 3)) {
-      pagesWithOutOfBounds++;
-      const clampPatches = clampToBounds(els, page.width_mm, page.height_mm, 3);
-      for (const p of clampPatches) {
-        const update: Record<string, number> = {};
-        if (p.x_mm !== undefined) update.x_mm = p.x_mm;
-        if (p.y_mm !== undefined) update.y_mm = p.y_mm;
-        if (p.w_mm !== undefined) update.w_mm = p.w_mm;
-        if (p.h_mm !== undefined) update.h_mm = p.h_mm;
-        if (Object.keys(update).length === 0) continue;
-        const { error } = await sb.from("gen4_elements").update(update).eq("id", p.id);
-        if (!error) clampApplied++;
-      }
-      totalClampPatches += clampApplied;
-    }
+    const groupsBefore = findOverlapGroups(toOverlap(input)).length;
+    if (groupsBefore > 0) pagesWithOverlaps++;
 
-    // STEP 2: refresh i sprawdz overlap po clamp
-    const { data: elPostClamp } = await sb
-      .from("gen4_elements")
-      .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
-      .eq("page_id", page.id);
-    const elsPostClamp: OverlapElement[] = (elPostClamp ?? []).map((e) => ({
-      id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
-      w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
-    }));
-
-    const groupsBefore = findOverlapGroups(elsPostClamp);
-    if (groupsBefore.length === 0) {
-      perPage.push({ page_number: page.page_number, groups_before: 0, clamp_patches: clampApplied, patches: 0, groups_after: 0 });
-      continue;
-    }
-
-    pagesWithOverlaps++;
-
-    // ITERATIVE: niektóre strony mają złożone overlap (4+ elementów z różnymi
-    // bounds), 1 przebieg nie wystarcza — po przesunięciu jednego elementu
-    // pojawia się nowy overlap z innym. Iterujemy do 5 przebiegów lub stable.
+    const result = finalizePageLayout(input, page.width_mm, page.height_mm);
+    const changed = new Set(result.changedIds);
     let applied = 0;
-    let currentEls = elsPostClamp;
-    for (let iter = 0; iter < 5; iter++) {
-      const groups = findOverlapGroups(currentEls);
-      if (groups.length === 0) break;
-      const patches = resolveTextOverlaps(currentEls, page.height_mm, 3, 1.0);
-      if (patches.length === 0) break;
-      for (const p of patches) {
-        const update: Record<string, number> = {};
-        if (p.y_mm !== undefined) update.y_mm = p.y_mm;
-        if (p.h_mm !== undefined) update.h_mm = p.h_mm;
-        if (Object.keys(update).length === 0) continue;
-        const { error } = await sb.from("gen4_elements").update(update).eq("id", p.id);
-        if (!error) applied++;
-      }
-      // Refresh z DB do następnej iteracji
-      const { data: fresh } = await sb
+    for (const e of result.elements) {
+      if (!changed.has(e.id)) continue;
+      const { error } = await sb
         .from("gen4_elements")
-        .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
-        .eq("page_id", page.id);
-      currentEls = (fresh ?? []).map((e) => ({
-        id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
-        w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
-      }));
+        .update({ x_mm: e.x_mm, y_mm: e.y_mm, w_mm: e.w_mm, h_mm: e.h_mm, properties: e.properties })
+        .eq("id", e.id);
+      if (!error) applied++;
     }
+    totalChanged += applied;
+    totalNeedsSplit += result.needsSplit.length;
 
-    totalPatches += applied;
-
-    const groupsAfter = findOverlapGroups(currentEls);
-
-    // STEP 3: shrink text to fit — pobierz properties dla wszystkich text elementów,
-    // sprawdz czy tekst sie miesci w boxie, jak nie zmniejsz font do 6pt min.
-    const { data: elProps } = await sb
-      .from("gen4_elements")
-      .select("id, type, w_mm, h_mm, properties")
-      .eq("page_id", page.id);
-    const elsForShrink: ShrinkElement[] = (elProps ?? []).map((e) => ({
-      id: e.id,
-      type: e.type,
-      w_mm: e.w_mm,
-      h_mm: e.h_mm,
-      properties: (e.properties ?? {}) as ShrinkElement["properties"],
-    }));
-    const shrinkResults = shrinkTextToFit(elsForShrink);
-    let shrinkApplied = 0;
-    let needsSplit = 0;
-    for (const r of shrinkResults) {
-      if (r.needs_split) { needsSplit++; continue; }
-      if (r.font_size_pt === undefined) continue;
-      const original = elsForShrink.find((e) => e.id === r.id);
-      if (!original) continue;
-      const newProps = { ...original.properties, font_size_pt: r.font_size_pt };
-      const { error } = await sb.from("gen4_elements").update({ properties: newProps }).eq("id", r.id);
-      if (!error) shrinkApplied++;
-    }
-    totalShrinkPatches += shrinkApplied;
-    totalNeedsSplit += needsSplit;
-
+    const groupsAfter = findOverlapGroups(toOverlap(result.elements)).length;
     perPage.push({
       page_number: page.page_number,
-      groups_before: groupsBefore.length,
-      clamp_patches: clampApplied,
-      patches: applied,
-      groups_after: groupsAfter.length,
-      shrink_patches: shrinkApplied,
-      needs_split: needsSplit,
+      groups_before: groupsBefore,
+      groups_after: groupsAfter,
+      changed: applied,
+      needs_split: result.needsSplit.length,
     });
   }
 
@@ -184,10 +100,9 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     ok: true,
     pages_total: pages.length,
     pages_with_overlaps: pagesWithOverlaps,
-    pages_with_out_of_bounds: pagesWithOutOfBounds,
-    clamp_patches_total: totalClampPatches,
-    patches_applied_total: totalPatches,
-    shrink_patches_total: totalShrinkPatches,
+    // alias zachowany dla kompatybilności z UI (Gen4Editor czyta to pole).
+    patches_applied_total: totalChanged,
+    changed_total: totalChanged,
     needs_split_total: totalNeedsSplit,
     per_page: perPage,
   });
