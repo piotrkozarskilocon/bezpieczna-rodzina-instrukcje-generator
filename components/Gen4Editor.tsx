@@ -744,61 +744,39 @@ export default function Gen4Editor({
     if (magicBusy) return;
     if (!confirm("🪄 Uruchomić CAŁY chain automation? Re-summary → categorize → extract values → autofill → fix-all → auto-split przepełnionych stron → dedupe overlap → TOC. Może zająć 6-10 minut.")) return;
     setMagicBusy(true);
+
+    // Zbieramy status KAŻDEGO kroku — żaden błąd nie ginie po cichu (było:
+    // pusty catch × 9 → niekompletny PDF bez sygnału).
+    const steps: Array<{ name: string; ok: boolean; detail?: string }> = [];
+    const drain = async (res: Response) => {
+      if (!res.body) return;
+      const reader = res.body.getReader();
+      while (true) { const r = await reader.read(); if (r.done) break; }
+    };
+    const postOk = async (path: string) => {
+      const res = await fetch(`${API}/projects/${projectId}/${path}`, { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      await drain(res);
+    };
+    const step = async (name: string, stage: string, fn: () => Promise<void>) => {
+      setMagicStage(stage);
+      try { await fn(); steps.push({ name, ok: true }); }
+      catch (e) { steps.push({ name, ok: false, detail: e instanceof Error ? e.message : String(e) }); }
+    };
+
     try {
-      // 1. Resummarize-all (skip fresh — idempotent)
-      setMagicStage("📝 1/7: Generuję streszczenia plików...");
-      try {
-        const res = await fetch(`${API}/projects/${projectId}/resummarize-all`, { method: "POST" });
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          while (true) { const r = await reader.read(); if (r.done) break; }
-        }
-      } catch { /* continue */ }
-
-      // 2. Categorize-all
-      setMagicStage("🏷️ 2/7: Rozpoznaję typy plików...");
-      try {
-        const res = await fetch(`${API}/projects/${projectId}/categorize-all`, { method: "POST" });
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          while (true) { const r = await reader.read(); if (r.done) break; }
-        }
-      } catch { /* continue */ }
-
-      // 3. Extract structured values (Gemini per-doc — SAR/spec/manual/decl/generic)
+      await step("Streszczenia plików", "📝 1/9: Generuję streszczenia plików...", () => postOk("resummarize-all"));
+      await step("Kategoryzacja typów", "🏷️ 2/9: Rozpoznaję typy plików...", () => postOk("categorize-all"));
       // MUSI byc przed autofill — autofill prompt wstawia extracted_structured.
-      setMagicStage("✨ 3/7: Wyciągam wartości z plików (SAR/spec/manual)...");
-      try {
-        const res = await fetch(`${API}/projects/${projectId}/extract-structured-all`, { method: "POST" });
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          while (true) { const r = await reader.read(); if (r.done) break; }
-        }
-      } catch { /* continue */ }
+      await step("Ekstrakcja wartości", "✨ 3/9: Wyciągam wartości z plików (SAR/spec/manual)...", () => postOk("extract-structured-all"));
+      await step("Obrazki → strony", "🤖 4/9: Przypisuję obrazki do stron...", () => postOk("auto-categorize-images"));
+      await step("Autofill placeholderów", "🪄 5/9: Wypełniam placeholdery wartościami z plików...", () => postOk("autofill-placeholders"));
 
-      // 4. Auto-categorize images
-      setMagicStage("🤖 4/7: Przypisuję obrazki do stron...");
-      try {
-        const res = await fetch(`${API}/projects/${projectId}/auto-categorize-images`, { method: "POST" });
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          while (true) { const r = await reader.read(); if (r.done) break; }
-        }
-      } catch { /* continue */ }
-
-      // 5. Autofill placeholders
-      setMagicStage("🪄 5/7: Wypełniam placeholdery wartościami z plików...");
-      try {
-        await fetch(`${API}/projects/${projectId}/autofill-placeholders`, { method: "POST" });
-      } catch { /* continue */ }
-
-      // 6. Fix all issues (chunked)
-      setMagicStage("🔧 6/7: Naprawiam problemy layoutu...");
-      try {
+      await step("Naprawa layoutu", "🔧 6/9: Naprawiam problemy layoutu...", async () => {
         let fromOffset = 0;
         while (true) {
           const res = await fetch(`${API}/projects/${projectId}/fix-all-issues?from=${fromOffset}`, { method: "POST" });
-          if (!res.ok || !res.body) break;
+          if (!res.ok || !res.body) throw new Error(`HTTP ${res.status}`);
           const reader = res.body.getReader();
           const decoder = new TextDecoder();
           let buf = "";
@@ -824,37 +802,36 @@ export default function Gen4Editor({
           if (!hasMore || nextOff === null) break;
           fromOffset = nextOff;
         }
-      } catch { /* continue */ }
+      });
 
-      // 7. Auto-split przepełnionych stron — AI dzieli strony z overflow/niemozliwym
-      // overlap na 2 strony z (1/2) (2/2) suffix. Per-page Claude tool_use ~5-10s
-      // wiec dla 5-stronnego splitu moze trwac ~30s. SSE consumed.
-      setMagicStage("📑 7/9: Auto-split przepełnionych stron...");
+      await step("Auto-split stron", "📑 7/9: Auto-split przepełnionych stron...", () => postOk("auto-split-pages"));
+      await step("Dedupe nakładań", "🛠️ 8/9: Naprawiam nakładania tekstów...", () => postOk("dedupe-overlap-all"));
+      await step("Spis treści", "🔄 9/9: Odświeżam spis treści...", () => postOk("regenerate-toc"));
+
+      // Brama jakości — werdykt layout + treść + pokrycie źródeł.
+      setMagicStage("🔍 Sprawdzam jakość dokumentu...");
+      let verdictLines: string[] = [];
       try {
-        const res = await fetch(`${API}/projects/${projectId}/auto-split-pages`, { method: "POST" });
-        if (res.ok && res.body) {
-          const reader = res.body.getReader();
-          while (true) { const r = await reader.read(); if (r.done) break; }
+        const qres = await fetch(`${API}/projects/${projectId}/quality-audit`, { cache: "no-store" });
+        if (qres.ok) {
+          const q = (await qres.json()) as {
+            verdict: { ready: boolean; blockers: string[] };
+            layout: { errors: number; warnings: number };
+            content: { placeholders: number };
+            sources: { withStructured: number; total: number; coveragePct: number };
+          };
+          verdictLines = q.verdict.ready
+            ? ["✅ Jakość: dokument gotowy (0 blokerów)"]
+            : ["⚠️ Jakość — do poprawy:", ...q.verdict.blockers.map((b) => `   • ${b}`)];
+          verdictLines.push(
+            `   layout: ${q.layout.errors} błędów / ${q.layout.warnings} ostrzeżeń · ` +
+            `treść: ${q.content.placeholders} placeholderów · ` +
+            `źródła: ${q.sources.withStructured}/${q.sources.total} (${q.sources.coveragePct}%)`,
+          );
         }
-      } catch { /* continue */ }
-
-      // 8. Dedupe overlap — deterministyczny resolver dla text-text nakładań.
-      // BARDZO szybki (~1-3s dla 20 stron, bez AI). Naprawia bug AI wstawiajacych
-      // 2-3 boxy na te same koordynaty. Po split tez bo nowe strony moga miec overlap.
-      setMagicStage("🛠️ 8/9: Naprawiam nakładania tekstów...");
-      try {
-        await fetch(`${API}/projects/${projectId}/dedupe-overlap-all`, { method: "POST" });
-      } catch { /* continue */ }
-
-      // 9. Regenerate TOC (deterministyczne, krotkie). Po splitcie page_numbers
-      // zmieniły się — TOC musi byc odświeżony.
-      setMagicStage("🔄 9/9: Odświeżam spis treści...");
-      try {
-        await fetch(`${API}/projects/${projectId}/regenerate-toc`, { method: "POST" });
-      } catch { /* continue */ }
+      } catch { /* brama opcjonalna */ }
 
       setMagicStage("✅ Gotowe!");
-      // Reload aktualnej strony
       if (currentPageId) {
         const elRes = await fetch(`${API}/pages/${currentPageId}/elements/`, { cache: "no-store" });
         if (elRes.ok) {
@@ -862,13 +839,22 @@ export default function Gen4Editor({
           setElements(elJson.elements ?? []);
         }
       }
-      // Reload pages
       const pRes = await fetch(`${API}/projects/${projectId}/pages/`, { cache: "no-store" });
       if (pRes.ok) {
         const pj = (await pRes.json()) as { pages: PageRow[] };
         setPages(pj.pages ?? []);
       }
-      alert("🪄 Magic chain zakończony! Projekt powinien być teraz w ~95% gotowy.");
+
+      const failed = steps.filter((s) => !s.ok);
+      const header = failed.length === 0
+        ? "🪄 Magic chain zakończony — wszystkie 9 kroków OK."
+        : `🪄 Magic chain zakończony z ostrzeżeniami: ${failed.length}/${steps.length} kroków nie powiodło się:`;
+      const summary = [
+        header,
+        ...failed.map((s) => `  ✗ ${s.name}${s.detail ? " — " + s.detail : ""}`),
+        ...(verdictLines.length ? ["", ...verdictLines] : []),
+      ].join("\n");
+      alert(summary);
     } catch (err) {
       alert(`Magic chain failed: ${err instanceof Error ? err.message : "unknown"}`);
     } finally {
