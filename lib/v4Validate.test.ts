@@ -82,6 +82,34 @@ describe("validatePage", () => {
     expect(placeholderIssue?.ai_fixable).toBe(false);
   });
 
+  it("wykrywa font ponizej progu czytelnosci (<6pt) jako warning", () => {
+    const page = makePage({
+      elements: [
+        makeText({ properties: { content: "drobny druk", font_size_pt: 4 } }),
+      ],
+    });
+    const issues = validatePage(page);
+    const fontIssue = issues.find((i) => /font|czyteln|pt\b/i.test(i.message));
+    expect(fontIssue).toBeDefined();
+    expect(fontIssue?.severity).toBe("warning");
+  });
+
+  it("nie zglasza fontu 6pt jako problem (granica czytelnosci)", () => {
+    const page = makePage({
+      elements: [makeText({ properties: { content: "treść", font_size_pt: 6 } })],
+    });
+    const issues = validatePage(page);
+    expect(issues.some((i) => /ponizej.*czyteln|<\s*6\s*pt|nieczyteln/i.test(i.message))).toBe(false);
+  });
+
+  it("nie zglasza malego fontu dla pustego contentu", () => {
+    const page = makePage({
+      elements: [makeText({ properties: { content: "", font_size_pt: 4 } })],
+    });
+    const issues = validatePage(page);
+    expect(issues.some((i) => /czyteln|nieczyteln/i.test(i.message))).toBe(false);
+  });
+
   it("wykrywa image element bez image_id (placeholder)", () => {
     const page = makePage({
       elements: [
@@ -140,10 +168,10 @@ describe("validatePage", () => {
 describe("summarizeIssues", () => {
   it("liczy issues per severity", () => {
     const issues = [
-      { severity: "error" as const, message: "a" },
-      { severity: "error" as const, message: "b" },
-      { severity: "warning" as const, message: "c" },
-      { severity: "info" as const, message: "d" },
+      { severity: "error" as const, code: "out_of_bounds" as const, message: "a" },
+      { severity: "error" as const, code: "overlap_text" as const, message: "b" },
+      { severity: "warning" as const, code: "tiny_font" as const, message: "c" },
+      { severity: "info" as const, code: "placeholder" as const, message: "d" },
     ];
     const summary = summarizeIssues(issues);
     expect(summary.errors).toBe(2);

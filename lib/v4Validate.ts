@@ -10,11 +10,32 @@
 const MM_PER_PT = 25.4 / 72;
 const PAGE_MARGIN_MM = 3; // konwencja Locon — 3mm margines
 const PLACEHOLDER_PATTERN = /⚠️\s*DO\s+UZUPE[ŁL]NIENIA/i;
+/** Dolny próg czytelności fontu. Zgodny z podłogą font-shrinkera (v4FontShrinker):
+ *  kaskada layoutu NIGDY nie powinna schodzić poniżej 6pt — zamiast tego dzieli
+ *  sekcję na kolejną stronę (auto-split). Font < 6pt = treść nieczytelna w druku. */
+const MIN_READABLE_FONT_PT = 6;
 
 export type IssueSeverity = "error" | "warning" | "info";
 
+/** Stabilny kod kategorii problemu — pozwala agregować i rozdzielać oś
+ *  LAYOUT (dopasowanie do strony) od osi TREŚĆ (kompletność danych) bez
+ *  parsowania tekstu message. */
+export type IssueCode =
+  | "no_title"
+  | "out_of_bounds"
+  | "margin_breach"
+  | "text_overflow"
+  | "tiny_font"
+  | "placeholder"
+  | "image_no_id"
+  | "low_opacity"
+  | "zero_dim"
+  | "overlap_text"
+  | "overlap_other";
+
 export interface ValidationIssue {
   severity: IssueSeverity;
+  code: IssueCode;
   element_id?: string;
   element_type?: string;
   message: string;
@@ -82,6 +103,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
   if (page.template !== "cover" && !page.title?.trim()) {
     issues.push({
       severity: "warning",
+      code: "no_title",
       message: `Strona ${page.page_number} nie ma tytułu`,
       fix_hint: "Ustaw page.title — dodaj krótki nagłówek opisujący zawartość strony.",
       ai_fixable: false, // AI nie zna właściwego tytułu — user musi go zdefiniować
@@ -95,6 +117,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         el.y_mm + el.h_mm > page.height_mm + 0.1) {
       issues.push({
         severity: "error",
+        code: "out_of_bounds",
         element_id: el.id,
         element_type: el.type,
         message: `Element ${el.type} wychodzi POZA stronę (pozycja: ${el.x_mm.toFixed(1)},${el.y_mm.toFixed(1)} ${el.w_mm.toFixed(1)}×${el.h_mm.toFixed(1)} mm; strona ${page.width_mm}×${page.height_mm} mm)`,
@@ -110,6 +133,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         el.y_mm + el.h_mm > page.height_mm - PAGE_MARGIN_MM + 0.1) {
       issues.push({
         severity: "warning",
+        code: "margin_breach",
         element_id: el.id,
         element_type: el.type,
         message: `Element ${el.type} narusza ${PAGE_MARGIN_MM} mm margines strony`,
@@ -127,6 +151,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         if (estimatedH > el.h_mm + 0.5) {
           issues.push({
             severity: "warning",
+            code: "text_overflow",
             element_id: el.id,
             element_type: el.type,
             message: `Tekst "${content.slice(0, 40)}${content.length > 40 ? "…" : ""}" jest za długi dla boxa (potrzeba ~${estimatedH.toFixed(1)} mm, jest ${el.h_mm.toFixed(1)} mm)`,
@@ -136,10 +161,26 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
         }
       }
 
+      // 4b. Font poniżej progu czytelności — symptom "źle zeskalowane".
+      //     Font-shrinker ma podłogę 6pt; cokolwiek niżej oznacza że treść
+      //     została wciśnięta zamiast rozbita na kolejną stronę (auto-split).
+      if (content && fontSize < MIN_READABLE_FONT_PT) {
+        issues.push({
+          severity: "warning",
+          code: "tiny_font",
+          element_id: el.id,
+          element_type: el.type,
+          message: `Font ${fontSize}pt jest poniżej progu czytelności (${MIN_READABLE_FONT_PT}pt) — tekst nieczytelny w druku`,
+          fix_hint: `Nie zmniejszaj fontu poniżej ${MIN_READABLE_FONT_PT}pt. Rozbij sekcję na kolejną stronę (auto-split) lub powiększ box, by treść zmieściła się przy czytelnym foncie.`,
+          ai_fixable: true,
+        });
+      }
+
       // 5. Placeholdery DO UZUPEŁNIENIA
       if (content && PLACEHOLDER_PATTERN.test(content)) {
         issues.push({
           severity: "info",
+          code: "placeholder",
           element_id: el.id,
           element_type: el.type,
           message: `Element zawiera placeholder "⚠️ DO UZUPEŁNIENIA" — wartość niezdefiniowana`,
@@ -156,6 +197,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
       if (!imageId && !placeholderDesc) {
         issues.push({
           severity: "warning",
+          code: "image_no_id",
           element_id: el.id,
           element_type: el.type,
           message: "Element image bez image_id i bez opisu placeholderu",
@@ -171,6 +213,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
       if (typeof op === "number" && op > 0 && op < 0.08) {
         issues.push({
           severity: "info",
+          code: "low_opacity",
           element_id: el.id,
           element_type: el.type,
           message: `Image ma bardzo niską opacity (${op}) — prawie niewidoczny`,
@@ -184,6 +227,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
     if (el.w_mm < 0.1 || el.h_mm < 0.1) {
       issues.push({
         severity: "warning",
+        code: "zero_dim",
         element_id: el.id,
         element_type: el.type,
         message: `Element ${el.type} ma zerowe wymiary (${el.w_mm}×${el.h_mm} mm) — może być niewidoczny`,
@@ -211,6 +255,7 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
       const bothText = textTypes.has(a.type) && textTypes.has(b.type);
       issues.push({
         severity: bothText ? "error" : "info",
+        code: bothText ? "overlap_text" : "overlap_other",
         element_id: a.id,
         element_type: a.type,
         message: `${a.type} nakłada się na ${b.type}${bothText ? " (NIECZYTELNE — bloki tekstu na sobie)" : " (sąsiednie boxy zachodzą)"}`,
