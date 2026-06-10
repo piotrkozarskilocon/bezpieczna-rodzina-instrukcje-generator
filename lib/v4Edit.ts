@@ -23,6 +23,7 @@ import {
   parseJsonFromAi,
 } from "@/lib/v4Generate";
 import { loadActiveNotes, renderNotesForPrompt } from "@/lib/v4Notes";
+import type { LayoutElement } from "@/lib/v4FinalizeLayout";
 
 const VALID_TYPES = new Set([
   "text", "image", "line", "rect", "qr", "page_number", "callout",
@@ -419,10 +420,7 @@ export async function replacePageElements(
  *  3. shrink text to fit (gdy tekst wystaje z h_mm → zmniejsz font_size_pt, min 6pt)
  *  Każdy krok ma własny refresh z DB. */
 async function applyAutoDedupeOverlap(pageId: string): Promise<void> {
-  const { findOverlapGroups, resolveTextOverlaps } = await import("@/lib/v4OverlapResolver");
-  const { clampToBounds, hasOutOfBoundsElements } = await import("@/lib/v4BoundsClamp");
-  const { shrinkTextToFit } = await import("@/lib/v4FontShrinker");
-  type ShrinkElement = Parameters<typeof shrinkTextToFit>[0][number];
+  const { finalizePageLayout } = await import("@/lib/v4FinalizeLayout");
   const sb = getSupabaseAdmin();
 
   const { data: page } = await sb
@@ -432,71 +430,30 @@ async function applyAutoDedupeOverlap(pageId: string): Promise<void> {
     .single();
   if (!page) return;
 
-  // ── STEP 1: clamp to bounds — twardy nakaz brak wychodzenia poza margines.
-  const { data: el0 } = await sb
+  // Ładuj WSZYSTKIE elementy raz (geometria + properties + z_index).
+  const { data: rows } = await sb
     .from("gen4_elements")
-    .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
+    .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index, properties")
     .eq("page_id", pageId);
-  const els0 = (el0 ?? []).map((e) => ({
-    id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
-    w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
+  if (!rows || rows.length === 0) return;
+
+  const input = rows.map((e) => ({
+    id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm, w_mm: e.w_mm, h_mm: e.h_mm,
+    z_index: e.z_index, properties: (e.properties ?? {}) as LayoutElement["properties"],
   }));
 
-  if (hasOutOfBoundsElements(els0, page.width_mm, page.height_mm, 3)) {
-    const clampPatches = clampToBounds(els0, page.width_mm, page.height_mm, 3);
-    for (const p of clampPatches) {
-      const update: Record<string, number> = {};
-      if (p.x_mm !== undefined) update.x_mm = p.x_mm;
-      if (p.y_mm !== undefined) update.y_mm = p.y_mm;
-      if (p.w_mm !== undefined) update.w_mm = p.w_mm;
-      if (p.h_mm !== undefined) update.h_mm = p.h_mm;
-      if (Object.keys(update).length === 0) continue;
-      await sb.from("gen4_elements").update(update).eq("id", p.id);
-    }
-  }
+  // Deterministyczna, iteracyjna kaskada (clamp → resolve overlap → shrink font)
+  // aż do zbieżności — czysta funkcja, jeden raz, w pamięci.
+  const { elements, changedIds } = finalizePageLayout(input, page.width_mm, page.height_mm);
 
-  // ── STEP 2: dedupe text overlap — refresh i sprawdz po clamp.
-  const { data: el1 } = await sb
-    .from("gen4_elements")
-    .select("id, type, x_mm, y_mm, w_mm, h_mm, z_index")
-    .eq("page_id", pageId);
-  const els1 = (el1 ?? []).map((e) => ({
-    id: e.id, type: e.type, x_mm: e.x_mm, y_mm: e.y_mm,
-    w_mm: e.w_mm, h_mm: e.h_mm, z_index: e.z_index,
-  }));
-
-  const groups = findOverlapGroups(els1);
-  if (groups.length > 0) {
-    const patches = resolveTextOverlaps(els1, page.height_mm, 3, 1.0);
-    for (const p of patches) {
-      const update: Record<string, number> = {};
-      if (p.y_mm !== undefined) update.y_mm = p.y_mm;
-      if (p.h_mm !== undefined) update.h_mm = p.h_mm;
-      if (Object.keys(update).length === 0) continue;
-      await sb.from("gen4_elements").update(update).eq("id", p.id);
-    }
-  }
-
-  // ── STEP 3: shrink text to fit — refresh z properties bo potrzebne content/font_size_pt.
-  const { data: el2 } = await sb
-    .from("gen4_elements")
-    .select("id, type, w_mm, h_mm, properties")
-    .eq("page_id", pageId);
-  const els2: ShrinkElement[] = (el2 ?? []).map((e) => ({
-    id: e.id,
-    type: e.type,
-    w_mm: e.w_mm,
-    h_mm: e.h_mm,
-    properties: (e.properties ?? {}) as ShrinkElement["properties"],
-  }));
-
-  const shrinkResults = shrinkTextToFit(els2);
-  for (const r of shrinkResults) {
-    if (r.font_size_pt === undefined) continue;
-    // Pobierz właściwe properties, update font_size_pt zachowując pozostałe pola.
-    const original = els2.find((e) => e.id === r.id);
-    if (!original) continue;
-    const newProps = { ...original.properties, font_size_pt: r.font_size_pt };
-    await sb.from("gen4_elements").update({ properties: newProps }).eq("id", r.id);
+  // Zapisz TYLKO zmienione elementy (jeden update na element — usuwa stary
+  // wzorzec 3× read + write-per-element-per-warstwa = N+1).
+  const changed = new Set(changedIds);
+  for (const e of elements) {
+    if (!changed.has(e.id)) continue;
+    await sb
+      .from("gen4_elements")
+      .update({ x_mm: e.x_mm, y_mm: e.y_mm, w_mm: e.w_mm, h_mm: e.h_mm, properties: e.properties })
+      .eq("id", e.id);
   }
 }
