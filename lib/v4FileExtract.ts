@@ -123,8 +123,16 @@ export async function prepareFileForAi(
       for (const sheetName of wb.SheetNames) {
         const ws = wb.Sheets[sheetName];
         const csv = XLSX.utils.sheet_to_csv(ws, { blankrows: false });
-        if (!csv.trim()) continue;
-        chunks.push(`### Arkusz: ${sheetName}\n${csv}`);
+        // Arkusze specyfikacji mają często setki pustych kolumn → CSV pełne
+        // ciągów przecinków (szum, zżera tokeny i rozmywa sygnał dla AI).
+        // Usuwamy końcowe przecinki per wiersz i wiersze faktycznie puste.
+        const cleaned = csv
+          .split("\n")
+          .map((line) => line.replace(/,+\s*$/, ""))
+          .filter((line) => line.replace(/,/g, "").trim().length > 0)
+          .join("\n");
+        if (!cleaned.trim()) continue;
+        chunks.push(`### Arkusz: ${sheetName}\n${cleaned}`);
       }
       if (chunks.length === 0) {
         throw new Error("XLSX nie zawiera danych w żadnym arkuszu");

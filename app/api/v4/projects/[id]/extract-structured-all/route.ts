@@ -13,6 +13,7 @@ import { authenticate } from "@/lib/auth";
 import { getSupabaseAdmin } from "@/lib/supabase";
 import { callGeminiWithRetry, GEMINI_FLASH } from "@/lib/v4Gemini";
 import { logAiCall } from "@/lib/v4AiLog";
+import { prepareFileForAi } from "@/lib/v4FileExtract";
 import {
   SarReportSchema,
   TechSpecSchema,
@@ -146,14 +147,33 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
             throw new Error(`za duzy plik (${(buf.length / 1024 / 1024).toFixed(1)}MB > 20MB inline limit)`);
           }
 
-          const base64 = buf.toString("base64");
+          // PDF → Gemini Vision inline. XLSX/DOCX to binaria których Vision nie
+          // czyta — konwertujemy na tekst (xlsx→csv, docx→txt) i wstawiamy do
+          // promptu. Bez tego spec urządzenia (xlsx) i deklaracje (docx) nie
+          // dawały danych strukturalnych.
+          const MAX_DOC_TEXT = 200_000;
+          let inlineForGemini: Array<{ mimeType: string; data: string }> | undefined;
+          let documentText = "";
+          if (mime === "application/pdf") {
+            inlineForGemini = [{ mimeType: mime, data: buf.toString("base64") }];
+          } else {
+            try {
+              const prepared = await prepareFileForAi(buf, doc.name, mime);
+              documentText = prepared.bytes.toString("utf-8").slice(0, MAX_DOC_TEXT);
+            } catch {
+              inlineForGemini = [{ mimeType: mime, data: buf.toString("base64") }];
+            }
+          }
+
           const cfg = pickSchemaForKind(doc.kind);
           const userPrompt = `Plik: ${doc.name}
 Typ: ${doc.kind ?? "(brak)"}
 Mime: ${mime}
 
 Wyciagnij strukturalne wartosci wg schemy ${cfg.name}.
-Jezeli typ nie pasuje do realnej zawartosci — wypelnij co potrafisz i opisz realny typ w polu 'notes' / 'detected_doc_type'.`;
+Jezeli typ nie pasuje do realnej zawartosci — wypelnij co potrafisz i opisz realny typ w polu 'notes' / 'detected_doc_type'.${
+            documentText ? `\n\n──────────── ZAWARTOŚĆ DOKUMENTU ────────────\n${documentText}` : ""
+          }`;
 
           const docStartedAt = Date.now();
           const ai = await callGeminiWithRetry({
@@ -162,7 +182,7 @@ Jezeli typ nie pasuje do realnej zawartosci — wypelnij co potrafisz i opisz re
             model: GEMINI_FLASH,
             maxTokens: 16000,
             outputSchema: { name: cfg.name, description: cfg.description, schema: cfg.schema },
-            inlineFiles: [{ mimeType: mime, data: base64 }],
+            inlineFiles: inlineForGemini,
           });
 
           const structured = ai.parsed;

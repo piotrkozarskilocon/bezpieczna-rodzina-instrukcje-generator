@@ -1,5 +1,8 @@
 import { describe, it, expect } from "vitest";
-import { guessMimeFromFilename, normalizeMime, ACCEPTED_MIME_TYPES } from "./v4FileExtract";
+import { guessMimeFromFilename, normalizeMime, ACCEPTED_MIME_TYPES, prepareFileForAi } from "./v4FileExtract";
+import * as XLSX from "xlsx";
+
+const XLSX_MIME = "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet";
 
 describe("guessMimeFromFilename", () => {
   it("rozpoznaje PDF po rozszerzeniu", () => {
@@ -60,6 +63,35 @@ describe("normalizeMime", () => {
   it("zwraca null gdy ani mime ani extension nie sa rozpoznawalne", () => {
     expect(normalizeMime("application/x-shockwave-flash", "movie.swf")).toBeNull();
     expect(normalizeMime("", "no_extension")).toBeNull();
+  });
+});
+
+describe("prepareFileForAi — XLSX → tekst", () => {
+  function makeXlsxBuffer(rows: unknown[][]): Buffer {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "K9");
+    return XLSX.write(wb, { type: "buffer", bookType: "xlsx" }) as Buffer;
+  }
+
+  it("wyciąga wartości i czyści szum pustych kolumn", async () => {
+    // Wiersz z wartością + dużo pustych kolumn (jak realna spec urządzenia).
+    const rows = [
+      ["MODEL NAME", "K9", "", "", "", "", "", ""],
+      ["Battery", "500mAh", "", "", "", "", "", ""],
+      ["", "", "", "", "", "", "", ""], // pusty wiersz
+    ];
+    const prepared = await prepareFileForAi(makeXlsxBuffer(rows), "spec.xlsx", XLSX_MIME);
+    const text = prepared.bytes.toString("utf-8");
+    expect(prepared.converted).toBe(true);
+    expect(text).toContain("MODEL NAME,K9");
+    expect(text).toContain("Battery,500mAh");
+    // brak ciągów ≥3 przecinków (szum usunięty)
+    expect(/,{3,}/.test(text)).toBe(false);
+  });
+
+  it("rzuca błąd gdy XLSX nie ma danych", async () => {
+    await expect(prepareFileForAi(makeXlsxBuffer([["", ""]]), "empty.xlsx", XLSX_MIME)).rejects.toThrow();
   });
 });
 

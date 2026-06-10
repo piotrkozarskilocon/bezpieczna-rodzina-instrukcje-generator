@@ -23,6 +23,7 @@ import {
   GenericDocSchema,
 } from "@/lib/v4Schemas";
 import { logAiCall } from "@/lib/v4AiLog";
+import { prepareFileForAi } from "@/lib/v4FileExtract";
 import type { ZodSchema } from "zod";
 
 export const runtime = "nodejs";
@@ -199,7 +200,6 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   }
 
   const buf = Buffer.from(await download.arrayBuffer());
-  const base64 = buf.toString("base64");
   const mimeType = doc.mime_type || "application/pdf";
 
   // Gemini inline file limit ~20MB. Wieksze pliki wymagaja Files API —
@@ -211,14 +211,37 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
     );
   }
 
+  // PDF czyta Gemini Vision natywnie (inline). XLSX/DOCX to BINARIA, których
+  // Vision NIE czyta — konwertujemy je na tekst (xlsx→csv, docx→txt) przez
+  // prepareFileForAi i wstawiamy treść do promptu. Bez tego spec urządzenia
+  // (xlsx) i deklaracje (docx) nigdy nie dawały danych strukturalnych.
+  const MAX_DOC_TEXT = 200_000; // ~50k tokenów — spec/deklaracje są małe
+  let inlineForGemini: Array<{ mimeType: string; data: string }> | undefined;
+  let documentText = "";
+  if (mimeType === "application/pdf") {
+    inlineForGemini = [{ mimeType, data: buf.toString("base64") }];
+  } else {
+    try {
+      const prepared = await prepareFileForAi(buf, doc.name, mimeType);
+      documentText = prepared.bytes.toString("utf-8").slice(0, MAX_DOC_TEXT);
+    } catch {
+      // Fallback: pliki już tekstowe (txt/md/csv/json) Gemini czyta inline.
+      inlineForGemini = [{ mimeType, data: buf.toString("base64") }];
+    }
+  }
+
   const cfg = pickSchemaForKind(doc.kind);
 
   const userPrompt = `Plik referencyjny: ${doc.name}
 Typ (wybrany przez uzytkownika): ${doc.kind ?? "(brak / inne)"}
 Mime: ${mimeType}
 
-Wyciagnij strukturalne wartosci z zalaczonego dokumentu wg schemy ${cfg.name}.
-Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jako sar_report ale to manual) — wypelnij co potrafisz, a w polu 'notes' opisz krotko realny typ dokumentu.`;
+Wyciagnij strukturalne wartosci z dokumentu wg schemy ${cfg.name}.
+Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jako sar_report ale to manual) — wypelnij co potrafisz, a w polu 'notes' opisz krotko realny typ dokumentu.${
+    documentText
+      ? `\n\n──────────── ZAWARTOŚĆ DOKUMENTU ────────────\n${documentText}`
+      : ""
+  }`;
 
   const startedAt = Date.now();
 
@@ -248,7 +271,7 @@ Jezeli wybrany typ nie pasuje do realnej zawartosci pliku (np. user oznaczyl jak
             description: cfg.description,
             schema: cfg.schema,
           },
-          inlineFiles: [{ mimeType, data: base64 }],
+          inlineFiles: inlineForGemini,
         }, {
           onProgress: (info) => {
             // Emituj do SSE zeby user widzial w UI ze trwa retry / fallback.
