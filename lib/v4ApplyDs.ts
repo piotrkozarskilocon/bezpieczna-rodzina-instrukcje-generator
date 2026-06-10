@@ -77,7 +77,9 @@ function commonRules(
   const fontScale = Math.min(pw, ph) / 76;
   const maxHeader = Math.round(11 * fontScale);
   const maxBody = Math.round(7 * fontScale);
-  const maxCaption = Math.round(5 * fontScale);
+  // Caption ma podłogę 6pt — próg czytelności w druku. NIGDY mniej (zgodnie
+  // z v4FontShrinker MIN_FONT_PT i regułą tiny_font w v4Validate).
+  const maxCaption = Math.max(6, Math.round(6 * fontScale));
 
   return [
     "",
@@ -91,7 +93,7 @@ function commonRules(
     `• Maksymalne rozmiary czcionek dla ${pw}×${ph} mm:`,
     `    - Naglowek (tytul strony): max ${maxHeader} pt`,
     `    - Body / tresc: max ${maxBody} pt`,
-    `    - Caption / podpis: max ${maxCaption} pt`,
+    `    - Caption / podpis: ${maxCaption} pt (PODŁOGA — NIGDY < 6pt, próg czytelności)`,
     `• Jezeli DS proponuje wieksze fonty (np. 22pt dla titleLarge), MUSISZ je ZESKALOWAC`,
     `  do wymiarow tej strony. NIE kopiuj naiwnie wartosci z DS.`,
     "",
@@ -124,7 +126,7 @@ function commonRules(
     "Wszystkie sekcje/strony powinny używać tych SAMYCH font_size_pt dla:",
     `  - Nagłówek (page title): zwykle ${Math.round(maxHeader * 0.85)}-${maxHeader} pt`,
     `  - Body (treść): zwykle ${Math.round(maxBody * 0.7)}-${maxBody} pt (typowo 7-8 pt)`,
-    `  - Caption (podpisy): zwykle ${Math.round(maxCaption * 0.8)}-${maxCaption} pt (5-6 pt)`,
+    `  - Caption (podpisy): ${maxCaption} pt (NIGDY poniżej 6pt — próg czytelności w druku)`,
     "Nie zmieniaj font_size_pt strony do strony bez powodu — projekt ma wyglądać spójnie.",
     "Wyjątek: gdy strona ma DUŻO treści i wybrałeś strategię '2. Zmniejsz font' — wtedy OK",
     "zmniejszyć do 6pt, ale tylko na TĘ stronę i tylko w body.",

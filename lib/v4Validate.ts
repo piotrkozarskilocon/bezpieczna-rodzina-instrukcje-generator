@@ -223,8 +223,9 @@ export function validatePage(page: PageForValidation): ValidationIssue[] {
       }
     }
 
-    // 7. Element z zerowymi wymiarami
-    if (el.w_mm < 0.1 || el.h_mm < 0.1) {
+    // 7. Element z zerowymi wymiarami. Pomijamy `line` — linia z definicji ma
+    //    jeden wymiar ~0 (grubość), to NIE jest błąd (false-positive).
+    if (el.type !== "line" && (el.w_mm < 0.1 || el.h_mm < 0.1)) {
       issues.push({
         severity: "warning",
         code: "zero_dim",

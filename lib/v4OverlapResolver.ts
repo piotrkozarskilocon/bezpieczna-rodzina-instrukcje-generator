@@ -100,35 +100,45 @@ export function resolveTextOverlaps(
       if (za !== zb) return za - zb;
       return a.y_mm - b.y_mm;
     });
-    // Start od najwyższego y_mm w grupie — szanujemy oryginalne położenie wejścia
-    const topY = Math.min(...sorted.map((s) => s.y_mm));
+    const n = sorted.length;
     const maxY = pageHeight - margin;
-    let cursorY = Math.max(topY, margin);
+    const topY = Math.min(...sorted.map((s) => s.y_mm));
+    const totalH = sorted.reduce((s, e) => s + e.h_mm, 0);
+    const gapsTotal = gap * (n - 1);
+    const totalNeeded = totalH + gapsTotal;
 
+    // Punkt startowy: oryginalna górna krawędź grupy (faithful). Jeśli grupa nie
+    // mieści się w dół do maxY, przesuń ją w GÓRĘ aż do marginesu — to zyskuje
+    // miejsce ZANIM zaczniemy kompresować wysokości.
+    let startY = Math.max(margin, topY);
+    if (totalNeeded > maxY - startY) startY = Math.max(margin, maxY - totalNeeded);
+
+    const available = maxY - startY;
+    // Jeśli nawet po przesunięciu w górę grupa się nie mieści — kompresuj
+    // wysokości PROPORCJONALNIE, żeby elementy NIE nachodziły na siebie.
+    // Mniejsze h_mm może spowodować overflow tekstu — to naprawi fontShrinker
+    // (font do 6pt) lub flag needs_split / auto-split. Priorytet: ZERO nakładań,
+    // bo nakładający się tekst jest nieczytelny (gorsze niż ciasny układ).
+    let scale = 1;
+    if (totalNeeded > available) {
+      scale = Math.max(0.05, (available - gapsTotal) / Math.max(0.1, totalH));
+    }
+
+    let cursorY = startY;
     for (const el of sorted) {
-      const remainingSpace = maxY - cursorY;
-      if (remainingSpace <= 0) {
-        // Nie ma juz miejsca w stronie — to nie znaczy że element jest "niemożliwy".
-        // Zostaw go z oryginalnymi wymiarami w pozycji minimum-margin-bottom; auto-split
-        // potem zauważy że strona ma overflow i podzieli ją na 2. Lub fontShrinker
-        // zmniejszy font dla wszystkich elementów strony żeby się zmieściły.
-        // NIE skracaj do 4mm bo to ukrywa tekst — lepiej zostawić widoczny problem
-        // który następna warstwa naprawi.
-        patches.push({
-          id: el.id,
-          y_mm: Math.max(margin, maxY - el.h_mm),
-          reason: `overflow: brak miejsca po ułożeniu grupy ${group.length} elementów — strona wymaga splitu lub mniejszego fontu`,
-        });
-        continue;
-      }
-      const targetH = Math.min(el.h_mm, remainingSpace);
-      const patch: OverlapPatch = { id: el.id, reason: `dedupe-overlap: grupa ${group.length} elementów ułożona pionowo` };
-      if (Math.abs(el.y_mm - cursorY) > 0.05) patch.y_mm = +cursorY.toFixed(2);
-      if (Math.abs(el.h_mm - targetH) > 0.05) patch.h_mm = +targetH.toFixed(2);
-      if (patch.y_mm !== undefined || patch.h_mm !== undefined) {
-        patches.push(patch);
-      }
-      cursorY += targetH + gap;
+      const newH = +(el.h_mm * scale).toFixed(2);
+      const newY = +cursorY.toFixed(2);
+      const patch: OverlapPatch = {
+        id: el.id,
+        reason:
+          scale < 1
+            ? `dedupe-overlap: grupa ${n} elementów ułożona pionowo + kompresja h ×${scale.toFixed(2)} (strona ciasna — fontShrinker/split dopracuje)`
+            : `dedupe-overlap: grupa ${n} elementów ułożona pionowo`,
+      };
+      if (Math.abs(el.y_mm - newY) > 0.05) patch.y_mm = newY;
+      if (Math.abs(el.h_mm - newH) > 0.05) patch.h_mm = newH;
+      if (patch.y_mm !== undefined || patch.h_mm !== undefined) patches.push(patch);
+      cursorY += newH + gap;
     }
   }
   return patches;

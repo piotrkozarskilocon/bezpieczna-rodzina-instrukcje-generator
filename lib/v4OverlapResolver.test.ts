@@ -77,23 +77,48 @@ describe("resolveTextOverlaps", () => {
     expect(patches).toEqual([]);
   });
 
-  it("overflow: gdy nie mieści się, skraca h_mm a overflow zostawia oryginalne wymiary", () => {
+  it("overflow w dół: przesuwa grupę w górę by zmieściła się bez nakładania", () => {
     const elements = [
       el("a", "text", 5, 60, 60, 15, 1),
       el("b", "text", 5, 62, 60, 15, 2),
     ];
-    // pageHeight 76, margin 3 → maxY = 73
-    // top = 60, cursor = 60. Element a (h=15) ma 73-60=13 → skrocony do 13
-    // cursor po a: 60+13+1=74 → b nie mieści się (74 > 73)
-    // b zostaje z oryginalnymi wymiarami h=15 ale przesunięty na maxY-h (=58)
-    // — to nie znaczy że jest "niemożliwy", auto-split / fontShrink to naprawi.
+    // pageHeight 76, margin 3 → maxY=73. totalNeeded=15+15+1=31 > (73-60)=13,
+    // więc startY przesuwa się w górę: max(3, 73-31)=42. Mieści się bez kompresji.
+    // a→y=42 (h=15), b→y=58 (h=15). Brak nakładania, oba w stronie.
     const patches = resolveTextOverlaps(elements, 76, 3, 1.0);
     const byId = new Map(patches.map((p) => [p.id, p]));
-    expect(byId.get("a")?.h_mm).toBeCloseTo(13, 1);
-    // b: oryginalne h=15 zachowane, y_mm=maxY-h=73-15=58
-    expect(byId.get("b")?.h_mm).toBeUndefined(); // h_mm bez zmian → brak w patch
+    expect(byId.get("a")?.y_mm).toBeCloseTo(42, 1);
     expect(byId.get("b")?.y_mm).toBeCloseTo(58, 1);
-    expect(byId.get("b")?.reason).toContain("overflow");
+    // brak kompresji — wysokości zachowane
+    expect(byId.get("a")?.h_mm).toBeUndefined();
+    expect(byId.get("b")?.h_mm).toBeUndefined();
+  });
+
+  it("ciasna strona: kompresuje wysokości proporcjonalnie, zero nakładań, w bounds", () => {
+    // 4 elementy h=25 nie mieszczą się (totalNeeded=103 > 70) → kompresja.
+    const elements = [
+      el("a", "text", 5, 5, 60, 25, 1),
+      el("b", "text", 5, 10, 60, 25, 2),
+      el("c", "text", 5, 15, 60, 25, 3),
+      el("d", "text", 5, 20, 60, 25, 4),
+    ];
+    const patches = resolveTextOverlaps(elements, 76, 3, 1.0);
+    // Zbuduj finalny stan i sprawdź inwarianty: w bounds + brak nakładania.
+    const byId = new Map(patches.map((p) => [p.id, p]));
+    const final = elements
+      .map((e) => {
+        const p = byId.get(e.id);
+        return { id: e.id, y: p?.y_mm ?? e.y_mm, h: p?.h_mm ?? e.h_mm };
+      })
+      .sort((x, y) => x.y - y.y);
+    for (const f of final) {
+      expect(f.y).toBeGreaterThanOrEqual(3 - 0.05);
+      expect(f.y + f.h).toBeLessThanOrEqual(73 + 0.05);
+    }
+    for (let i = 1; i < final.length; i++) {
+      // następny zaczyna się nie wcześniej niż kończy poprzedni (brak nakładania)
+      expect(final[i].y).toBeGreaterThanOrEqual(final[i - 1].y + final[i - 1].h - 0.05);
+    }
   });
 
   it("zachowuje kolejnosc wg z_index", () => {
