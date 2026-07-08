@@ -1,0 +1,1520 @@
+{
+  "meta": {
+    "documentId": "gjd16-01-pl",
+    "language": "PL",
+    "languageLabel": "PL",
+    "device": "GJD16",
+    "title": "GJD.16 — Locon Watch Slay AI",
+    "subtitle": "Skrócona instrukcja i karta gwarancyjna",
+    "pageSizeMm": {
+      "width": 72,
+      "height": 72
+    },
+    "revision": "Imported from XLSX v4 final"
+  },
+  "branding": {
+    "company": "LOCON"
+  },
+  "toc": {
+    "title": "SPIS TREŚCI",
+    "items": [
+      {
+        "label": "Skrócona instrukcja",
+        "pageNumber": 3
+      },
+      {
+        "label": "Skrócona karta gwarancyjna",
+        "pageNumber": 31
+      }
+    ]
+  },
+  "pages": [
+    {
+      "type": "content",
+      "label": "OKŁADKA",
+      "title": "OKŁADKA",
+      "variant": "cover",
+      "displayNumber": 1,
+      "coverConfig": {
+        "brandPrimary": "LOCON",
+        "brandSecondary": "Bezpieczna Rodzina",
+        "pageLabel": "OKŁADKA",
+        "titleLine1": "Szybki start",
+        "titleLine2": "i karta gwarancyjna",
+        "subtitle": "Quick Start Guide & Warranty Card",
+        "productType": "Smartwatch",
+        "productName": "LOCON WATCH SLAY AI",
+        "model": "MODEL GJD.16",
+        "version": "Wersja 003",
+        "languages": [
+          "PL",
+          "BG",
+          "HR",
+          "RO",
+          "MK",
+          "SQ",
+          "EN"
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Szybki start i karta gwarancyjna"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Wersja 003"
+        }
+      ]
+    },
+    {
+      "type": "toc-custom",
+      "title": "SPIS TREŚCI",
+      "label": "SPIS TREŚCI",
+      "showFooter": false,
+      "items": [
+        {
+          "label": "Skrócona instrukcja",
+          "pageNumber": 3
+        },
+        {
+          "label": "Skrócona karta gwarancyjna",
+          "pageNumber": 31
+        }
+      ],
+      "blocks": []
+    },
+    {
+      "type": "content",
+      "label": "QR + KONTAKT",
+      "title": "QR + KONTAKT",
+      "variant": "qr",
+      "displayNumber": 2,
+      "contactPage": {
+        "title": "QR + kontakt",
+        "subtitle": "Zeskanuj kod i otwórz pełną instrukcję obsługi",
+        "qrAsset": "./assets/source/qr-full-manual.svg",
+        "qrAlt": "Kod QR do pełnej instrukcji obsługi",
+        "question": "Masz pytania?",
+        "phoneLabel": "Zadzwoń do nas:",
+        "phone": "91 887 10 01",
+        "hoursHeading": "Godziny kontaktu",
+        "hours": [
+          {
+            "label": "Pn–pt",
+            "value": "8:00–19:00"
+          },
+          {
+            "label": "Sb–ndz i święta",
+            "value": "10:00–16:00"
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Zeskanuj kod i otwórz pełną instrukcję obsługi"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Masz pytania?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Zadzwoń do nas: 91 887 10 01"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pn-pt"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Sb-ndz i święta"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "JAK ZACZĄĆ — KROK 1",
+      "title": "JAK ZACZĄĆ — KROK 1",
+      "variant": "default",
+      "displayNumber": 3,
+      "appDownloadPage": {
+        "stepNumber": "1",
+        "instruction": "Pobierz i zainstaluj aplikację Bezpieczna Rodzina na swoim telefonie",
+        "highlight": "Bezpieczna Rodzina",
+        "googlePlayBadge": "./assets/source/google-play-badge.svg",
+        "appStoreBadge": "./assets/source/app-store-badge.svg",
+        "qrAsset": "./assets/source/qr-code-pl.svg",
+        "qrCaption": "Zeskanuj kod, aby dodać aplikację"
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Jak zacząć?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pobierz i zainstaluj aplikację Bezpieczna Rodzina na swoim telefonie"
+        },
+        {
+          "kind": "paragraph",
+          "text": "POBIERZ Z"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Zeskanuj kod, aby dodać aplikację"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KROK 2",
+      "title": "KROK 2",
+      "variant": "default",
+      "displayNumber": 4,
+      "stepDetail": {
+        "stepNumber": "2",
+        "title": "Uruchom aplikację",
+        "subtitle": "Bezpieczna Rodzina",
+        "body": "Podaj swój numer telefonu, na który dostaniesz SMS z kodem do zalogowania (oraz potwierdzenia numeru telefonu)."
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Uruchom aplikację Bezpieczna Rodzina:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Podaj swój numer telefonu, na który dostaniesz SMS z kodem do zalogowania (oraz potwierdzenia numeru telefonu)."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KROK 3",
+      "title": "KROK 3",
+      "variant": "default",
+      "displayNumber": 5,
+      "stepListDetail": {
+        "title": "Dodaj urządzenie",
+        "subtitle": "do aplikacji",
+        "steps": [
+          "Naciśnij przycisk „Wybierz“ w polu „Chę lokalizować inne urządzenie GPS“.",
+          "Zeskanuj kod QR z pudełka bądź urządzenia",
+          "Postępuj zgodnie z dalszą instrukcją w aplikacji"
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Dodaj urządzenie do aplikacji:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Naciśnij przycisk „Wybierz“ w polu „Chę lokalizować inne urządzenie GPS“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Zeskanuj kod QR z pudełka bądź urządzenia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Postępuj zgodnie z dalszą instrukcją w aplikacji"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KROK 4",
+      "title": "KROK 4",
+      "variant": "warning",
+      "displayNumber": 6,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Jeśli posiadasz urządzenie wraz z kartą SIM dostarczoną przez Locon, po wykonaniu poprzednich kroków Twoje urządzenie będzie gotowe do użycia w przeciągu kilku minut."
+        },
+        {
+          "kind": "warning",
+          "text": "Uwaga! Twoja karta SIM nie może posiadać kodu PIN."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Jak zainstalować własną kartę SIM? Pełną instrukcję znajdziesz w Instrukcji Obsługi (kod QR na stronie 2) lub kontaktując się z infolinią Locon."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "POZNAJ SWOJE URZĄDZENIE",
+      "title": "POZNAJ SWOJE URZĄDZENIE",
+      "variant": "default",
+      "displayNumber": 7,
+      "technicalOverviewPage": {
+        "subtitle": "Poznaj swoje urządzenie",
+        "frontTitle": "PRZÓD",
+        "backTitle": "BOK/TYŁ",
+        "frontFeatures": [
+          {
+            "label": "Aparat"
+          },
+          {
+            "label": "Przycisk Funkcyjny",
+            "details": [
+              "Włączanie i wyłączanie urządzenia",
+              "Powrót do poprzedniego widoku"
+            ]
+          },
+          {
+            "label": "Przycisk SOS",
+            "details": [
+              "Wysyłanie SOS",
+              "Powrót do ekranu głównego"
+            ]
+          }
+        ],
+        "rearFeatures": [
+          {
+            "label": "Slot na kartę SIM"
+          },
+          {
+            "label": "Styki ładowania"
+          }
+        ],
+        "assets": {
+          "front": "./assets/source/watch_front_view.svg",
+          "side": "./assets/source/watch_side_view.svg",
+          "back": "./assets/source/watch_back_view.svg"
+        }
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Poznaj swoje urządzenie"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Przód"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aparat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Przycisk Funkcyjny"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Włączanie i wyłączanie urządzenia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Powrót do poprzedniego widoku"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Przycisk SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Wysyłanie SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Powrót do ekranu głównego"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Bok/tył"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Slot na kartę SIM"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Styki ładowania"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ŁADOWANIE — KROK 1",
+      "title": "ŁADOWANIE — KROK 1",
+      "variant": "warning",
+      "displayNumber": 8,
+      "chargingPage": {
+        "title": "Ładowanie urządzenia",
+        "instruction": "Przyłóż z tyłu urządzenia magnetyczną końcówkę kabla",
+        "image": "./assets/source/watch_charging_view@2x.png",
+        "warning": "Prosimy o zachowanie szczególnej ostrożności i niepodłączanie do ładowania urządzeń, które są mokre lub wilgotne od potu. Ładowanie wilgotnego urządzenia powoduje korozję i uszkodzenie urządzenia."
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Ładowanie urządzenia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Przyłóż z tyłu urządzenia magnetyczną końcówkę kabla"
+        },
+        {
+          "kind": "warning",
+          "text": "Prosimy o zachowanie szczególnej ostrożności i niepodłączanie do ładowania urządzeń, które są mokre lub wilgotne od potu. Ładowanie wilgotnego urządzenia powoduje korozję i uszkodzenie urządzenia."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ŁADOWANIE — KROK 2",
+      "title": "ŁADOWANIE — KROK 2",
+      "variant": "warning",
+      "displayNumber": 9,
+      "chargingUsbPage": {
+        "label": "Ładowanie urządzenia",
+        "title": "Podłącz do ładowarki USB końcówkę kabla USB",
+        "image": "./assets/source/watch_usb_charger_view.png",
+        "warning": "Ładowarka USB nie znajduje się w zestawie"
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Podłącz do zasilacza wtyczkowego końcówkę kabla USB"
+        },
+        {
+          "kind": "warning",
+          "text": "Zasilacz wtyczkowy nie znajduje się w zestawie"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ŁADOWANIE — KROK 3",
+      "title": "ŁADOWANIE — KROK 3",
+      "variant": "warning",
+      "displayNumber": 10,
+      "chargingWallPage": {
+        "label": "Ładowanie urządzenia",
+        "title": "Podłącz ładowarkę do gniazda elektrycznego",
+        "image": "./assets/source/watch_usb_wall_connection.png",
+        "warning": "Upewnij się, że prawidłowo podłączyłeś ładowarkę. Nieprawidłowe podłączenie urządzenia może spowodować jego uszkodzenie."
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Podłącz zasilacz wtyczkowy do gniazda elektrycznego"
+        },
+        {
+          "kind": "warning",
+          "text": "Upewnij się, że prawidłowo podłączyłeś cały zestaw. Nieprawidłowe podłączenie urządzenia może spowodować jego uszkodzenie."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WŁĄCZANIE I WYŁĄCZANIE",
+      "title": "WŁĄCZANIE I WYŁĄCZANIE",
+      "variant": "default",
+      "displayNumber": 11,
+      "powerPage": {
+        "intro": "Aby włączyć urządzenie należy przytrzymać Przycisk funkcyjny wybudzania przez około 3 sekundy.",
+        "image": "./assets/source/watch_front_view.svg",
+        "info": [
+          "Aby wyłączyć urządzenie wybierz",
+          "\"Więcej\" --> \"Ustawienia\" --> \"Wyłącz\" --> \"Wyłącz\""
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Włączanie i wyłączanie urządzenia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aby włączyć urządzenie"
+        },
+        {
+          "kind": "paragraph",
+          "text": "należy przytrzymać przycisk funkcyjny przez około 3 sekundy."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aby wyłączyć urządzenie, w menu zegarka wybierz „Więcej“, następnie „Ustawienia“, „Wyłącz“, a następnie ponownie „Wyłącz“."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "AKTYWACJA ALARMU SOS",
+      "title": "AKTYWACJA ALARMU SOS",
+      "variant": "default",
+      "displayNumber": 12,
+      "sosPage": {
+        "steps": [
+          {
+            "number": "1",
+            "title": "Włącz urządzenie",
+            "tone": "red",
+            "body": "Urządzenie musi być włączone, aby użyć przycisku SOS."
+          },
+          {
+            "number": "2",
+            "title": "Urządzenie włączone",
+            "tone": "blue",
+            "body": "Przy włączonym urządzeniu przytrzymanie przycisku SOS powoduje wysłanie alarmu SOS na telefon oraz połączenie z opiekunem."
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Aktywacja alarmu SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Włącz urządzenie"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Urządzenie musi być włączone, aby użyć przycisku SOS."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Urządzenie włączone"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Przy włączonym urządzeniu: przytrzymanie przycisku SOS powoduje wysłanie alarmu SOS na telefon oraz połączenie z opiekunem."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WSKAZÓWKI",
+      "title": "WSKAZÓWKI",
+      "variant": "default",
+      "displayNumber": 13,
+      "tipsPage": {
+        "sections": [
+          {
+            "title": "Alarmowe numery kontaktowe",
+            "body": [
+              "Należy pamiętać o dodaniu alarmowych numerów kontaktowych w aplikacji Bezpieczna Rodzina.",
+              "Ustawienie wszystkich dziesięciu autoryzowanych numerów nie jest obowiązkowe, jednak minimum jeden z nich musi być zawsze wpisany."
+            ]
+          },
+          {
+            "title": "Połączenie SOS",
+            "body": [
+              "Po naciśnięciu przycisku SOS połączenie z opiekunem może trwać nieco dłużej, np. gdy telefon znajduje się w miejscu o słabym zasięgu.",
+              "W niektórych przypadkach możliwe jest także połączenie z pocztą głosową opiekuna."
+            ]
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Wskazówka"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Numer telefonu użyty do zarejestrowania w aplikacji jest automatycznie dodawany do urządzenia jako główny numer alarmowy."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Należy pamiętać o dodaniu numerów kontaktowych w aplikacji Bezpieczna Rodzina. Tylko numery kontaktowe dodane w aplikacji będą mogły dodzwonić się na zegarek."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ustawienie wszystkich dziesięciu autoryzowanych numerów nie jest obowiązkowe."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Wskazówka"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Po naciśnięciu przycisku SOS połączenie z opiekunem może trwać nieco dłużej, np. gdy telefon znajduje się w miejscu o słabym zasięgu. W niektórych przypadkach możliwe jest także połączenie z pocztą głosową opiekuna."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "NAWIĄZYWANIE POŁĄCZENIA",
+      "title": "NAWIĄZYWANIE POŁĄCZENIA",
+      "variant": "default",
+      "displayNumber": 14,
+      "callPage": {
+        "title": "Aby nawiązać połączenie",
+        "body": [
+          "Wybierz w menu „Telefon”.",
+          "Naciśnij na wybraną nazwę kontaktu, następnie ponownie wybierz „Telefon”."
+        ],
+        "steps": [
+          "Otwórz menu „Telefon”",
+          "Wybierz kontakt",
+          "Naciśnij „Telefon”"
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Nawiązywanie połączenia telefonicznego"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aby nawiązać połączenie"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Wybierz w menu „Telefon“. Naciśnij na wybraną nazwę kontaktu, następnie ponownie wybierz „Telefon“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kontakt"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mama"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Telefon"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ustawienia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Wechat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Poł. wideo"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "OSTRZEŻENIA",
+      "title": "OSTRZEŻENIA",
+      "variant": "default",
+      "displayNumber": 15,
+      "warningsPage": {
+        "title": "OSTRZEŻENIA",
+        "intro": "Aby wydłużyć żywotność urządzenia, należy postępować zgodnie z instrukcjami:",
+        "items": [
+          "Nie należy używać i przechowywać urządzenia w zakurzonych miejscach.",
+          "Nie należy umieszczać urządzenia w wyższej lub niższej temperaturze niż zalecana.",
+          "Urządzenie należy czyścić suchą szmatką. Nie czyścić urządzenia środkami chemicznymi ani detergentami.",
+          "Nie należy rozbierać ani ponownie składać urządzenia.",
+          "Używanie innych baterii niż wbudowane w urządzenie spowoduje niepożądane efekty i utratę gwarancji."
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Ostrzeżenia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aby wydłużyć żywotność urządzenia, należy postępować zgodnie z instrukcjami:"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Nie należy używać i przechowywać urządzenia w zakurzonych miejscach.",
+            "Nie należy umieszczać urządzenia w wyższej lub niższej temperaturze niż zalecana.",
+            "Urządzenie należy czyścić suchą szmatką. Nie czyść urządzenia środkami chemicznymi, ani detergentami.",
+            "Nie należy rozbierać, ani ponownie składać urządzenia.",
+            "Używanie innych baterii niż wbudowane w urządzenie spowoduje niepożądane efekty i utratę gwarancji."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECYFIKACJA OGÓLNA",
+      "title": "SPECYFIKACJA OGÓLNA",
+      "variant": "spec",
+      "displayNumber": 16,
+      "titleOverride": "",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Specyfikacja"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "CPU",
+              "W377"
+            ],
+            [
+              "GPS",
+              "UWS6137"
+            ],
+            [
+              "Wyświetlacz",
+              "1,78''"
+            ],
+            [
+              "Typ wyświetlacza",
+              "AMOLED 368x448"
+            ],
+            [
+              "Wi-Fi",
+              "2,4G : 2412 MHz ~ 2472 MHz"
+            ],
+            [
+              "Karta SIM",
+              "Nano"
+            ],
+            [
+              "Port ładowania",
+              "Kabel magnetyczny"
+            ],
+            [
+              "Pamięć",
+              "ROM 8GB RAM 1GB"
+            ],
+            [
+              "Kolor",
+              "fioletowy/niebieski"
+            ],
+            [
+              "Pasek i zapinka",
+              "silikon + plastik"
+            ],
+            [
+              "Kamera",
+              "5 MP"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECYFIKACJA — WYMIARY I SIECI",
+      "title": "SPECYFIKACJA — WYMIARY I SIECI",
+      "variant": "spec",
+      "displayNumber": 17,
+      "titleOverride": "",
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Wymiary",
+              "49 x 40,2 x 13mm"
+            ],
+            [
+              "Waga",
+              "48g"
+            ],
+            [
+              "Technologie lokalizacji",
+              "GPS/WiFi/LBS"
+            ],
+            [
+              "Sieć 2G",
+              "900/1800"
+            ],
+            [
+              "Sieć 3G",
+              "Band 1/8"
+            ],
+            [
+              "Sieć 4G",
+              "FDD Band: B1/B3/B7/B8/B20, TDD Band: 28/38/40"
+            ],
+            [
+              "Wodoodporność",
+              "IP68"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECYFIKACJA — BATERIA",
+      "title": "SPECYFIKACJA — BATERIA",
+      "variant": "spec",
+      "displayNumber": 18,
+      "titleOverride": "",
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Bateria"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Typ",
+              "Bateria litowo-polimerowa"
+            ],
+            [
+              "Pojemność",
+              "700 mAh"
+            ],
+            [
+              "Czas działania",
+              "do 3 dni"
+            ],
+            [
+              "Prąd ładowania",
+              "350mA"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CZĘSTOTLIWOŚCI",
+      "title": "CZĘSTOTLIWOŚCI",
+      "variant": "spec",
+      "displayNumber": 19,
+      "frequencyPage": {
+        "title": "",
+        "groups": [
+          {
+            "band": "GSM/GPRS",
+            "rows": [
+              {
+                "range": "GSM/GPRS 900",
+                "uplink": "880 MHz ~ 915 MHz",
+                "downlink": "925 MHz ~ 960 MHz"
+              },
+              {
+                "range": "GSM/GPRS 1800",
+                "uplink": "1710 MHz ~ 1785 MHz",
+                "downlink": "1805 MHz ~ 1880 MHz"
+              }
+            ]
+          },
+          {
+            "band": "WCDMA",
+            "rows": [
+              {
+                "range": "Band 1",
+                "uplink": "1920 MHz ~ 1980 MHz",
+                "downlink": "2110 MHz ~ 2170 MHz"
+              },
+              {
+                "range": "Band 8",
+                "uplink": "880 MHz ~ 915 MHz",
+                "downlink": "925 MHz ~ 960 MHz"
+              }
+            ]
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "GSM / GPRS"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "GSM / GPRS 900 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "GSM / GPRS 900 downlink",
+              "925 MHz ~ 960 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "WCDMA Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "WCDMA Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "WCDMA Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "WCDMA Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE",
+      "title": "FDD-LTE",
+      "variant": "spec",
+      "displayNumber": 20,
+      "frequencyPage": {
+        "title": "",
+        "groups": [
+          {
+            "band": "FDD-LTE",
+            "rows": [
+              {
+                "range": "Band 1",
+                "uplink": "1920 MHz ~ 1980 MHz",
+                "downlink": "2110 MHz ~ 2170 MHz"
+              },
+              {
+                "range": "Band 3",
+                "uplink": "1710 MHz ~ 1785 MHz",
+                "downlink": "1805 MHz ~ 1880 MHz"
+              },
+              {
+                "range": "Band 7",
+                "uplink": "2500 MHz ~ 2570 MHz",
+                "downlink": "2620 MHz ~ 2690 MHz"
+              },
+              {
+                "range": "Band 8",
+                "uplink": "880 MHz ~ 915 MHz",
+                "downlink": "925 MHz ~ 960 MHz"
+              }
+            ]
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "Band 3 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "Band 3 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "Band 7 uplink",
+              "2500 MHz ~ 2570 MHz"
+            ],
+            [
+              "Band 7 downlink",
+              "2620 MHz ~ 2690 MHz"
+            ],
+            [
+              "Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE / TDD-LTE / GPS",
+      "title": "FDD-LTE / TDD-LTE / GPS",
+      "variant": "spec",
+      "displayNumber": 21,
+      "frequencyPage": {
+        "title": "",
+        "groups": [
+          {
+            "band": "FDD-LTE",
+            "rows": [
+              {
+                "range": "Band 20",
+                "uplink": "832 MHz ~ 862 MHz",
+                "downlink": "791 MHz ~ 821 MHz"
+              },
+              {
+                "range": "Band 28",
+                "uplink": "703 MHz ~ 748 MHz",
+                "downlink": "758 MHz ~ 803 MHz"
+              }
+            ]
+          },
+          {
+            "band": "TDD-LTE",
+            "rows": [
+              {
+                "range": "Band 38",
+                "both": "2570 MHz ~ 2620 MHz"
+              },
+              {
+                "range": "Band 40",
+                "both": "2300 MHz ~ 2400 MHz"
+              }
+            ]
+          },
+          {
+            "band": "GPS",
+            "rows": [
+              {
+                "range": "Receiver",
+                "single": "1,57542 GHz"
+              }
+            ]
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band 20 uplink",
+              "832 MHz ~ 862 MHz"
+            ],
+            [
+              "Band 20 downlink",
+              "791 MHz ~ 821 MHz"
+            ],
+            [
+              "Band 28 uplink",
+              "703 MHz ~ 748 MHz"
+            ],
+            [
+              "Band 28 downlink",
+              "758 MHz ~ 803 MHz"
+            ],
+            [
+              "Band 38 uplink & downlink",
+              "2570 MHz ~ 2620 MHz"
+            ],
+            [
+              "Band 40 uplink & downlink",
+              "2300 MHz ~ 2400 MHz"
+            ],
+            [
+              "GPS receiver",
+              "1.57542 GHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power I",
+      "title": "Transmission Power I",
+      "variant": "spec",
+      "displayNumber": 22,
+      "powerTablePage": {
+        "groups": [
+          {
+            "band": "Wi-Fi",
+            "rows": [
+              { "power": "2,4G", "value": "13,42 dBm" }
+            ]
+          },
+          {
+            "band": "GSM",
+            "rows": [
+              { "power": "900", "value": "31,66 dBm" },
+              { "power": "1800", "value": "29,46 dBm" }
+            ]
+          },
+          {
+            "band": "WCDMA",
+            "rows": [
+              { "power": "Band 1", "value": "21,97 dBm" },
+              { "power": "Band 8", "value": "22,19 dBm" }
+            ]
+          },
+          {
+            "band": "FDD-LTE",
+            "rows": [
+              { "power": "Band 1", "value": "22,71 dBm" },
+              { "power": "Band 3", "value": "23,18 dBm" },
+              { "power": "Band 7", "value": "22,69 dBm" },
+              { "power": "Band 8", "value": "22,40 dBm" }
+            ]
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Wi-Fi 2.4G",
+              "13.42 dBm"
+            ],
+            [
+              "GSM 900",
+              "31.66 dBm"
+            ],
+            [
+              "GSM 1800",
+              "29.46 dBm"
+            ],
+            [
+              "WCDMA Band 1",
+              "21.97 dBm"
+            ],
+            [
+              "WCDMA Band 8",
+              "22.19 dBm"
+            ],
+            [
+              "LTE Band 3",
+              "23.18 dBm"
+            ],
+            [
+              "LTE Band 7",
+              "22.69 dBm"
+            ],
+            [
+              "LTE Band 8",
+              "22.40 dBm"
+            ],
+            [
+              "FDD-LTE Band 1",
+              "22.71 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power II",
+      "title": "Transmission Power II",
+      "variant": "spec",
+      "displayNumber": 23,
+      "powerTablePage": {
+        "groups": [
+          {
+            "band": "FDD-LTE",
+            "rows": [
+              { "power": "Band 20", "value": "22,91 dBm" },
+              { "power": "Band 28", "value": "24,13 dBm" }
+            ]
+          },
+          {
+            "band": "TDD-LTE",
+            "rows": [
+              { "power": "Band 38", "value": "22,61 dBm" },
+              { "power": "Band 40", "value": "22,36 dBm" }
+            ]
+          }
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "FDD-LTE Band 20",
+              "22.91 dBm"
+            ],
+            [
+              "FDD-LTE Band 28",
+              "24.13 dBm"
+            ],
+            [
+              "TDD-LTE Band 38",
+              "22.61 dBm"
+            ],
+            [
+              "TDD-LTE Band 40",
+              "22.36 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "BEZPIECZEŃSTWO UŻYTKOWANIA",
+      "title": "BEZPIECZEŃSTWO UŻYTKOWANIA",
+      "variant": "default",
+      "displayNumber": 24,
+      "safetyPage": {
+        "items": [
+          "Nie umieszczaj w pobliżu urządzenia zbędnych elementów metalowych, może to powodować problemy z jego działaniem.",
+          "Należy zachować wszelkie zasady bezpieczeństwa użytkowania urządzeń elektrycznych, w tym, w szczególności nie wsuwać w urządzenie żadnych metalowych przedmiotów i nie dokonywać innych działań, które narażają użytkownika na działanie prądu elektrycznego.",
+          "Nie używaj urządzenia w miejscach zapylonych, wilgotnych, zanieczyszczonych lub w miejscach, w których występuje pole magnetyczne.",
+          "Urządzeniem należy się posługiwać delikatnie, upadek lub inne fizyczne uszkodzenie może spowodować jego niezdatność do pracy.",
+          "Nie należy samodzielnie rozmontować urządzenia oraz żadnej jego części, jak również nie należy samodzielnie dokonywać zmian konstrukcyjnych w produkcie lub w jakiejkolwiek jego części. Nie należy modyfikować oprogramowania urządzenia."
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Wskazówki dotyczące bezpieczeństwa użytkowania"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Nie umieszczaj w pobliżu urządzenia zbędnych elementów metalowych, może to powodować problemy z jego działaniem.",
+            "Należy zachować wszelkie zasady bezpieczeństwa użytkowania urządzeń elektrycznych, w tym, w szczególności nie wsuwać w urządzenie żadnych metalowych przedmiotów i nie dokonywać innych działań, które narażają użytkownika na działanie prądu elektrycznego.",
+            "Nie używaj urządzenia w miejscach zapylonych, wilgotnych, zanieczyszczonych lub w miejscach, w których występuje pole magnetyczne.",
+            "Urządzeniem należy się posługiwać delikatnie, upadek lub inne fizyczne uszkodzenie może spowodować jego niezdatność do pracy.",
+            "Nie należy samodzielnie rozmontować urządzenia oraz żadnej jego części, jak również nie należy samodzielnie dokonywać zmian konstrukcyjnych w produkcie, lub w jakiekolwiek jego części. Nie należy modyfikować oprogramowania urządzenia."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SAR",
+      "title": "SAR",
+      "variant": "default",
+      "displayNumber": 25,
+      "sarPage": {
+        "paragraphs": [
+          "Model zegarka GPS Locon Watch Slay AI został zaprojektowany w taki sposób, aby spełniał wszystkie obowiązujące wymogi bezpieczeństwa dotyczące wpływu fal radiowych na ludzki organizm.",
+          "Wymagania te wynikają z zaleceń naukowych, w tym dopuszczalnych poziomów gwarantujących bezpieczeństwo wszystkich osób, bez względu na ich wiek i stan zdrowia. W zaleceniach dotyczących wpływu fal radiowych używa się terminu „współczynnik absorpcji swoistej“ (SAR). Testy wartości SAR prowadzi się przy użyciu standardowych metod, kiedy zegarek nadaje z najwyższą mocą we wszystkich wykorzystywanych pasmach częstotliwości.",
+          "W przypadku tego modelu zegarka Locon Watch Slay AI największa wartość SAR zmierzona przez Locon to 0,489 W/kg (przy twarzy) oraz 2,894 W/kg (przy ciele). Maksymalna wartość dopuszcza emisję promieniowania z mocą 2W/kg przy twarzy oraz 4W/kg przy ciele."
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Informacja o działaniu fal o częstotliwości radiowej i poziomie absorpcji swoistej (SAR)"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Model zegarka GPS Locon Watch Slay AI został zaprojektowany w taki sposób, aby spełniał wszystkie obowiązujące wymogi bezpieczeństwa dotyczące wpływu fal radiowych na ludzki organizm."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Wymagania te wynikają z zaleceń naukowych, w tym dopuszczalnych poziomów gwarantujących bezpieczeństwo wszystkich osób, bez względu na ich wiek i stan zdrowia. W zaleceniach dotyczących wpływu fal radiowych używa się terminu „współczynnik absorpcji swoistej“ (SAR). Testy wartości SAR prowadzi się przy użyciu standardowych metod, kiedy zegarek nadaje z najwyższą mocą we wszystkich wykorzystywanych pasmach częstotliwości."
+        },
+        {
+          "kind": "paragraph",
+          "text": "W przypadku tego modelu zegarka Locon Watch Slay AI największa wartość SAR zmierzona przez Locon to 0,489 W/kg (przy twarzy) oraz 2,894 W/kg (przy ciele). Maksymalna wartość dopuszcza emisję promieniowania z mocą 2W/kg przy twarzy oraz 4W/kg przy ciele."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WEEE",
+      "title": "WEEE",
+      "variant": "default",
+      "displayNumber": 26,
+      "weeePage": {
+        "image": "./assets/source/crossed_bin_symbol.svg",
+        "body": "Oznaczenie umieszczone na produkcie lub w odnoszących się do niego tekstach wskazuje, że produktu po upływie okresu użytkowania **nie należy usuwać z innymi odpadami pochodzącymi z gospodarstw domowych**."
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Prawidłowe usuwanie produktu"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Oznaczenie umieszczone na produkcie lub w odnoszących się do niego tekstach wskazuje, że produktu po upływie okresu użytkowania nie należy usuwać z innymi odpadami pochodzącymi z gospodarstw domowych."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "UTYLIZACJA",
+      "title": "UTYLIZACJA",
+      "variant": "default",
+      "displayNumber": 27,
+      "disposalPage": {
+        "paragraphs": [
+          "Produkt oznaczony symbolem przekreślonego kosza wskazuje, że nie wolno go usuwać wraz ze zwykłymi odpadami komunalnymi. W celu ochrony środowiska oraz zdrowia ludzi **należy go odpowiedzialnie segregować i poddać recyklingowi**.",
+          "Po zakończeniu użytkowania prosimy przekazać urządzenie do punktu selektywnej zbiórki sprzętu elektrycznego i elektronicznego lub skontaktować się ze sprzedawcą w celu uzyskania szczegółowych informacji dotyczących możliwości zwrotu oraz bezpiecznej utylizacji urządzenia zgodnie z obowiązującymi przepisami prawa. Dziękujemy za odpowiedzialną postawę wobec ochrony środowiska."
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Prawidłowa utylizacja produktu"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Produkt oznaczony symbolem przekreślonego kosza wskazuje, że nie wolno go usuwać wraz ze zwykłymi odpadami komunalnymi. W celu ochrony środowiska oraz zdrowia ludzi należy go odpowiedzialnie segregować i poddać recyklingowi."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Po zakończeniu użytkowania prosimy przekazać urządzenie do punktu selektywnej zbiórki sprzętu elektrycznego i elektronicznego lub skontaktować się ze sprzedawcą w celu uzyskania szczegółowych informacji dotyczących możliwości zwrotu oraz bezpiecznej utylizacji urządzenia zgodnie z obowiązującymi przepisami prawa. Dziękujemy za odpowiedzialną postawę wobec ochrony środowiska."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ZGODNOŚĆ CE",
+      "title": "ZGODNOŚĆ CE",
+      "variant": "default",
+      "displayNumber": 28,
+      "cePage": {
+        "category": "Smartwatch",
+        "product": "LOCON WATCH SLAY AI\nMODEL: GJD16",
+        "body": "LOCON Sp. z o.o. niniejszym oświadcza, że typ urządzenia radiowego Smartwatch Locon Watch Slay AI Model GJD.16 jest zgodny z dyrektywą 2014/53/UE. Pełny tekst deklaracji zgodności UE jest dostępny pod następującym adresem internetowym",
+        "url": "https://locon.pl/gjd16-ce"
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI MODEL: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON Sp. z o.o. niniejszym oświadcza, że typ urządzenia radiowego Smartwatch Locon Watch Slay AI Model GJD.16 jest zgodny z dyrektywą 2014/53/UE. Pełny tekst deklaracji zgodności UE jest dostępny pod następującym adresem internetowym https://locon.pl/gjd16-ce"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WARUNKI GWARANCJI",
+      "title": "WARUNKI GWARANCJI",
+      "variant": "warranty",
+      "displayNumber": 29,
+      "warrantyIntroPage": {
+        "company": "",
+        "heading": "",
+        "rows": [
+          {
+            "label": "Gwarant",
+            "value": "Locon Sp. z o.o., ul. Wspólna 70, 00-687 Warszawa, Polska, VAT EU PL8521013334"
+          },
+          {
+            "label": "Przedmiot",
+            "value": "Smartwatch Locon Watch Slay AI model: GJD.16"
+          },
+          {
+            "label": "Okres gwarancji",
+            "value": "24 miesiące na urządzenie, 12 miesięcy na baterię, 6 miesięcy na akcesoria od daty sprzedaży / wydania urządzenia"
+          },
+          {
+            "label": "Zasięg",
+            "value": "Terytorium Rzeczypospolitej Polskiej, Republiki Bułgarii, Republiki Chorwacji, Rumunii oraz Republiki Macedonii Północnej"
+          }
+        ],
+        "warning": "Bateria jest elementem eksploatacyjnym podlegającym naturalnemu zużyciu podczas użytkowania urządzenia"
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Locon sp. z o.o."
+        },
+        {
+          "kind": "paragraph",
+          "text": "WARUNKI I ZASADY UDZIELANIA GWARANCJI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Gwarant"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Locon Sp. z o.o., ul. Wspólna 70, 00-687 Warszawa, Polska, VAT EU PL8521013334"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Przedmiot"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch Locon Watch Slay AI model: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Okres gwarancji"
+        },
+        {
+          "kind": "paragraph",
+          "text": "24 miesiące na urządzenie, 12 miesięcy na baterię, 6 miesięcy na akcesoria od daty sprzedaży / wydania urządzenia"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Zasięg"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Terytorium Rzeczypospolitej Polskiej, Republiki Bułgarii, Republiki Chorwacji, Rumunii oraz Republiki Macedonii Północnej"
+        },
+        {
+          "kind": "warning",
+          "text": "Bateria jest elementem eksploatacyjnym podlegającym naturalnemu zużyciu podczas użytkowania urządzenia"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "OBOWIĄZKI I REKLAMACJA",
+      "title": "OBOWIĄZKI I REKLAMACJA",
+      "variant": "warranty",
+      "displayNumber": 30,
+      "warrantyClaimsPage": {
+        "sections": [
+          {
+            "title": "",
+            "items": [
+              "bezpłatne usunięcie wad w terminie do 14 dni od zgłoszenia",
+              "pokrycie kosztów transportu urządzenia do autoryzowanego serwisu"
+            ]
+          },
+          {
+            "title": "",
+            "items": [
+              "bezpłatna naprawa lub wymiana wadliwego urządzenia według decyzji Gwaranta",
+              "zdalna pomoc techniczna: pomoc@locon.pl, +48 91 887 10 01 (pn-pt 08:00-19:00, sb-ndz i święta 10:00 - 16:00)"
+            ]
+          }
+        ],
+        "qrSectionTitle": "",
+        "qrAsset": "./assets/source/warranty_claim_qr.svg",
+        "qrAlt": "Kod QR zgłoszenia reklamacji",
+        "qrSteps": [
+          "Skontaktuj się z autoryzowanym serwisem właściwym dla Twojego kraju — aktualną listę serwisów znajdziesz w pełnej karcie gwarancyjnej pod kodem QR.",
+          "W zgłoszeniu podaj opis usterki, dane kontaktowe oraz numer seryjny / IMEI urządzenia.",
+          "Po przyjęciu zgłoszenia otrzymasz instrukcję wysyłki urządzenia. Koszt transportu pokrywa Gwarant."
+        ]
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "1. Obowiązki Gwaranta"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "bezpłatne usunięcie wad w terminie do 14 dni od zgłoszenia",
+            "pokrycie kosztów transportu urządzenia do autoryzowanego serwisu"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "2. Uprawnienia Klienta"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "bezpłatna naprawa lub wymiana wadliwego urządzenia według decyzji Gwaranta",
+            "zdalna pomoc techniczna: pomoc@locon.pl, +48 91 887 10 01 (pn-pt 08:00-19:00, sb-ndz i święta 10:00 - 16:00)"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "3. Jak zgłosić reklamację"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Skontaktuj się z autoryzowanym serwisem właściwym dla Twojego kraju — aktualną listę serwisów znajdziesz w pełnej karcie gwarancyjnej pod kodem QR (sekcja 5 poniżej).",
+            "W zgłoszeniu podaj opis usterki, dane kontaktowe oraz numer seryjny / IMEI urządzenia.",
+            "Po przyjęciu zgłoszenia otrzymasz instrukcję wysyłki urządzenia. Koszt transportu pokrywa Gwarant."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WYŁĄCZENIA I KLAUZULA",
+      "title": "WYŁĄCZENIA I KLAUZULA",
+      "variant": "warranty",
+      "displayNumber": 31,
+      "warrantyExclusionsPage": {
+        "exclusionsTitle": "",
+        "exclusions": [
+          "uszkodzenia mechaniczne (upadek, uderzenie, zgniecenie) powstałe po wydaniu urządzenia konsumentowi",
+          "zalanie lub kontakt z cieczą poza klasą wodoszczelności określoną w specyfikacji technicznej",
+          "naprawy lub modyfikacje wykonane poza autoryzowanym serwisem Gwaranta",
+          "modyfikacja oprogramowania urządzenia (instalacja niezatwierdzonego firmware, uzyskanie uprawnień administratora)",
+          "naturalne zużycie elementów eksploatacyjnych (m.in. obniżenie pojemności baterii po przekroczeniu 500 cykli ładowania)",
+          "działanie siły wyższej oraz przepięcia w sieci elektrycznej",
+          "stosowanie akcesoriów innych niż dostarczone w zestawie lub niezatwierdzonych przez Gwaranta"
+        ],
+        "fullTitle": "",
+        "fullText": "Pełny dokument do pobrania: Zeskanuj kod QR i otwórz pełną wersję karty gwarancyjnej.",
+        "qrAsset": "./assets/source/warranty_full_document_qr.svg",
+        "qrAlt": "Kod QR pełnej treści gwarancji",
+        "legalTitle": "",
+        "legalText": "W przypadku braku zgodności rzeczy sprzedanej z umową, kupującemu z mocy prawa przysługują środki ochrony prawnej ze strony i na koszt sprzedawcy, a gwarancja nie ma wpływu na te środki ochrony prawnej."
+      },
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "4. Wyłączenia odpowiedzialności"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "uszkodzenia mechaniczne (upadek, uderzenie, zgniecenie) powstałe po wydaniu urządzenia konsumentowi",
+            "zalanie lub kontakt z cieczą poza klasą wodoszczelności określoną w specyfikacji technicznej",
+            "naprawy lub modyfikacje wykonane poza autoryzowanym serwisem Gwaranta",
+            "modyfikacja oprogramowania urządzenia (instalacja niezatwierdzonego firmware, uzyskanie uprawnień administratora)",
+            "naturalne zużycie elementów eksploatacyjnych (m.in. obniżenie pojemności baterii po przekroczeniu 500 cykli ładowania)",
+            "działanie siły wyższej oraz przepięcia w sieci elektrycznej",
+            "stosowanie akcesoriów innych niż dostarczone w zestawie lub niezatwierdzonych przez Gwaranta"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "5. Pełna treść gwarancji"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pełny dokument do pobrania: Zeskanuj kod QR i otwórz pełną wersję karty gwarancyjnej"
+        },
+        {
+          "kind": "paragraph",
+          "text": "6. Klauzula ustawowa"
+        },
+        {
+          "kind": "paragraph",
+          "text": "W przypadku braku zgodności rzeczy sprzedanej z umową, kupującemu z mocy prawa przysługują środki ochrony prawnej ze strony i na koszt sprzedawcy, a gwarancja nie ma wpływu na te środki ochrony prawnej."
+        }
+      ]
+    }
+  ]
+}

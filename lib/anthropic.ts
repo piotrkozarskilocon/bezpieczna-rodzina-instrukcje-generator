@@ -255,6 +255,9 @@ export async function callClaude<T = unknown>(opts: {
    *  Anthropic tool_use. Eliminuje błędy parsowania JSON i fence stripping.
    *  Gdy podane, AiResponse.parsed zawiera sparsowany i zwalidowany obiekt. */
   outputSchema?: OutputSchemaConfig<T>;
+  /** Dokumenty inline (base64) w content — stabilna alternatywa dla Files API
+   *  (endpoint /v1/files wygaszony). PDF max ~100 stron i ~30 MB requestu. */
+  inlineDocuments?: Array<{ name: string; mediaType: string; dataBase64: string }>;
 }): Promise<AiResponse<T>> {
   const client = getAnthropicClient();
   const model = opts.model ?? INITIAL_MODEL;
@@ -265,6 +268,22 @@ export async function callClaude<T = unknown>(opts: {
   const userContent: unknown[] = [{ type: "text", text: opts.user }];
   const attachmentBlocks = await buildAttachmentBlocks(client, opts.attachments);
   for (const block of attachmentBlocks) userContent.unshift(block);
+  // Inline dokumenty/obrazy (base64) — stabilna ścieżka Messages API, bez Files API.
+  for (const doc of opts.inlineDocuments ?? []) {
+    if (doc.mediaType.startsWith("image/")) {
+      userContent.unshift({
+        type: "image",
+        source: { type: "base64", media_type: doc.mediaType, data: doc.dataBase64 },
+      });
+    } else {
+      userContent.unshift({
+        type: "document",
+        source: { type: "base64", media_type: doc.mediaType, data: doc.dataBase64 },
+        title: doc.name,
+      });
+    }
+  }
+  const hasBlocks = Boolean(opts.attachments?.length || opts.inlineDocuments?.length);
 
   // System prompt — jeśli włączony caching, owijamy w content block z cache_control.
   // Inaczej zwykły string (tańsza wersja gdy prompt krótki i się zmienia).
@@ -278,7 +297,7 @@ export async function callClaude<T = unknown>(opts: {
     model,
     max_tokens: opts.maxTokens ?? 16000,
     system: systemParam,
-    messages: [{ role: "user", content: opts.attachments?.length ? userContent : opts.user }],
+    messages: [{ role: "user", content: hasBlocks ? userContent : opts.user }],
   };
   if (typeof opts.temperature === "number") {
     streamParams.temperature = opts.temperature;

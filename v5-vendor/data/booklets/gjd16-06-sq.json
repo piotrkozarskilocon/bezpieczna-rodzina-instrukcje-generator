@@ -1,0 +1,1109 @@
+{
+  "meta": {
+    "documentId": "gjd16-06-sq",
+    "language": "SQ",
+    "languageLabel": "SQ",
+    "device": "GJD16",
+    "title": "GJD.16 — Locon Watch Slay AI",
+    "subtitle": "Udhëzime të shkurtra dhe kartë garancie",
+    "pageSizeMm": {
+      "width": 76,
+      "height": 76
+    },
+    "revision": "Imported from XLSX v4 final"
+  },
+  "branding": {
+    "company": "LOCON"
+  },
+  "toc": {
+    "title": "PËRMBAJTJA",
+    "items": [
+      {
+        "label": "Udhëzime të shkurtra",
+        "pageNumber": 3
+      },
+      {
+        "label": "Karta e garancisë",
+        "pageNumber": 31
+      }
+    ]
+  },
+  "pages": [
+    {
+      "type": "toc-custom",
+      "title": "PËRMBAJTJA",
+      "label": "PËRMBAJTJA",
+      "showFooter": false,
+      "items": [
+        {
+          "label": "Udhëzime të shkurtra",
+          "pageNumber": 3
+        },
+        {
+          "label": "Karta e garancisë",
+          "pageNumber": 31
+        }
+      ],
+      "blocks": []
+    },
+    {
+      "type": "content",
+      "label": "KOPERTINA",
+      "title": "KOPERTINA",
+      "variant": "cover",
+      "displayNumber": 1,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Fillimi i shpejtë dhe karta e garancisë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Orë inteligjente"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODELI GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Versioni 003"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "QR + KONTAKTI",
+      "title": "QR + KONTAKTI",
+      "variant": "qr",
+      "displayNumber": 2,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Skanoni kodin dhe hapni udhëzimet e plota të përdorimit"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Keni pyetje?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Na shkruani: help@locon.pl"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SI TË FILLONI — HAPI 1",
+      "title": "SI TË FILLONI — HAPI 1",
+      "variant": "default",
+      "displayNumber": 3,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Si të filloni?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Shkarkoni dhe instaloni aplikacionin Safe Family në telefonin tuaj"
+        },
+        {
+          "kind": "paragraph",
+          "text": "SHKARKO NGA"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Skanoni kodin për të shtuar aplikacionin"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "HAPI 2",
+      "title": "HAPI 2",
+      "variant": "default",
+      "displayNumber": 4,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Nisni aplikacionin Safe Family:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Vendosni numrin tuaj të telefonit, në të cilin do të merrni një SMS me kodin për hyrje (dhe konfirmimin e numrit të telefonit)."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "HAPI 3",
+      "title": "HAPI 3",
+      "variant": "default",
+      "displayNumber": 5,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Shtoni pajisjen në aplikacion:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Shtypni butonin „Zgjidh“ në fushën „Dëshiroj të lokalizoj një pajisje tjetër GPS“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Skanoni kodin QR nga kutia ose pajisja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ndiqni udhëzimet e mëtejshme në aplikacion"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "HAPI 4",
+      "title": "HAPI 4",
+      "variant": "warning",
+      "displayNumber": 6,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Nëse posedoni pajisjen së bashku me kartën SIM të dorëzuar nga Locon, pas kryerjes së hapave të mëparshëm pajisja juaj do të jetë gati për përdorim brenda disa minutash."
+        },
+        {
+          "kind": "warning",
+          "text": "Kujdes! Karta juaj SIM nuk duhet të ketë kod PIN."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Si të instaloni kartën tuaj SIM? Udhëzimet e plota do t'i gjeni në Udhëzuesin e Përdorimit (kodi QR në faqen 2) ose duke kontaktuar linjën e ndihmës së Locon."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "NJIHNI PAJISJEN TUAJ",
+      "title": "NJIHNI PAJISJEN TUAJ",
+      "variant": "default",
+      "displayNumber": 7,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Njihni pajisjen tuaj"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ana e përparme"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kamera"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Butoni Funksional"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ndezja dhe fikja e pajisjes"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kthimi në pamjen e mëparshme"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Butoni SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Dërgimi i SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kthimi në ekranin kryesor"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ana anësore/e pasme"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Foleja për kartën SIM"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kontaktet e karikimit"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KARIKIMI — HAPI 1",
+      "title": "KARIKIMI — HAPI 1",
+      "variant": "warning",
+      "displayNumber": 8,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Karikimi i pajisjes"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Vendosni nga ana e pasme e pajisjes skajin magnetik të kabllos"
+        },
+        {
+          "kind": "warning",
+          "text": "Ju lutemi tregoni kujdes të veçantë dhe mos lidhni për karikim pajisje që janë të lagura ose të lagështa nga djersa. Karikimi i pajisjes së lagësht shkakton korrozion dhe dëmtimin e pajisjes."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KARIKIMI — HAPI 2",
+      "title": "KARIKIMI — HAPI 2",
+      "variant": "warning",
+      "displayNumber": 9,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Lidhni me adapterin e ushqimit skajin e kabllos USB"
+        },
+        {
+          "kind": "warning",
+          "text": "Adapteri i ushqimit nuk përfshihet në komplet"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KARIKIMI — HAPI 3",
+      "title": "KARIKIMI — HAPI 3",
+      "variant": "warning",
+      "displayNumber": 10,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Lidhni adapterin e ushqimit me prizën elektrike"
+        },
+        {
+          "kind": "warning",
+          "text": "Sigurohuni që e keni lidhur drejt të gjithë kompletin. Lidhja e gabuar e pajisjes mund të shkaktojë dëmtimin e saj."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "NDEZJA DHE FIKJA",
+      "title": "NDEZJA DHE FIKJA",
+      "variant": "default",
+      "displayNumber": 11,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Ndezja dhe fikja e pajisjes"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Për të ndezur pajisjen"
+        },
+        {
+          "kind": "paragraph",
+          "text": "duhet të mbani butonin funksional për rreth 3 sekonda."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Për të fikur pajisjen, në menynë e orës zgjidhni „Më shumë“, pastaj „Cilësimet”, „Fik”, dhe përsëri „Fik”."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "AKTIVIZIMI I ALARMIT SOS",
+      "title": "AKTIVIZIMI I ALARMIT SOS",
+      "variant": "default",
+      "displayNumber": 12,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Aktivizimi i alarmit SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ndizni pajisjen"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pajisja duhet të jetë e ndezur për të përdorur butonin SOS."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pajisja e ndezur"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Me pajisjen e ndezur: mbajtja e butonit SOS shkakton dërgimin e alarmit SOS në telefon dhe lidhjen me kujdestarin."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KËSHILLA",
+      "title": "KËSHILLA",
+      "variant": "default",
+      "displayNumber": 13,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Këshillë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Numri i telefonit i përdorur për regjistrim në aplikacion shtohet automatikisht në pajisje si numri kryesor i alarmit."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mos harroni të shtoni numrat e kontaktit në aplikacionin Safe Family. Vetëm numrat e kontaktit të shtuar në aplikacion do të mund të telefonojnë në orë."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Vendosja e të gjithë dhjetë numrave të autorizuar nuk është e detyrueshme."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Këshillë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pas shtypjes së butonit SOS lidhja me kujdestarin mund të zgjatë pak më shumë, p.sh. kur telefoni ndodhet në vend me sinjal të dobët. Në disa raste është e mundur edhe lidhja me postën zanore të kujdestarit."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KRYERJA E THIRRJES",
+      "title": "KRYERJA E THIRRJES",
+      "variant": "default",
+      "displayNumber": 14,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Kryerja e thirrjes telefonike"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Për të kryer një thirrje"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Zgjidhni në meny „Telefoni“. Shtypni mbi emrin e kontaktit të zgjedhur, pastaj përsëri zgjidhni „Telefoni”."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kontakti"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mama"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Telefoni"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Cilësimet"
+        },
+        {
+          "kind": "paragraph",
+          "text": "WeChat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Video thirrje"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PARALAJMËRIME",
+      "title": "PARALAJMËRIME",
+      "variant": "default",
+      "displayNumber": 15,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Paralajmërime"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Për të zgjatur jetëgjatësinë e pajisjes, ndiqni udhëzimet:"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Mos përdorni dhe mos ruani pajisjen në vende me pluhur.",
+            "Mos vendosni pajisjen në temperaturë më të lartë ose më të ulët se e rekomanduar.",
+            "Pajisja duhet të pastrohet me një leckë të thatë. Mos e pastroni pajisjen me mjete kimike ose detergjentë.",
+            "Mos e çmontoni dhe mos e montoni përsëri pajisjen.",
+            "Përdorimi i baterive të ndryshme nga ato të integruara në pajisje do të shkaktojë efekte të padëshiruara dhe humbje të garancisë."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFIKIME TË PËRGJITHSHME",
+      "title": "SPECIFIKIME TË PËRGJITHSHME",
+      "variant": "spec",
+      "displayNumber": 16,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Specifikimi"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "CPU",
+              "W377"
+            ],
+            [
+              "GPS",
+              "UWS6137"
+            ],
+            [
+              "Ekrani",
+              "1,78''"
+            ],
+            [
+              "Lloji i ekranit",
+              "AMOLED 368x448"
+            ],
+            [
+              "Wi-Fi",
+              "2,4G : 2412 MHz ~ 2472 MHz"
+            ],
+            [
+              "Karta SIM",
+              "Nano"
+            ],
+            [
+              "Porti i karikimit",
+              "Kabllo magnetike"
+            ],
+            [
+              "Memoria",
+              "ROM 8GB RAM 1GB"
+            ],
+            [
+              "Ngjyra",
+              "vjollcë/blu"
+            ],
+            [
+              "Rripi dhe kopsa",
+              "silikon + plastikë"
+            ],
+            [
+              "Kamera",
+              "5 MP"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFIKIME — PËRMASAT DHE RRJETET",
+      "title": "SPECIFIKIME — PËRMASAT DHE RRJETET",
+      "variant": "spec",
+      "displayNumber": 17,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Përmasat",
+              "49 x 40,2 x 13 mm"
+            ],
+            [
+              "Pesha",
+              "48g"
+            ],
+            [
+              "Teknologjitë e lokalizimit",
+              "GPS/WiFi/LBS"
+            ],
+            [
+              "Rrjeti 2G",
+              "900/1800"
+            ],
+            [
+              "Rrjeti 3G",
+              "Band 1/8"
+            ],
+            [
+              "Rrjeti 4G",
+              "FDD Band: B1/B3/B7/B8/B20, TDD Band: 28/38/40"
+            ],
+            [
+              "Rezistenca ndaj ujit",
+              "IP68"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFIKIME — BATERIA",
+      "title": "SPECIFIKIME — BATERIA",
+      "variant": "spec",
+      "displayNumber": 18,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Bateria"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Lloji",
+              "Bateri litium-polimere"
+            ],
+            [
+              "Kapaciteti",
+              "700 mAh"
+            ],
+            [
+              "Koha e punës",
+              "deri në 3 ditë"
+            ],
+            [
+              "Rryma e karikimit",
+              "350 mA"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FREKUENCAT",
+      "title": "FREKUENCAT",
+      "variant": "spec",
+      "displayNumber": 19,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "GSM / GPRS"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "GSM / GPRS 900 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "GSM / GPRS 900 downlink",
+              "925 MHz ~ 960 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "WCDMA Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "WCDMA Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "WCDMA Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "WCDMA Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE",
+      "title": "FDD-LTE",
+      "variant": "spec",
+      "displayNumber": 20,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "Band 3 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "Band 3 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "Band 7 uplink",
+              "2500 MHz ~ 2570 MHz"
+            ],
+            [
+              "Band 7 downlink",
+              "2620 MHz ~ 2690 MHz"
+            ],
+            [
+              "Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE / TDD-LTE / GPS",
+      "title": "FDD-LTE / TDD-LTE / GPS",
+      "variant": "spec",
+      "displayNumber": 21,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band 20 uplink",
+              "832 MHz ~ 862 MHz"
+            ],
+            [
+              "Band 20 downlink",
+              "791 MHz ~ 821 MHz"
+            ],
+            [
+              "Band 28 uplink",
+              "703 MHz ~ 748 MHz"
+            ],
+            [
+              "Band 28 downlink",
+              "758 MHz ~ 803 MHz"
+            ],
+            [
+              "Band 38 uplink & downlink",
+              "2570 MHz ~ 2620 MHz"
+            ],
+            [
+              "Band 40 uplink & downlink",
+              "2300 MHz ~ 2400 MHz"
+            ],
+            [
+              "GPS receiver",
+              "1.57542 GHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power I",
+      "title": "Transmission Power I",
+      "variant": "spec",
+      "displayNumber": 22,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Wi-Fi 2.4G",
+              "13.42 dBm"
+            ],
+            [
+              "GSM 900",
+              "31.66 dBm"
+            ],
+            [
+              "GSM 1800",
+              "29.46 dBm"
+            ],
+            [
+              "WCDMA Band 1",
+              "21.97 dBm"
+            ],
+            [
+              "WCDMA Band 8",
+              "22.19 dBm"
+            ],
+            [
+              "LTE Band 3",
+              "23.18 dBm"
+            ],
+            [
+              "LTE Band 7",
+              "22.69 dBm"
+            ],
+            [
+              "LTE Band 8",
+              "22.40 dBm"
+            ],
+            [
+              "FDD-LTE Band 1",
+              "22.71 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power II",
+      "title": "Transmission Power II",
+      "variant": "spec",
+      "displayNumber": 23,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "FDD-LTE Band 20",
+              "22.91 dBm"
+            ],
+            [
+              "FDD-LTE Band 28",
+              "24.13 dBm"
+            ],
+            [
+              "TDD-LTE Band 38",
+              "22.61 dBm"
+            ],
+            [
+              "TDD-LTE Band 40",
+              "22.36 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SIGURIA E PËRDORIMIT",
+      "title": "SIGURIA E PËRDORIMIT",
+      "variant": "default",
+      "displayNumber": 24,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Udhëzime për sigurinë e përdorimit"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Mos vendosni pranë pajisjes elemente metalike të panevojshme, kjo mund të shkaktojë probleme me funksionimin e saj.",
+            "Duhet të respektohen të gjitha rregullat e sigurisë për përdorimin e pajisjeve elektrike, duke përfshirë mosvendosjen e objekteve metalike në pajisje dhe moskryerjen e veprimeve të tjera që e ekspozojnë përdoruesin ndaj veprimit të rrymës elektrike.",
+            "Mos e përdorni pajisjen në vende me pluhur, me lagështi, të ndotura ose në vende ku ka fushë magnetike.",
+            "Pajisja duhet të trajtohet me kujdes, rënia ose dëmtime të tjera fizike mund ta bëjnë të papërdorshme.",
+            "Mos e çmontoni vetë pajisjen ose ndonjë pjesë të saj, gjithashtu mos bëni ndryshime konstruktive në produkt ose në cilëndo pjesë të tij. Mos modifikoni softuerin e pajisjes."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SAR",
+      "title": "SAR",
+      "variant": "default",
+      "displayNumber": 25,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Informacion mbi veprimin e valëve me frekuencë radio dhe nivelin e absorbimit specifik (SAR)"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Modeli i orës GPS Locon Watch Slay AI është projektuar në atë mënyrë që të plotësojë të gjitha kërkesat e zbatueshme të sigurisë lidhur me ndikimin e valëve radio mbi organizmin njerëzor."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Këto kërkesa rrjedhin nga rekomandimet shkencore, duke përfshirë nivelet e lejuara që garantojnë sigurinë e të gjithë personave, pavarësisht nga mosha dhe gjendja e tyre shëndetësore. Në rekomandimet për ndikimin e valëve radio përdoret termi „absorbim specifik“ (SAR). Testet e vlerës SAR kryhen me metoda standarde, kur ora transmeton me fuqinë maksimale në të gjitha brezat e frekuencës së përdorur."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Në rastin e këtij modeli ore Locon Watch Slay AI vlera më e lartë e SAR e matur nga Locon është 0,489 W/kg (te fytyra) dhe 2,894 W/kg (te trupi). Vlera maksimale e lejuar lejon emetimin e rrezatimit me fuqi 2 W/kg te fytyra dhe 4 W/kg te trupi."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WEEE",
+      "title": "WEEE",
+      "variant": "default",
+      "displayNumber": 26,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Heqja e duhur e produktit"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Shenja e vendosur në produkt ose në tekstet që i referohen atij tregon se produkti pas përfundimit të periudhës së përdorimit nuk duhet të hidhet me mbeturinat e tjera shtëpiake."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "RICIKLIMI",
+      "title": "RICIKLIMI",
+      "variant": "default",
+      "displayNumber": 27,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Riciklimi i duhur i produktit"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Produkti i shënuar me simbolin e koshit të kryqëzuar tregon se nuk duhet të hidhet së bashku me mbeturinat e zakonshme komunale. Për mbrojtjen e mjedisit dhe shëndetit të njerëzve duhet të ndahet në mënyrë të përgjegjshme dhe të riciklohet."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pas përfundimit të përdorimit, ju lutemi dorëzoni pajisjen në një pikë grumbullimi selektiv të pajisjeve elektrike dhe elektronike ose kontaktoni shitësin për informacione të hollësishme rreth mundësive të kthimit dhe riciklimit të sigurt të pajisjes sipas legjislacionit në fuqi. Ju faleminderit për qëndrimin tuaj të përgjegjshëm ndaj mbrojtjes së mjedisit."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KONFORMITETI CE",
+      "title": "KONFORMITETI CE",
+      "variant": "default",
+      "displayNumber": 28,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Orë inteligjente"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI MODELI: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON Sp. z o.o. me këtë deklaron se tipi i pajisjes radio Smartwatch Locon Watch Slay AI Model GJD.16 është në përputhje me Direktivën 2014/53/BE. Teksti i plotë i deklaratës së konformitetit të BE është i disponueshëm në adresën e mëposhtme të internetit https://locon.pl/gjd16-ce"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KARTA E GARANCISË — KOPERTINA",
+      "title": "KARTA E GARANCISË — KOPERTINA",
+      "variant": "warranty",
+      "displayNumber": 29,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Karta e garancisë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Orë inteligjente"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODELI GJD.16"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KUSHTET E GARANCISË",
+      "title": "KUSHTET E GARANCISË",
+      "variant": "warranty",
+      "displayNumber": 30,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Locon sp. z o.o."
+        },
+        {
+          "kind": "paragraph",
+          "text": "KUSHTET DHE RREGULLAT E DHËNIES SË GARANCISË"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Garanti"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Locon Sp. z o.o., rr. Wspólna 70, 00-687 Varshavë, Poloni, VAT EU PL8521013334"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Objekti"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch Locon Watch Slay AI modeli: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Periudha e garancisë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "24 muaj për pajisjen, 12 muaj për baterinë, 6 muaj për aksesorët nga data e shitjes / dorëzimit të pajisjes"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mbulesa"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Territori i Republikës së Polonisë, Republikës së Bullgarisë, Republikës së Kroacisë, Rumanisë dhe Republikës së Maqedonisë së Veriut"
+        },
+        {
+          "kind": "warning",
+          "text": "Bateria është element konsumueshëm që i nënshtrohet konsumimit natyror gjatë përdorimit të pajisjes"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "DETYRIMET DHE ANKESA",
+      "title": "DETYRIMET DHE ANKESA",
+      "variant": "warranty",
+      "displayNumber": 31,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "1. Detyrimet e Garantit"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "heqja falas e defekteve brenda 14 ditëve nga paraqitja",
+            "mbulimi i shpenzimeve të transportit të pajisjes në servisin e autorizuar"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "2. Të drejtat e Klientit"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "riparim falas ose zëvendësim i pajisjes me defekt sipas vendimit të Garantit",
+            "ndihmë teknike në distancë: help@locon.pl"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "3. Si të paraqisni ankesë"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Kontaktoni me servisin e autorizuar përkatës për vendin tuaj — listën aktuale të serviseve do ta gjeni në kartën e plotë të garancisë nën kodin QR (seksioni 5 më poshtë).",
+            "Në paraqitjen e ankesës jepni përshkrimin e defektit, të dhënat e kontaktit si dhe numrin serik / IMEI të pajisjes.",
+            "Pas pranimit të ankesës do të merrni udhëzimet për dërgimin e pajisjes. Shpenzimet e transportit i mbulon Garanti."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PËRJASHTIMET DHE KLAUZOLA",
+      "title": "PËRJASHTIMET DHE KLAUZOLA",
+      "variant": "warranty",
+      "displayNumber": 32,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "4. Përjashtime nga përgjegjësia"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "dëmtime mekanike (rënia, goditja, shtypja) të shfaqura pas dorëzimit të pajisjes te konsumatori",
+            "përmbytje ose kontakt me lëng jashtë klasës së rezistencës ndaj ujit të përcaktuar në specifikimin teknik",
+            "riparime ose modifikime të kryera jashtë servisit të autorizuar të Garantit",
+            "modifikimi i softuerit të pajisjes (instalimi i firmware-it të paautorizuar, marrja e të drejtave të administratorit)",
+            "konsumimi natyror i elementeve eksploatuese (ndër të tjera ulja e kapacitetit të baterisë pas tejkalimit të 500 cikleve të karikimit)",
+            "veprimi i forcës madhore si dhe mbitensionet në rrjetin elektrik",
+            "përdorimi i aksesorëve të ndryshëm nga ata të dorëzuar në komplet ose të paautorizuar nga Garanti"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "5. Teksti i plotë i garancisë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Dokumenti i plotë për shkarkim: Skanoni kodin QR dhe hapni versionin e plotë të kartës së garancisë"
+        },
+        {
+          "kind": "paragraph",
+          "text": "6. Klauzola ligjore"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Në rast të mospërputhjes së sendit të shitur me kontratën, blerësit i takojnë sipas ligjit mjetet e mbrojtjes ligjore nga ana dhe në koston e shitësit, dhe garancia nuk ndikon në këto mjete të mbrojtjes ligjore."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ANA E PASME",
+      "title": "ANA E PASME",
+      "variant": "warranty",
+      "displayNumber": 33,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "loconsafefamily.com"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mësoni më shumë!"
+        }
+      ]
+    }
+  ]
+}

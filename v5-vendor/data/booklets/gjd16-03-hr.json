@@ -1,0 +1,1109 @@
+{
+  "meta": {
+    "documentId": "gjd16-03-hr",
+    "language": "HR",
+    "languageLabel": "HR",
+    "device": "GJD16",
+    "title": "GJD.16 — Locon Watch Slay AI",
+    "subtitle": "Brzi vodič i jamstveni list",
+    "pageSizeMm": {
+      "width": 76,
+      "height": 76
+    },
+    "revision": "Imported from XLSX v4 final"
+  },
+  "branding": {
+    "company": "LOCON"
+  },
+  "toc": {
+    "title": "SADRŽAJ",
+    "items": [
+      {
+        "label": "Brzi vodič",
+        "pageNumber": 3
+      },
+      {
+        "label": "Jamstveni list",
+        "pageNumber": 31
+      }
+    ]
+  },
+  "pages": [
+    {
+      "type": "toc-custom",
+      "title": "SADRŽAJ",
+      "label": "SADRŽAJ",
+      "showFooter": false,
+      "items": [
+        {
+          "label": "Brzi vodič",
+          "pageNumber": 3
+        },
+        {
+          "label": "Jamstveni list",
+          "pageNumber": 31
+        }
+      ],
+      "blocks": []
+    },
+    {
+      "type": "content",
+      "label": "NASLOVNICA",
+      "title": "NASLOVNICA",
+      "variant": "cover",
+      "displayNumber": 1,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Brzi početak i jamstveni list"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pametni sat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Verzija 003"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "QR + KONTAKT",
+      "title": "QR + KONTAKT",
+      "variant": "qr",
+      "displayNumber": 2,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Skenirajte kod i otvorite potpune upute za uporabu"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Imate pitanja?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pišite nam: help@locon.pl"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KAKO POČETI — KORAK 1",
+      "title": "KAKO POČETI — KORAK 1",
+      "variant": "default",
+      "displayNumber": 3,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Kako početi?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Preuzmite i instalirajte aplikaciju Safe Family na svom telefonu"
+        },
+        {
+          "kind": "paragraph",
+          "text": "PREUZMI S"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Skenirajte kod za dodavanje aplikacije"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KORAK 2",
+      "title": "KORAK 2",
+      "variant": "default",
+      "displayNumber": 4,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Pokrenite aplikaciju Safe Family:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Unesite svoj telefonski broj na koji ćete dobiti SMS s kodom za prijavu (i potvrdu telefonskog broja)."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KORAK 3",
+      "title": "KORAK 3",
+      "variant": "default",
+      "displayNumber": 5,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Dodajte uređaj u aplikaciju:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pritisnite gumb „Odaberi“ u polju „Želim locirati drugi GPS uređaj“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Skenirajte QR kod s kutije ili uređaja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Postupajte prema daljnjim uputama u aplikaciji"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "KORAK 4",
+      "title": "KORAK 4",
+      "variant": "warning",
+      "displayNumber": 6,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Ako posjedujete uređaj zajedno sa SIM karticom koju je isporučio Locon, nakon izvršenja prethodnih koraka vaš uređaj će biti spreman za uporabu u roku od nekoliko minuta."
+        },
+        {
+          "kind": "warning",
+          "text": "Pozor! Vaša SIM kartica ne smije imati PIN kod."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kako instalirati vlastitu SIM karticu? Cjelovite upute pronaći ćete u korisničkom priručniku (QR kod na stranici 2) ili kontaktiranjem korisničke podrške Locon."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "UPOZNAJTE SVOJ UREĐAJ",
+      "title": "UPOZNAJTE SVOJ UREĐAJ",
+      "variant": "default",
+      "displayNumber": 7,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Upoznajte svoj uređaj"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Prednja strana"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kamera"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Funkcijska tipka"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Uključivanje i isključivanje uređaja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Povratak na prethodni prikaz"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Tipka SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Slanje SOS-a"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Povratak na glavni zaslon"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Bočna/stražnja strana"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Utor za SIM karticu"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kontakti za punjenje"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PUNJENJE — KORAK 1",
+      "title": "PUNJENJE — KORAK 1",
+      "variant": "warning",
+      "displayNumber": 8,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Punjenje uređaja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Prislonite sa stražnje strane uređaja magnetski kraj kabela"
+        },
+        {
+          "kind": "warning",
+          "text": "Molimo budite posebno oprezni i ne priključujte na punjenje uređaje koji su mokri ili vlažni od znoja. Punjenje vlažnog uređaja uzrokuje koroziju i oštećenje uređaja."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PUNJENJE — KORAK 2",
+      "title": "PUNJENJE — KORAK 2",
+      "variant": "warning",
+      "displayNumber": 9,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Spojite s adapterom za napajanje kraj USB kabela"
+        },
+        {
+          "kind": "warning",
+          "text": "Adapter za napajanje nije uključen u komplet"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PUNJENJE — KORAK 3",
+      "title": "PUNJENJE — KORAK 3",
+      "variant": "warning",
+      "displayNumber": 10,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Spojite adapter za napajanje s električnom utičnicom"
+        },
+        {
+          "kind": "warning",
+          "text": "Provjerite jeste li ispravno spojili cijeli komplet. Neispravno spajanje uređaja može uzrokovati njegovo oštećenje."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "UKLJUČIVANJE I ISKLJUČIVANJE",
+      "title": "UKLJUČIVANJE I ISKLJUČIVANJE",
+      "variant": "default",
+      "displayNumber": 11,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Uključivanje i isključivanje uređaja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Za uključivanje uređaja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "potrebno je držati funkcijsku tipku oko 3 sekunde."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Za isključivanje uređaja, u izborniku sata odaberite „Više“, zatim „Postavke“, „Isključi“, a zatim ponovno „Isključi“."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "AKTIVACIJA SOS ALARMA",
+      "title": "AKTIVACIJA SOS ALARMA",
+      "variant": "default",
+      "displayNumber": 12,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Aktivacija SOS alarma"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Uključite uređaj"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Uređaj mora biti uključen za korištenje tipke SOS."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Uređaj uključen"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kod uključenog uređaja: držanje tipke SOS uzrokuje slanje SOS alarma na telefon i uspostavljanje veze sa skrbnikom."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SAVJETI",
+      "title": "SAVJETI",
+      "variant": "default",
+      "displayNumber": 13,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Savjet"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Telefonski broj korišten za registraciju u aplikaciji automatski se dodaje uređaju kao glavni alarmni broj."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ne zaboravite dodati kontaktne brojeve u aplikaciji Safe Family. Samo kontaktni brojevi dodani u aplikaciji moći će nazvati sat."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Postavljanje svih deset autoriziranih brojeva nije obvezno."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Savjet"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Nakon pritiska tipke SOS uspostavljanje veze sa skrbnikom može trajati nešto dulje, npr. kada se telefon nalazi na mjestu sa slabim signalom. U nekim slučajevima moguće je i spajanje s govornom poštom skrbnika."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "USPOSTAVLJANJE POZIVA",
+      "title": "USPOSTAVLJANJE POZIVA",
+      "variant": "default",
+      "displayNumber": 14,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Uspostavljanje telefonskog poziva"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Za uspostavljanje poziva"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Odaberite u izborniku „Telefon“. Pritisnite na odabrano ime kontakta, zatim ponovno odaberite „Telefon“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kontakt"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mama"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Telefon"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Postavke"
+        },
+        {
+          "kind": "paragraph",
+          "text": "WeChat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Video poz."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "UPOZORENJA",
+      "title": "UPOZORENJA",
+      "variant": "default",
+      "displayNumber": 15,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Upozorenja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Za produženje životnog vijeka uređaja, postupajte prema uputama:"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Ne koristite i ne čuvajte uređaj na prašnjavim mjestima.",
+            "Ne stavljajte uređaj na višu ili nižu temperaturu od preporučene.",
+            "Uređaj treba čistiti suhom krpom. Ne čistite uređaj kemijskim sredstvima niti deterdžentima.",
+            "Ne rastavljajte niti ponovo sastavljajte uređaj.",
+            "Korištenje baterija različitih od ugrađenih u uređaj uzrokovat će neželjene učinke i gubitak jamstva."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "OPĆE SPECIFIKACIJE",
+      "title": "OPĆE SPECIFIKACIJE",
+      "variant": "spec",
+      "displayNumber": 16,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Specifikacija"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "CPU",
+              "W377"
+            ],
+            [
+              "GPS",
+              "UWS6137"
+            ],
+            [
+              "Zaslon",
+              "1,78''"
+            ],
+            [
+              "Tip zaslona",
+              "AMOLED 368x448"
+            ],
+            [
+              "Wi-Fi",
+              "2,4G : 2412 MHz ~ 2472 MHz"
+            ],
+            [
+              "SIM kartica",
+              "Nano"
+            ],
+            [
+              "Priključak za punjenje",
+              "Magnetski kabel"
+            ],
+            [
+              "Memorija",
+              "ROM 8GB RAM 1GB"
+            ],
+            [
+              "Boja",
+              "ljubičasta/plava"
+            ],
+            [
+              "Remen i kopča",
+              "silikon + plastika"
+            ],
+            [
+              "Kamera",
+              "5 MP"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFIKACIJE — DIMENZIJE I MREŽE",
+      "title": "SPECIFIKACIJE — DIMENZIJE I MREŽE",
+      "variant": "spec",
+      "displayNumber": 17,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Dimenzije",
+              "49 x 40,2 x 13 mm"
+            ],
+            [
+              "Težina",
+              "48g"
+            ],
+            [
+              "Tehnologije lokalizacije",
+              "GPS/WiFi/LBS"
+            ],
+            [
+              "Mreža 2G",
+              "900/1800"
+            ],
+            [
+              "Mreža 3G",
+              "Band 1/8"
+            ],
+            [
+              "Mreža 4G",
+              "FDD Band: B1/B3/B7/B8/B20, TDD Band: 28/38/40"
+            ],
+            [
+              "Vodootpornost",
+              "IP68"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFIKACIJE — BATERIJA",
+      "title": "SPECIFIKACIJE — BATERIJA",
+      "variant": "spec",
+      "displayNumber": 18,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Baterija"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Tip",
+              "Litij-polimerna baterija"
+            ],
+            [
+              "Kapacitet",
+              "700 mAh"
+            ],
+            [
+              "Vrijeme rada",
+              "do 3 dana"
+            ],
+            [
+              "Struja punjenja",
+              "350mA"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FREKVENCIJE",
+      "title": "FREKVENCIJE",
+      "variant": "spec",
+      "displayNumber": 19,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "GSM / GPRS"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "GSM / GPRS 900 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "GSM / GPRS 900 downlink",
+              "925 MHz ~ 960 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "WCDMA Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "WCDMA Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "WCDMA Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "WCDMA Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE",
+      "title": "FDD-LTE",
+      "variant": "spec",
+      "displayNumber": 20,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "Band 3 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "Band 3 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "Band 7 uplink",
+              "2500 MHz ~ 2570 MHz"
+            ],
+            [
+              "Band 7 downlink",
+              "2620 MHz ~ 2690 MHz"
+            ],
+            [
+              "Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE / TDD-LTE / GPS",
+      "title": "FDD-LTE / TDD-LTE / GPS",
+      "variant": "spec",
+      "displayNumber": 21,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band 20 uplink",
+              "832 MHz ~ 862 MHz"
+            ],
+            [
+              "Band 20 downlink",
+              "791 MHz ~ 821 MHz"
+            ],
+            [
+              "Band 28 uplink",
+              "703 MHz ~ 748 MHz"
+            ],
+            [
+              "Band 28 downlink",
+              "758 MHz ~ 803 MHz"
+            ],
+            [
+              "Band 38 uplink & downlink",
+              "2570 MHz ~ 2620 MHz"
+            ],
+            [
+              "Band 40 uplink & downlink",
+              "2300 MHz ~ 2400 MHz"
+            ],
+            [
+              "GPS receiver",
+              "1.57542 GHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power I",
+      "title": "Transmission Power I",
+      "variant": "spec",
+      "displayNumber": 22,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Wi-Fi 2.4G",
+              "13.42 dBm"
+            ],
+            [
+              "GSM 900",
+              "31.66 dBm"
+            ],
+            [
+              "GSM 1800",
+              "29.46 dBm"
+            ],
+            [
+              "WCDMA Band 1",
+              "21.97 dBm"
+            ],
+            [
+              "WCDMA Band 8",
+              "22.19 dBm"
+            ],
+            [
+              "LTE Band 3",
+              "23.18 dBm"
+            ],
+            [
+              "LTE Band 7",
+              "22.69 dBm"
+            ],
+            [
+              "LTE Band 8",
+              "22.40 dBm"
+            ],
+            [
+              "FDD-LTE Band 1",
+              "22.71 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power II",
+      "title": "Transmission Power II",
+      "variant": "spec",
+      "displayNumber": 23,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "FDD-LTE Band 20",
+              "22.91 dBm"
+            ],
+            [
+              "FDD-LTE Band 28",
+              "24.13 dBm"
+            ],
+            [
+              "TDD-LTE Band 38",
+              "22.61 dBm"
+            ],
+            [
+              "TDD-LTE Band 40",
+              "22.36 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SIGURNOST UPORABE",
+      "title": "SIGURNOST UPORABE",
+      "variant": "default",
+      "displayNumber": 24,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Upute za sigurnost uporabe"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Ne postavljajte u blizinu uređaja nepotrebne metalne elemente, to može uzrokovati probleme s njegovim radom.",
+            "Potrebno je poštivati sva pravila sigurnosti pri korištenju električnih uređaja, uključujući neumetanje metalnih predmeta u uređaj i neobavljanje drugih radnji koje korisnika izlažu djelovanju električne struje.",
+            "Ne koristite uređaj na prašnjavim, vlažnim, onečišćenim mjestima ili na mjestima gdje postoji magnetsko polje.",
+            "S uređajem treba rukovati pažljivo, pad ili drugo fizičko oštećenje može ga učiniti nesposobnim za rad.",
+            "Ne smijete samostalno rastavljati uređaj niti bilo koji njegov dio, također ne smijete vršiti konstrukcijske promjene na proizvodu ili bilo kojem njegovom dijelu. Ne smijete modificirati softver uređaja."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SAR",
+      "title": "SAR",
+      "variant": "default",
+      "displayNumber": 25,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Informacija o djelovanju radiofrekvencijskih valova i razini specifične apsorpcije (SAR)"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Model sata GPS Locon Watch Slay AI projektiran je na način da ispunjava sve važeće sigurnosne zahtjeve u vezi s utjecajem radiovalova na ljudski organizam."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ovi zahtjevi proizlaze iz znanstvenih preporuka, uključujući dopuštene razine koje jamče sigurnost svih osoba, bez obzira na njihovu dob i zdravstveno stanje. U preporukama o utjecaju radiovalova koristi se pojam „specifična apsorpcija“ (SAR). Ispitivanja vrijednosti SAR provode se standardnim metodama, kada sat emitira maksimalnom snagom u svim korištenim frekvencijskim pojasevima."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Kod ovog modela sata Locon Watch Slay AI najviša vrijednost SAR koju je izmjerio Locon iznosi 0,489 W/kg (pri licu) i 2,894 W/kg (pri tijelu). Maksimalna dopuštena vrijednost dopušta emisiju zračenja snagom od 2 W/kg pri licu i 4 W/kg pri tijelu."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WEEE",
+      "title": "WEEE",
+      "variant": "default",
+      "displayNumber": 26,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Pravilno odlaganje proizvoda"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Oznaka postavljena na proizvodu ili u tekstovima koji se odnose na njega ukazuje da se proizvod po isteku razdoblja korištenja ne smije odlagati s ostalim kućanskim otpadom."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "RECIKLIRANJE",
+      "title": "RECIKLIRANJE",
+      "variant": "default",
+      "displayNumber": 27,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Pravilno recikliranje proizvoda"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Proizvod označen simbolom precrtane kante ukazuje da ga se ne smije odlagati zajedno s običnim komunalnim otpadom. Radi zaštite okoliša i zdravlja ljudi potrebno ga je odgovorno sortirati i reciklirati."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Po završetku korištenja molimo predajte uređaj na mjesto za selektivno prikupljanje električne i elektronske opreme ili se obratite prodavaču za detaljne informacije o mogućnostima povrata i sigurnog recikliranja uređaja sukladno važećim propisima. Zahvaljujemo na odgovornom odnosu prema zaštiti okoliša."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SUKLADNOST CE",
+      "title": "SUKLADNOST CE",
+      "variant": "default",
+      "displayNumber": 28,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Pametni sat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI MODEL: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON Sp. z o.o. ovime izjavljuje da je tip radijske opreme Smartwatch Locon Watch Slay AI Model GJD.16 u skladu s Direktivom 2014/53/EU. Potpuni tekst EU izjave o sukladnosti dostupan je na internetskoj adresi https://locon.pl/gjd16-ce"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "JAMSTVENI LIST — NASLOVNICA",
+      "title": "JAMSTVENI LIST — NASLOVNICA",
+      "variant": "warranty",
+      "displayNumber": 29,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Jamstveni list"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pametni sat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "UVJETI JAMSTVA",
+      "title": "UVJETI JAMSTVA",
+      "variant": "warranty",
+      "displayNumber": 30,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Locon sp. z o.o."
+        },
+        {
+          "kind": "paragraph",
+          "text": "UVJETI I PRAVILA DAVANJA JAMSTVA"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Jamac"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Locon Sp. z o.o., ul. Wspólna 70, 00-687 Varšava, Poljska, VAT EU PL8521013334"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Predmet"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch Locon Watch Slay AI model: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Jamstveni rok"
+        },
+        {
+          "kind": "paragraph",
+          "text": "24 mjeseca za uređaj, 12 mjeseci za bateriju, 6 mjeseci za pribor od datuma prodaje / izdavanja uređaja"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Područje"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Područje Republike Poljske, Republike Bugarske, Republike Hrvatske, Rumunjske i Republike Sjeverne Makedonije"
+        },
+        {
+          "kind": "warning",
+          "text": "Baterija je potrošni element podložan prirodnom trošenju tijekom uporabe uređaja"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "OBVEZE I REKLAMACIJA",
+      "title": "OBVEZE I REKLAMACIJA",
+      "variant": "warranty",
+      "displayNumber": 31,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "1. Obveze Jamca"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "besplatno otklanjanje nedostataka u roku do 14 dana od prijave",
+            "pokriće troškova prijevoza uređaja do ovlaštenog servisa"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "2. Prava Kupca"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "besplatan popravak ili zamjena neispravnog uređaja prema odluci Jamca",
+            "udaljena tehnička podrška: help@locon.pl"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "3. Kako prijaviti reklamaciju"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Obratite se ovlaštenom servisu nadležnom za vašu zemlju — aktualni popis servisa pronaći ćete u potpunom jamstvenom listu pod QR kodom (odjeljak 5 u nastavku).",
+            "U prijavi navedite opis kvara, kontaktne podatke te serijski broj / IMEI uređaja.",
+            "Nakon zaprimanja prijave dobit ćete upute za slanje uređaja. Trošak prijevoza snosi Jamac."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ISKLJUČENJA I KLAUZULA",
+      "title": "ISKLJUČENJA I KLAUZULA",
+      "variant": "warranty",
+      "displayNumber": 32,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "4. Isključenja odgovornosti"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "mehanička oštećenja (pad, udarac, prignječenje) nastala nakon predaje uređaja potrošaču",
+            "zalijevanje ili kontakt s tekućinom izvan klase vodootpornosti utvrđene u tehničkoj specifikaciji",
+            "popravci ili izmjene izvršeni izvan ovlaštenog servisa Jamca",
+            "izmjena softvera uređaja (instalacija neodobrenog firmvera, stjecanje administratorskih ovlasti)",
+            "prirodno trošenje potrošnih elemenata (između ostalog smanjenje kapaciteta baterije nakon prekoračenja 500 ciklusa punjenja)",
+            "djelovanje više sile te prenaponi u električnoj mreži",
+            "uporaba pribora različitog od onog isporučenog u kompletu ili neodobrenog od strane Jamca"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "5. Potpuni tekst jamstva"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Potpuni dokument za preuzimanje: Skenirajte QR kod i otvorite potpunu verziju jamstvenog lista"
+        },
+        {
+          "kind": "paragraph",
+          "text": "6. Zakonska klauzula"
+        },
+        {
+          "kind": "paragraph",
+          "text": "U slučaju nesukladnosti prodane stvari s ugovorom, kupcu po sili zakona pripadaju sredstva pravne zaštite koje snosi prodavatelj, a jamstvo ne utječe na ta sredstva pravne zaštite."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "STRAŽNJA STRANA",
+      "title": "STRAŽNJA STRANA",
+      "variant": "warranty",
+      "displayNumber": 33,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "loconsafefamily.com"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Saznajte više!"
+        }
+      ]
+    }
+  ]
+}

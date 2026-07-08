@@ -43,3 +43,8 @@ next-env.d.ts
 
 .vercel
 .env*.local
+
+# v5
+v5-work/
+.env.vercel-prod
+.env.*.tmp

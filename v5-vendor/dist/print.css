@@ -1,0 +1,3934 @@
+@page {
+  size: var(--page-width-mm) var(--page-height-mm);
+  margin: 0;
+}
+
+:root {
+  --font-family-body: "InterLocal", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-family-heading: "InterLocal", "Inter", "Helvetica Neue", Arial, sans-serif;
+  --font-size-micro: 1.55mm;
+  --font-size-label: 1.75mm;
+  --font-size-body: 1.72mm;
+  --font-size-body-strong: 1.9mm;
+  --font-size-heading: 2.55mm;
+  --font-size-display: 4.4mm;
+  --line-height-tight: 1.08;
+  --line-height-body: 1.16;
+  --bg: #f6f8fb;
+  --ink: #111111;
+  --muted: #5f6876;
+  --panel: #ffffff;
+  --line: #d7dce3;
+  --dark: #111111;
+  --accent: #2563eb;
+  --accent-soft: #e8f0ff;
+  --warn: #eef4ff;
+  --warn-ink: #1d4ed8;
+  --watch-line: #aeb4bd;
+}
+
+@font-face {
+  font-family: "InterLocal";
+  src: url("file:///Users/lauramusial/Library/Fonts/Inter-VariableFont_opsz,wght.ttf")
+    format("truetype");
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: #d9dee6;
+  color: var(--ink);
+  font-family: var(--font-family-body);
+  hyphens: auto;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+body {
+  counter-reset: page;
+}
+
+.page {
+  width: var(--page-width-mm);
+  height: var(--page-height-mm);
+  page-break-after: always;
+  break-after: page;
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.12), transparent 28%),
+    linear-gradient(180deg, #fbfcfe 0%, #eef3f8 100%);
+  position: relative;
+  overflow: hidden;
+}
+
+.page-shell {
+  height: 100%;
+  padding: 3.2mm;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 2mm;
+}
+
+.page-top,
+.page-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1.5mm;
+  min-width: 0;
+}
+
+.chip-group {
+  display: flex;
+  align-items: center;
+  gap: 1mm;
+  min-width: 0;
+}
+
+.page-title,
+.folio,
+.chip,
+.eyebrow,
+.step-kicker,
+.cover-panel-label,
+.warning-badge,
+.qr-label {
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.page-title,
+.folio,
+.chip {
+  font-size: var(--font-size-label);
+  font-weight: 700;
+}
+
+.page-title,
+h1,
+h2,
+.cover-panel-title {
+  font-family: var(--font-family-heading);
+}
+
+.page-title,
+.page-footer {
+  color: var(--muted);
+}
+
+.chip {
+  padding: 0.8mm 1.6mm;
+  border-radius: 999px;
+  background: var(--dark);
+  color: #fff;
+  flex: 0 0 auto;
+}
+
+.chip-language {
+  background: rgba(17, 17, 17, 0.06);
+  color: var(--ink);
+}
+
+.page-body {
+  min-height: 0;
+}
+
+.page-title,
+.folio,
+.chip,
+.section-card,
+.cover-panel,
+.spec-key,
+.spec-value,
+.toc-name,
+.toc-page,
+.warranty-field span {
+  min-width: 0;
+}
+
+.page-footer-empty {
+  visibility: hidden;
+}
+
+.page-title-hidden {
+  visibility: hidden;
+}
+
+.section-card,
+.cover-panel {
+  border-radius: 4mm;
+  background: rgba(255, 255, 255, 0.98);
+  border: 0.3mm solid rgba(213, 219, 225, 0.9);
+  box-shadow:
+    0 0.2mm 0 rgba(0, 0, 0, 0.04),
+    0 1.4mm 3.6mm rgba(17, 24, 39, 0.06);
+}
+
+.section-card {
+  height: 100%;
+  padding: 3mm;
+  overflow: hidden;
+}
+
+.page:not(.page-cover) .page-shell {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 2mm;
+  padding: 3.2mm;
+}
+
+.page:not(.page-cover) .page-body {
+  display: flex;
+  align-items: stretch;
+}
+
+.page:not(.page-cover) .section-card {
+  width: 100%;
+  min-height: 52mm;
+  border-radius: 4mm;
+  border: 0.25mm solid #d7dce3;
+  background: #fff;
+  box-shadow: 0 2mm 6mm rgba(15, 23, 42, 0.06);
+  padding: 5mm;
+}
+
+.tone-cover-clean {
+  background: #f8fafc;
+}
+
+.cover-grid {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  gap: 2mm;
+}
+
+.cover-title,
+h2 {
+  margin: 0;
+  font-size: var(--font-size-display);
+  line-height: var(--line-height-tight);
+  overflow-wrap: normal;
+  word-break: normal;
+  hyphens: none;
+  max-width: 100%;
+  text-wrap: balance;
+}
+
+.cover-subtitle,
+.lede,
+.cover-panel-copy,
+.warning-list,
+.step-list,
+.note-list,
+.spec-key,
+.spec-value,
+.warranty-field,
+.toc-row,
+.page-footer {
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  overflow-wrap: break-word;
+  word-break: normal;
+  font-variant-numeric: tabular-nums;
+}
+
+.eyebrow,
+.step-kicker,
+.cover-panel-label,
+.qr-label {
+  color: var(--accent);
+  font-size: var(--font-size-micro);
+  font-weight: 700;
+}
+
+.cover-subtitle,
+.lede,
+.cover-panel-copy {
+  color: var(--muted);
+}
+
+.cover-panel {
+  padding: 2.6mm;
+  background: linear-gradient(180deg, #ffffff 0%, #f7faff 100%);
+  color: var(--ink);
+}
+
+.cover-panel-title {
+  margin-top: 0.8mm;
+  font-size: var(--font-size-heading);
+  font-weight: 700;
+  line-height: var(--line-height-tight);
+}
+
+.cover-panel-copy {
+  margin-top: 1mm;
+  color: var(--muted);
+}
+
+.qr-layout {
+  margin-top: 2.2mm;
+  display: grid;
+  grid-template-columns: 19mm minmax(0, 1fr);
+  gap: 2mm;
+  align-items: start;
+}
+
+.qr-placeholder {
+  aspect-ratio: 1;
+  border-radius: 3mm;
+  border: 0.5mm dashed var(--ink);
+  background:
+    linear-gradient(45deg, rgba(16, 24, 32, 0.08) 25%, transparent 25%),
+    linear-gradient(-45deg, rgba(16, 24, 32, 0.08) 25%, transparent 25%),
+    linear-gradient(45deg, transparent 75%, rgba(16, 24, 32, 0.08) 75%),
+    linear-gradient(-45deg, transparent 75%, rgba(16, 24, 32, 0.08) 75%);
+  background-size: 5mm 5mm;
+  background-position: 0 0, 0 2.5mm, 2.5mm -2.5mm, -2.5mm 0;
+  display: grid;
+  place-items: center;
+  font-size: var(--font-size-heading);
+  font-weight: 700;
+}
+
+ul {
+  margin: 1.8mm 0 0;
+  padding-left: 3.4mm;
+}
+
+li + li {
+  margin-top: 0.9mm;
+}
+
+.warning-badge {
+  width: 5.8mm;
+  height: 5.8mm;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent);
+  color: #ffffff;
+  font-size: var(--font-size-heading);
+  font-weight: 800;
+}
+
+.tone-dark {
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.1), transparent 25%),
+    linear-gradient(180deg, #fbfcfe 0%, #eef3f8 100%);
+  color: var(--ink);
+}
+
+.tone-dark .page-title,
+.tone-dark .page-footer,
+.tone-dark .cover-subtitle,
+.tone-dark .eyebrow {
+  color: var(--muted);
+}
+
+.tone-dark .section-card,
+.tone-dark .cover-panel {
+  background: rgba(255, 255, 255, 0.98);
+  border-color: rgba(213, 219, 225, 0.9);
+}
+
+.tone-warn {
+  background:
+    radial-gradient(circle at top right, rgba(37, 99, 235, 0.09), transparent 28%),
+    linear-gradient(180deg, #fbfcfe 0%, #eef3f8 100%);
+}
+
+.warn-card {
+  background: rgba(255, 255, 255, 0.98);
+}
+
+.spec-table {
+  margin-top: 2mm;
+  display: grid;
+  border-top: 0.3mm solid var(--line);
+}
+
+.spec-row {
+  display: grid;
+  grid-template-columns: minmax(0, 0.95fr) minmax(0, 1.05fr);
+  gap: 1.4mm;
+  padding: 1.4mm 0;
+  border-bottom: 0.3mm solid var(--line);
+  align-items: start;
+}
+
+.spec-key {
+  color: var(--muted);
+}
+
+.warranty-fields {
+  margin-top: 2mm;
+  display: grid;
+  gap: 1.4mm;
+}
+
+.warranty-field {
+  min-height: 6.5mm;
+  padding: 1.4mm 0;
+  border-bottom: 0.35mm solid var(--ink);
+  display: flex;
+  align-items: end;
+}
+
+.toc-list {
+  margin-top: 2mm;
+  display: grid;
+  gap: 1.1mm;
+}
+
+.toc-row {
+  display: grid;
+  grid-template-columns: minmax(0, auto) 1fr auto;
+  gap: 1.2mm;
+  align-items: center;
+}
+
+.toc-dots {
+  height: 0.4mm;
+  border-bottom: 0.35mm dotted #90a2bc;
+}
+
+.content-card {
+  display: flex;
+  flex-direction: column;
+}
+
+.content-card h2 {
+  width: 100%;
+  display: block;
+  flex: 0 0 auto;
+  margin-bottom: 1.8mm;
+}
+
+.content-flow {
+  display: grid;
+  gap: 1.1mm;
+  min-height: 0;
+}
+
+.content-paragraph {
+  margin: 0;
+  font-size: var(--font-size-body);
+  line-height: var(--line-height-body);
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+.content-list {
+  margin-top: 0;
+  padding-left: 2.8mm;
+}
+
+.content-list li {
+  font-size: var(--font-size-body-strong);
+  line-height: 1.12;
+}
+
+.content-list li + li {
+  margin-top: 0.55mm;
+}
+
+.content-warning-box {
+  display: grid;
+  grid-template-columns: 5.8mm 1fr;
+  gap: 1.6mm;
+  align-items: start;
+  padding: 1.6mm;
+  border-radius: 2.4mm;
+  background: var(--accent-soft);
+}
+
+.content-figure {
+  margin: 0;
+  display: grid;
+  place-items: center;
+}
+
+.content-figure img {
+  display: block;
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.badge-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1.2mm;
+  align-items: center;
+}
+
+.badge-row-item {
+  height: 4.8mm;
+  width: auto;
+  display: block;
+}
+
+.qr-block {
+  display: grid;
+  gap: 1mm;
+  justify-items: start;
+}
+
+.qr-block-code {
+  width: 18mm;
+  height: 18mm;
+  display: block;
+}
+
+.qr-block-caption {
+  font-size: var(--font-size-micro);
+  line-height: 1.12;
+  color: var(--muted);
+}
+
+.content-placeholder {
+  padding: 2mm;
+  border-radius: 2.4mm;
+  border: 0.35mm dashed #9aa7b3;
+  color: var(--muted);
+  font-size: var(--font-size-label);
+  line-height: var(--line-height-body);
+}
+
+.card-variant-cover {
+  background: linear-gradient(180deg, #ffffff 0%, #f6f9ff 100%);
+}
+
+.card-variant-cover .content-flow {
+  gap: 1mm;
+}
+
+.card-variant-cover .content-figure img {
+  max-width: 22mm;
+}
+
+.card-variant-cover .content-paragraph:first-child {
+  font-size: var(--font-size-heading);
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.card-variant-cover .content-paragraph:nth-child(2) {
+  font-size: var(--font-size-body-strong);
+  color: var(--ink);
+}
+
+.card-variant-cover .content-paragraph {
+  color: var(--ink);
+}
+
+.cover-premium {
+  height: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr auto;
+  gap: 2.4mm;
+}
+
+.cover-top-row {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 3mm;
+}
+
+.page-cover {
+  background: #f8fafc;
+}
+
+.page-cover .page-shell {
+  padding: 5mm;
+  gap: 0;
+}
+
+.page-cover .page-body {
+  min-height: 0;
+}
+
+.cover-brand-lockup {
+  display: flex;
+  align-items: center;
+  gap: 1.6mm;
+  min-width: 0;
+  padding-top: 1.2mm;
+}
+
+.cover-brand-logo {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  flex: 0 0 auto;
+}
+
+.cover-brand-logo-locon {
+  height: 2.6mm;
+}
+
+.cover-brand-safe-family {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.9mm;
+  min-width: 0;
+}
+
+.cover-brand-safe-family-icon {
+  width: 4.6mm;
+  height: 4.2mm;
+  flex: 0 0 auto;
+}
+
+.cover-brand-safe-family-text {
+  display: grid;
+  gap: 0.12mm;
+  font-size: 1.62mm;
+  line-height: 0.95;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.cover-brand-divider {
+  width: 0.3mm;
+  height: 3.8mm;
+  background: var(--line);
+  border-radius: 999px;
+  flex: 0 0 auto;
+}
+
+.cover-premium-body {
+  min-height: 0;
+}
+
+.cover-main {
+  display: grid;
+  grid-template-columns: 56% 44%;
+  column-gap: 2mm;
+  height: 100%;
+  min-height: 0;
+}
+
+.left-column {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.right-column {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  min-width: 0;
+  min-height: 0;
+}
+
+.cover-premium-copy {
+  display: grid;
+  align-content: start;
+  gap: 2.2mm;
+  min-width: 0;
+  padding-top: 1.5mm;
+  padding-bottom: 1.8mm;
+}
+
+.cover-premium-title {
+  margin: 0;
+  display: grid;
+  gap: 0.45mm;
+  font-size: 5.2mm;
+  line-height: 0.94;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: balance;
+}
+
+.cover-premium-title-accent {
+  color: var(--accent);
+}
+
+.cover-premium-subtitle {
+  margin: 0;
+  max-width: 25mm;
+  font-size: 1.82mm;
+  line-height: 1.22;
+  color: var(--muted);
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: balance;
+}
+
+.cover-tech-block {
+  display: grid;
+  gap: 0.45mm;
+  margin-top: auto;
+  padding-top: 0.8mm;
+  font-size: 1.58mm;
+  line-height: 1.14;
+  color: var(--ink);
+}
+
+.cover-tech-block div:first-child,
+.cover-tech-block div:last-child {
+  color: var(--muted);
+}
+
+.cover-tech-block div:nth-child(2),
+.cover-tech-block div:nth-child(3) {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.cover-premium-visual {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: visible;
+  pointer-events: none;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+}
+
+.cover-watch-outline {
+  width: 100%;
+  max-width: 26mm;
+  max-height: 45mm;
+  height: auto;
+  opacity: 0.28;
+  object-fit: contain;
+  object-position: center center;
+  filter: grayscale(1) brightness(0.9) contrast(0.8);
+  transform: none;
+}
+
+.cover-language-list {
+  margin-top: auto;
+  font-size: 1.44mm;
+  line-height: 1;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+  color: var(--muted);
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
+.cover-cover-footer {
+  margin-top: 1.4mm;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 2mm;
+  color: var(--muted);
+}
+
+.cover-cover-footer .folio {
+  color: var(--muted);
+}
+
+.closing-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closing-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.closing-brand-lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 3mm;
+}
+
+.closing-brand-safe-family {
+  display: inline-flex;
+  align-items: center;
+  gap: 1.4mm;
+}
+
+.closing-brand-safe-family-icon {
+  width: 7.5mm;
+  height: auto;
+  flex: 0 0 auto;
+}
+
+.closing-brand-safe-family-text {
+  display: inline-flex;
+  flex-direction: column;
+  gap: 0.25mm;
+  font-size: 2.4mm;
+  line-height: 0.95;
+  font-weight: 700;
+  color: #111111;
+}
+
+.closing-brand-divider {
+  width: 0.25mm;
+  height: 9mm;
+  background: #d7dce3;
+}
+
+.closing-brand-locon-logo {
+  width: 19mm;
+  height: auto;
+  display: block;
+}
+
+.tone-contact {
+  background: #f8fafc;
+}
+
+.page-contact .page-body {
+  min-height: 0;
+  display: flex;
+}
+
+.page-contact .page-footer {
+  color: var(--muted);
+  justify-content: flex-end;
+}
+
+.page-contact .page-footer > div:first-child {
+  display: none;
+}
+
+.page-app-download .page-footer {
+  justify-content: flex-end;
+}
+
+.page-app-download .page-footer > div:first-child {
+  display: none;
+}
+
+.internal-card,
+.app-download-card,
+.contact-card {
+  height: 100%;
+}
+
+.page-contact .contact-card {
+  display: flex;
+  align-items: center;
+}
+
+.app-download-grid,
+.step-grid {
+  height: 100%;
+  display: grid;
+  grid-template-columns: 1fr 0.25mm 1fr;
+  column-gap: 5mm;
+  align-items: center;
+  min-height: 46mm;
+}
+
+.app-download-left,
+.app-download-right {
+  min-width: 0;
+}
+
+.app-download-left,
+.app-download-right,
+.step-column {
+  display: grid;
+  align-content: center;
+  justify-items: start;
+  gap: 2.4mm;
+}
+
+.app-step-badge {
+  width: 8.2mm;
+  height: 8.2mm;
+  border-radius: 999px;
+  display: grid;
+  place-items: center;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 3.4mm;
+  line-height: 1;
+  font-weight: 800;
+}
+
+.app-download-copy {
+  margin: 0;
+  font-size: 2.1mm;
+  line-height: 1.34;
+  color: var(--ink);
+}
+
+.app-download-copy strong {
+  font-weight: 800;
+}
+
+.app-badge-stack {
+  display: grid;
+  gap: 1.4mm;
+  justify-items: start;
+}
+
+.app-store-badge {
+  display: block;
+  width: auto;
+  height: 5.6mm;
+}
+
+.app-download-divider,
+.step-divider {
+  width: 0.25mm;
+  height: 40mm;
+  background: var(--line);
+  align-self: center;
+}
+
+.app-download-qr {
+  width: 19mm;
+  height: 19mm;
+  display: block;
+  object-fit: contain;
+}
+
+.app-download-copy-right {
+  max-width: 19mm;
+}
+
+.page-app-download .app-download-right {
+  justify-items: start;
+}
+
+.step-detail-card {
+  display: flex;
+  align-items: center;
+}
+
+.step-detail {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 4mm;
+  align-items: flex-start;
+  max-width: 52mm;
+  margin: 0 auto;
+}
+
+.page-content[data-page-label="KROK 2"] .content-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-content[data-page-label="KROK 2"] .step-detail {
+  margin: 0 auto;
+}
+
+.page-content[data-page-label="KROK 2"] .step-detail-copy h2,
+.page-content[data-page-label="KROK 3"] .step-detail-header h2 {
+  font-size: 4mm;
+}
+
+.page-content[data-page-label="KROK 2"] .step-subtitle,
+.page-content[data-page-label="KROK 2"] .step-body,
+.page-content[data-page-label="KROK 3"] .step-detail-header p,
+.page-content[data-page-label="KROK 3"] .vertical-step p {
+  font-size: 2mm;
+  line-height: 1.35;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="СТЪПКА 3"] .step-list-detail {
+  max-width: 50mm;
+}
+
+.page-content[data-page-label="СТЪПКА 3"] .step-detail-header {
+  margin-bottom: 3.2mm;
+}
+
+.page-content[data-page-label="СТЪПКА 3"] .step-detail-header h2 {
+  font-size: 3.7mm;
+}
+
+.page-content[data-page-label="СТЪПКА 3"] .step-detail-header p,
+.page-content[data-page-label="СТЪПКА 3"] .vertical-step p {
+  font-size: 1.72mm;
+  line-height: 1.22;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="СТЪПКА 3"] .vertical-steps {
+  gap: 2.1mm;
+}
+
+.page-content[data-page-label="СТЪПКА 3"] .vertical-step {
+  column-gap: 2.2mm;
+}
+
+.page-content[data-page-label="KROK 4"] .content-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .content-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-content[data-page-label="KROK 4"] .content-flow {
+  max-width: 52mm;
+  margin: 0 auto;
+  padding: 0;
+  gap: 0;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .content-flow {
+  max-width: 52mm;
+  margin: 0 auto;
+  padding: 0;
+  gap: 0;
+}
+
+.page-content[data-page-label="KROK 4"] h2 {
+  font-size: 4mm;
+  line-height: 1;
+  margin: 0 0 4mm;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] h2 {
+  font-size: 4mm;
+  line-height: 1;
+  margin: 0 0 4mm;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="KROK 4"] .content-card > h2 {
+  display: none;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .content-card > h2 {
+  display: none;
+}
+
+.page-content[data-page-label="KROK 4"] .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="KROK 4"] .content-warning-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3mm;
+  align-items: center;
+  background: #eaf2ff;
+  border-radius: 3mm;
+  padding: 3mm;
+  margin: 4mm 0;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .content-warning-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3mm;
+  align-items: center;
+  background: #eaf2ff;
+  border-radius: 3mm;
+  padding: 3mm;
+  margin: 4mm 0;
+}
+
+.page-content[data-page-label="KROK 4"] .warning-badge {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .warning-badge {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="KROK 4"] .content-warning-box .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.page-content[data-page-label="СТЪПКА 4"] .content-warning-box .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.step-detail-copy h2 {
+  font-size: 5mm;
+  line-height: 1;
+  margin: 0 0 1.5mm;
+  font-weight: 800;
+}
+
+.step-subtitle {
+  font-size: 3mm;
+  line-height: 1.2;
+  margin: 0 0 3mm;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.step-body {
+  font-size: 2.4mm;
+  line-height: 1.35;
+  color: var(--ink);
+  margin: 0;
+}
+
+.step-list-detail-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step-list-detail {
+  width: 100%;
+  max-width: 52mm;
+}
+
+.step-detail-header {
+  margin-bottom: 5mm;
+}
+
+.step-detail-header h2 {
+  font-size: 5mm;
+  line-height: 1;
+  margin: 0 0 1mm;
+  font-weight: 800;
+}
+
+.step-detail-header p {
+  font-size: 3mm;
+  line-height: 1.2;
+  margin: 0;
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.vertical-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+}
+
+.vertical-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3mm;
+  align-items: start;
+}
+
+.vertical-step p {
+  margin: 0;
+  font-size: 2.35mm;
+  line-height: 1.35;
+  color: var(--ink);
+}
+
+.device-overview-card {
+  display: flex;
+  align-items: flex-start;
+}
+
+.device-overview-grid {
+  display: grid;
+  grid-template-columns: 1fr 0.25mm 1fr;
+  column-gap: 4mm;
+  width: 100%;
+  align-items: start;
+}
+
+.device-column {
+  display: flex;
+  flex-direction: column;
+  gap: 1.2mm;
+  min-width: 0;
+}
+
+.device-column-right {
+  align-items: flex-start;
+  justify-content: flex-start;
+}
+
+.device-divider {
+  width: 0.25mm;
+  height: 42mm;
+  background: #d7dce3;
+}
+
+.device-visual {
+  position: relative;
+}
+
+.device-illustration-front {
+  height: 20.5mm;
+  width: auto;
+  object-fit: contain;
+  display: block;
+  margin: 0 auto;
+}
+
+.device-illustration-side-back {
+  display: flex;
+  gap: 3mm;
+  align-items: center;
+  justify-content: flex-start;
+  height: 26mm;
+}
+
+.device-illustration-side-back img {
+  display: block;
+}
+
+.device-side-view {
+  height: 22mm;
+  width: auto;
+  object-fit: contain;
+}
+
+.device-back-view {
+  height: 24mm;
+  width: auto;
+  object-fit: contain;
+}
+
+.device-section-title {
+  font-size: 2.4mm;
+  line-height: 1;
+  font-weight: 800;
+  margin: 0 0 2mm;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.device-feature-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9mm;
+  margin-bottom: 0.7mm;
+}
+
+.device-feature-group-compact {
+  gap: 0.9mm;
+}
+
+.device-feature {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35mm;
+  padding: 1.1mm 0 0.8mm;
+  border-top: 0.22mm solid rgba(215, 220, 227, 0.7);
+}
+
+.device-label {
+  font-size: 1.55mm;
+  line-height: 1.12;
+  font-weight: 700;
+  margin: 0;
+  color: var(--ink);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  display: flex;
+  align-items: center;
+  gap: 1mm;
+}
+
+.device-feature-details {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35mm;
+  padding-left: 2.4mm;
+}
+
+.device-description {
+  font-size: 1.22mm;
+  line-height: 1.1;
+  color: #5f6876;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.device-marker {
+  width: 3.2mm;
+  height: 3.2mm;
+  border-radius: 999px;
+  background: #5c7cfa;
+  color: #fff;
+  display: inline-grid;
+  place-items: center;
+  font-size: 1.5mm;
+  line-height: 1;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.device-marker {
+  position: absolute;
+}
+
+.device-label-number {
+  color: #5c7cfa;
+  font-weight: 800;
+  flex: 0 0 auto;
+}
+
+.device-marker-1 {
+  left: 8.4mm;
+  top: 1.2mm;
+}
+
+.device-marker-2 {
+  right: 7.2mm;
+  top: 5.6mm;
+}
+
+.device-marker-3 {
+  right: 7mm;
+  top: 9.2mm;
+}
+
+.device-marker-4 {
+  left: 1.6mm;
+  top: 8.4mm;
+}
+
+.device-marker-5 {
+  right: 6.8mm;
+  bottom: 5.2mm;
+}
+
+.charging-step-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.charging-step {
+  width: 100%;
+  max-width: 52mm;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3mm;
+}
+
+.charging-title {
+  font-size: 4mm;
+  line-height: 1;
+  font-weight: 800;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.charging-instruction {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 1"] .charging-instruction {
+  text-align: center;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 1"] .charging-instruction {
+  text-align: center;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 1"] .charging-step {
+  gap: 0;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 1"] .charging-step {
+  gap: 0;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 1"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 1"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.charging-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+.charging-warning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3mm;
+  align-items: center;
+  background: #fff1f1;
+  border-radius: 3mm;
+  padding: 2.5mm 3mm;
+}
+
+.charging-warning-icon {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  border: 0.35mm solid #e53935;
+  color: #e53935;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.charging-warning-copy {
+  font-size: 1.62mm;
+  line-height: 1.25;
+  margin: 0;
+  color: var(--ink);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.charging-step-usb-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.charging-step-usb {
+  width: 100%;
+  max-width: 54mm;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 3.5mm;
+}
+
+.charging-step-label {
+  font-size: 2.1mm;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.charging-step-title {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  font-weight: 400;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 2"] .charging-step-title {
+  text-align: center;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 2"] .charging-step-title {
+  text-align: center;
+}
+
+.charging-step-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+.charging-step-warning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 3mm;
+  background: #fff1f1;
+  border-radius: 3mm;
+  padding: 2.5mm 3mm;
+}
+
+.charging-step-warning-icon {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  border: 0.35mm solid #e53935;
+  color: #e53935;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 2"] .charging-step-usb {
+  gap: 0;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 2"] .charging-step-usb {
+  gap: 0;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 2"] .charging-step-label {
+  display: none;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 2"] .charging-step-label {
+  display: none;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 2"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 2"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.charging-step-warning-text {
+  font-size: 1.7mm;
+  line-height: 1.25;
+  color: #d83a3a;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.charging-step-wall-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.charging-step-wall {
+  width: 100%;
+  max-width: 54mm;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.25mm;
+}
+
+.charging-step-wall-label {
+  font-size: 2.1mm;
+  font-weight: 600;
+  color: var(--muted);
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+}
+
+.charging-step-wall-title {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  font-weight: 400;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 3"] .charging-step-wall-title {
+  text-align: center;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 3"] .charging-step-wall-title {
+  text-align: center;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 3"] .charging-step-wall {
+  gap: 0;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 3"] .charging-step-wall {
+  gap: 0;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 3"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 3"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.charging-step-wall-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 0;
+}
+
+.charging-illustration-frame {
+  position: relative;
+  width: 100%;
+  height: 35mm;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.charging-illustration-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+  display: block;
+  transform-origin: center center;
+}
+
+.charging-illustration-frame-step-1 {
+  max-width: 46mm;
+}
+
+.charging-illustration-image-step-1 {
+  transform: scale(1);
+}
+
+.charging-illustration-frame-step-2,
+.charging-illustration-frame-step-3 {
+  max-width: 50mm;
+}
+
+.charging-illustration-image-step-2 {
+  transform: scale(1.15);
+}
+
+.charging-illustration-image-step-3 {
+  transform: scale(1.14);
+}
+
+.charging-step-wall-warning {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 3mm;
+  background: #fff1f1;
+  border-radius: 3mm;
+  padding: 2.5mm 3mm;
+}
+
+.charging-step-wall-warning-icon {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  border: 0.35mm solid #e53935;
+  color: #e53935;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.charging-step-wall-warning-text {
+  font-size: 1.7mm;
+  line-height: 1.25;
+  color: var(--ink);
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="ŁADOWANIE — KROK 3"] .charging-step-wall-label {
+  display: none;
+}
+
+.page-content[data-page-label="ЗАРЕЖДАНЕ — СТЪПКА 3"] .charging-step-wall-label {
+  display: none;
+}
+
+.power-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.power-page {
+  width: 100%;
+  max-width: 54mm;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 2mm;
+}
+
+.page-content[data-page-label="ВКЛЮЧВАНЕ И ИЗКЛЮЧВАНЕ"] .power-page {
+  max-width: 52mm;
+  gap: 1.4mm;
+}
+
+.page-content[data-page-label="ВКЛЮЧВАНЕ И ИЗКЛЮЧВАНЕ"] .power-page-intro {
+  font-size: 1.68mm;
+  line-height: 1.28;
+}
+
+.page-content[data-page-label="ВКЛЮЧВАНЕ И ИЗКЛЮЧВАНЕ"] .power-page-visual-frame {
+  height: 26mm;
+}
+
+.page-content[data-page-label="ВКЛЮЧВАНЕ И ИЗКЛЮЧВАНЕ"] .power-page-info-copy p {
+  font-size: 1.68mm;
+  line-height: 1.26;
+}
+
+.power-page-intro {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.35;
+  color: var(--ink);
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.power-page-visual {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.power-page-visual-frame {
+  position: relative;
+  width: 100%;
+  height: 28mm;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.power-page-watch {
+  width: 80%;
+  height: 80%;
+  object-fit: contain;
+  display: block;
+}
+
+.power-page-button-ring {
+  position: absolute;
+  right: 23mm;
+  top: 8.3mm;
+  width: 5.2mm;
+  height: 5.2mm;
+  border: 0.45mm solid #5d78ff;
+  border-radius: 999px;
+}
+
+.power-page-info {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 3mm;
+  background: #fff1f1;
+  border: 0.2mm solid rgba(229, 57, 53, 0.14);
+  border-radius: 3mm;
+  padding: 2.5mm 3mm;
+}
+
+.power-page-info-icon {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  border: 0.35mm solid #e53935;
+  color: #e53935;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.power-page-info-copy p {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.35;
+  color: var(--ink);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.sos-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sos-page {
+  width: 100%;
+  max-width: 50mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 6mm;
+}
+
+.sos-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3.5mm;
+  align-items: flex-start;
+}
+
+.sos-step-badge {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  border: 0.3mm solid #d7dce3;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: 2mm;
+  font-weight: 700;
+  background: #fff;
+}
+
+.sos-step-copy {
+  max-width: 38mm;
+}
+
+.sos-step-title {
+  margin: 0 0 1.25mm;
+  font-size: 2.4mm;
+  line-height: 1.15;
+  font-weight: 700;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.sos-step-title-red {
+  color: #d83a3a;
+}
+
+.sos-step-title-blue {
+  color: #5d78ff;
+}
+
+.sos-step-body {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.tips-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.tips-page {
+  width: 100%;
+  max-width: 50mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 4mm;
+}
+
+.tip-section {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3.5mm;
+  align-items: flex-start;
+}
+
+.tip-section-icon {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  border: 0.3mm solid #d7dce3;
+  color: var(--ink);
+  display: grid;
+  place-items: center;
+  font-size: 2.1mm;
+  font-weight: 600;
+  background: #fff;
+}
+
+.tip-section-copy {
+  max-width: 38mm;
+}
+
+.tip-section-title {
+  margin: 0 0 1mm;
+  font-size: 2.4mm;
+  line-height: 1.15;
+  font-weight: 700;
+  color: var(--ink);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.tip-section-body {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.2;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.tip-section-body + .tip-section-body {
+  margin-top: 1mm;
+}
+
+.page-content[data-page-label="СЪВЕТИ"] .tips-page {
+  max-width: 48mm;
+  gap: 3mm;
+}
+
+.page-content[data-page-label="СЪВЕТИ"] .tip-section {
+  column-gap: 2.8mm;
+}
+
+.page-content[data-page-label="СЪВЕТИ"] .tip-section-copy {
+  max-width: 36mm;
+}
+
+.page-content[data-page-label="СЪВЕТИ"] .tip-section-body {
+  font-size: 1.68mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="СЪВЕТИ"] .tip-section-body + .tip-section-body {
+  margin-top: 0.7mm;
+}
+
+.call-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.call-page {
+  width: 100%;
+  max-width: 70%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4mm;
+}
+
+.call-page-title {
+  margin: 0;
+  font-size: 3mm;
+  line-height: 1.1;
+  font-weight: 700;
+  color: var(--ink);
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="ОСЪЩЕСТВЯВАНЕ НА ПОВИКВАНЕ"] .call-page {
+  align-items: flex-start;
+}
+
+.page-content[data-page-label="ОСЪЩЕСТВЯВАНЕ НА ПОВИКВАНЕ"] .call-page-title {
+  text-align: left;
+}
+
+.call-page-body {
+  display: flex;
+  flex-direction: column;
+  gap: 1.8mm;
+}
+
+.call-page-body p {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.38;
+  color: var(--ink-soft);
+  text-align: left;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.call-page-steps {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 2.5mm;
+}
+
+.call-page-step {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 2mm;
+  align-items: start;
+}
+
+.call-page-step-number {
+  font-size: 1.9mm;
+  line-height: 1.2;
+  font-weight: 700;
+  color: #5d78ff;
+}
+
+.call-page-step-text {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.warnings-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.warnings-page {
+  width: 100%;
+  max-width: 58mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3mm;
+}
+
+.warnings-page-title {
+  margin: 0;
+  font-size: 4mm;
+  line-height: 1;
+  font-weight: 800;
+  color: var(--ink);
+}
+
+.warnings-page-intro {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.warnings-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1.6mm;
+}
+
+.warnings-page-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 2mm;
+  align-items: start;
+}
+
+.warnings-page-dot {
+  width: 1.3mm;
+  height: 1.3mm;
+  border-radius: 999px;
+  background: #5d78ff;
+  margin-top: 0.65mm;
+}
+
+.warnings-page-text {
+  margin: 0;
+  font-size: 1.7mm;
+  line-height: 1.3;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.safety-page-card,
+.sar-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-content[data-page-label="BEZPIECZEŃSTWO UŻYTKOWANIA"] .section-card {
+  padding: 3.5mm;
+}
+
+.safety-page,
+.sar-page {
+  width: 100%;
+  max-width: 56mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.safety-page-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8mm;
+}
+
+.safety-page-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 2mm;
+  align-items: start;
+}
+
+.safety-page-dot {
+  width: 1.2mm;
+  height: 1.2mm;
+  border-radius: 999px;
+  background: #5d78ff;
+  margin-top: 0.65mm;
+}
+
+.safety-page-text,
+.sar-page-text {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.32;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.sar-page {
+  gap: 2mm;
+}
+
+.page-content[data-page-label="SAR"] .sar-page {
+  max-width: 54mm;
+}
+
+.page-content[data-page-label="SAR"] .sar-page-text {
+  font-size: 1.7mm;
+}
+
+.weee-page-card,
+.disposal-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weee-page {
+  width: 100%;
+  max-width: 60mm;
+  display: grid;
+  grid-template-columns: 24mm 1fr;
+  column-gap: 4mm;
+  align-items: center;
+}
+
+.weee-page-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.weee-page-icon img {
+  width: 12mm;
+  height: auto;
+  display: block;
+}
+
+.weee-page-copy {
+  max-width: 32mm;
+}
+
+.weee-page-copy p,
+.disposal-page p {
+  margin: 0;
+  font-size: 1.8mm;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.weee-page-copy strong,
+.disposal-page strong {
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.disposal-page {
+  width: 100%;
+  max-width: 62mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2.4mm;
+}
+
+.ce-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.ce-page {
+  width: 100%;
+  max-width: 62mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2.6mm;
+}
+
+.ce-page-category {
+  margin: 0;
+  font-size: 1.65mm;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.ce-page-product {
+  margin: 0;
+  font-size: 2mm;
+  line-height: 1.2;
+  font-weight: 600;
+  color: var(--ink);
+  white-space: pre-line;
+}
+
+.ce-page-body {
+  margin: 0;
+  max-width: 62mm;
+  font-size: 1.88mm;
+  line-height: 1.35;
+  color: var(--ink-soft);
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.ce-page-url {
+  margin: 0;
+  font-size: 1.6mm;
+  line-height: 1.2;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.warranty-intro-page-card,
+.warranty-claims-page-card,
+.warranty-exclusions-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.warranty-intro-page,
+.warranty-claims-page,
+.warranty-exclusions-page {
+  width: 100%;
+  max-width: 60mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.warranty-intro-page {
+  gap: 2mm;
+}
+
+.warranty-heading-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7mm;
+}
+
+.warranty-heading-eyebrow,
+.warranty-heading-title,
+.warranty-section-title,
+.warranty-qr-copy,
+.warranty-legal-copy,
+.warranty-section-copy,
+.warranty-step-copy,
+.warranty-notice-text {
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.warranty-heading-eyebrow {
+  font-size: 1.65mm;
+  line-height: 1.2;
+  color: var(--muted);
+}
+
+.warranty-heading-title {
+  font-size: 2.8mm;
+  line-height: 1.12;
+  font-weight: 700;
+  color: var(--ink);
+  letter-spacing: 0.01em;
+}
+
+.warranty-info-table {
+  border: 0.2mm solid #d7dce3;
+  border-radius: 2.2mm;
+  overflow: hidden;
+  background: #fff;
+}
+
+.warranty-info-row {
+  display: grid;
+  grid-template-columns: 13.2mm 1fr;
+  align-items: stretch;
+  border-bottom: 0.2mm solid #d7dce3;
+}
+
+.warranty-info-row:last-child {
+  border-bottom: 0;
+}
+
+.warranty-info-label,
+.warranty-info-value {
+  padding: 1.35mm 1.55mm;
+  font-size: 1.58mm;
+  line-height: 1.2;
+}
+
+.warranty-info-label {
+  font-weight: 600;
+  color: var(--ink);
+  border-right: 0.2mm solid #d7dce3;
+}
+
+.warranty-info-value {
+  color: var(--ink-soft);
+}
+
+.warranty-notice-row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  column-gap: 1.8mm;
+  border: 0.2mm solid rgba(229, 57, 53, 0.16);
+  border-radius: 2.2mm;
+  padding: 1.35mm 1.7mm;
+  background: rgba(255, 241, 241, 0.9);
+}
+
+.warranty-notice-icon {
+  width: 5mm;
+  height: 5mm;
+  border-radius: 999px;
+  border: 0.25mm solid #e53935;
+  display: grid;
+  place-items: center;
+  color: #e53935;
+  font-size: 2.3mm;
+  line-height: 1;
+  font-weight: 700;
+}
+
+.warranty-notice-text {
+  font-size: 1.42mm;
+  line-height: 1.18;
+  color: #9f2f2f;
+}
+
+.warranty-claims-page {
+  gap: 3mm;
+}
+
+.warranty-exclusions-page {
+  gap: 2.7mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .section-card,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .section-card {
+  padding: 4mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-claims-page {
+  gap: 1.6mm;
+}
+
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-exclusions-page {
+  gap: 1.1mm;
+}
+
+.warranty-editorial-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1.7mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-editorial-section,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-editorial-section {
+  gap: 0.75mm;
+}
+
+.warranty-section-title {
+  font-size: 2.55mm;
+  line-height: 1.12;
+  font-weight: 650;
+  color: var(--ink);
+}
+
+.warranty-section-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.35mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-section-list,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-section-list {
+  gap: 0.5mm;
+}
+
+.warranty-section-item {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: start;
+  column-gap: 1.6mm;
+}
+
+.warranty-section-dot {
+  width: 1.1mm;
+  height: 1.1mm;
+  margin-top: 0.72mm;
+  border-radius: 999px;
+  background: #8b98aa;
+}
+
+.warranty-section-copy,
+.warranty-step-copy {
+  font-size: 1.78mm;
+  line-height: 1.34;
+  color: var(--ink-soft);
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-section-copy,
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-step-copy,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-section-copy,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-step-copy,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-qr-copy,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-legal-copy {
+  font-size: 1.5mm;
+  line-height: 1.18;
+}
+
+.warranty-editorial-section-qr {
+  gap: 2.1mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-editorial-section-qr,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-editorial-section-qr {
+  gap: 0.7mm;
+}
+
+.warranty-qr-steps {
+  display: grid;
+  grid-template-columns: 20mm 1fr;
+  column-gap: 3.2mm;
+  align-items: center;
+}
+
+.warranty-qr-copy-block {
+  display: grid;
+  grid-template-columns: 20mm 1fr;
+  column-gap: 3.2mm;
+  align-items: center;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-qr-steps,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-qr-copy-block {
+  grid-template-columns: 12mm 1fr;
+  column-gap: 1.2mm;
+  align-items: start;
+}
+
+.warranty-qr-block {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.warranty-qr-block img {
+  width: 9.5mm;
+  height: 9.5mm;
+  display: block;
+  object-fit: contain;
+}
+
+.warranty-steps-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 1.7mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-steps-list {
+  gap: 0.8mm;
+}
+
+.warranty-step-item {
+  display: grid;
+  grid-template-columns: 2.4mm 1fr;
+  column-gap: 1.6mm;
+  align-items: start;
+}
+
+.warranty-step-number {
+  font-size: 1.72mm;
+  line-height: 1.3;
+  font-weight: 700;
+  color: var(--accent);
+  display: inline-block;
+  text-align: right;
+}
+
+.warranty-qr-copy {
+  font-size: 1.82mm;
+  line-height: 1.33;
+  color: var(--ink-soft);
+}
+
+.warranty-editorial-section-legal {
+  gap: 1.4mm;
+}
+
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-editorial-section-legal {
+  gap: 0.4mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-section-dot,
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-section-dot {
+  width: 0.9mm;
+  height: 0.9mm;
+  margin-top: 0.5mm;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-step-number {
+  font-size: 1.58mm;
+  line-height: 1.2;
+}
+
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-section-copy,
+.page-content[data-page-label="OBOWIĄZKI I REKLAMACJA"] .warranty-step-copy {
+  max-width: 100%;
+}
+
+.page-content[data-page-label="WYŁĄCZENIA I KLAUZULA"] .warranty-legal-copy {
+  max-width: 100%;
+}
+
+.warranty-legal-copy {
+  font-size: 1.66mm;
+  line-height: 1.3;
+  color: var(--ink-soft);
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .section-card,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .section-card {
+  padding: 4mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-claims-page {
+  gap: 1.6mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-exclusions-page {
+  gap: 1.1mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .section-card {
+  padding: 3.5mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-editorial-section,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-editorial-section {
+  gap: 0.75mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-section-list,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-section-list {
+  gap: 0.5mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-section-list {
+  gap: 0.35mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-section-copy,
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-step-copy,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-section-copy,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-step-copy,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-qr-copy,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-legal-copy {
+  font-size: 1.5mm;
+  line-height: 1.18;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-editorial-section-qr,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-editorial-section-qr {
+  gap: 0.7mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-editorial-section-qr {
+  gap: 0.45mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-qr-steps,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-qr-copy-block {
+  grid-template-columns: 12mm 1fr;
+  column-gap: 1.2mm;
+  align-items: start;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-qr-copy-block {
+  column-gap: 0.9mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-steps-list {
+  gap: 0.8mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-editorial-section-legal {
+  gap: 0.4mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-section-copy {
+  font-size: 1.42mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-qr-copy {
+  font-size: 1.42mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-section-dot,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-section-dot {
+  width: 0.9mm;
+  height: 0.9mm;
+  margin-top: 0.5mm;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-section-dot {
+  width: 0.8mm;
+  height: 0.8mm;
+  margin-top: 0.45mm;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-step-number {
+  font-size: 1.58mm;
+  line-height: 1.2;
+}
+
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-section-copy,
+.page-content[data-page-label="ЗАДЪЛЖЕНИЯ И РЕКЛАМАЦИЯ"] .warranty-step-copy,
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-legal-copy {
+  max-width: 100%;
+}
+
+.page-content[data-page-label="ИЗКЛЮЧЕНИЯ И КЛАУЗА"] .warranty-legal-copy {
+  font-size: 1.38mm;
+  line-height: 1.12;
+}
+
+.frequency-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.frequency-page {
+  width: 54mm;
+  max-width: 54mm;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  gap: 2.2mm;
+}
+
+.frequency-page-title {
+  margin: 0;
+  max-width: 52mm;
+  font-size: 3.2mm;
+  line-height: 1.15;
+  font-weight: 700;
+  color: #6b7fb8;
+  text-align: center;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.frequency-table-shell {
+  width: 54mm;
+  max-width: 54mm;
+  max-height: 42mm;
+  border: 0.2mm solid #d7dce3;
+  border-radius: 1.5mm;
+  overflow: hidden;
+  background: #fff;
+}
+
+.frequency-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+.frequency-table th,
+.frequency-table td {
+  border-right: 0.2mm solid #d7dce3;
+  border-bottom: 0.2mm solid #d7dce3;
+  padding: 1.3mm 1.5mm;
+  vertical-align: top;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.frequency-table th:last-child,
+.frequency-table td:last-child {
+  border-right: 0;
+}
+
+.frequency-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.frequency-table thead th {
+  background: #fafbfc;
+  font-size: 1.25mm;
+  line-height: 1.2;
+  font-weight: 500;
+  color: #6b7280;
+  text-align: left;
+}
+
+.frequency-table tbody td {
+  font-size: 1.25mm;
+  line-height: 1.2;
+  color: #111;
+}
+
+.frequency-table th:nth-child(1),
+.frequency-table td:nth-child(1) {
+  width: 20%;
+}
+
+.frequency-table th:nth-child(2),
+.frequency-table td:nth-child(2) {
+  width: 32%;
+}
+
+.frequency-table th:nth-child(3),
+.frequency-table td:nth-child(3) {
+  width: 48%;
+}
+
+.frequency-table-group {
+  color: #6b7280;
+  font-weight: 500;
+}
+
+.frequency-table-values {
+  display: block;
+}
+
+.frequency-table-value-label {
+  font-weight: 600;
+}
+
+.freq-value {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7mm;
+}
+
+.freq-line {
+  display: flex;
+  align-items: center;
+  gap: 0.6mm;
+  white-space: nowrap;
+}
+
+.freq-arrow {
+  flex: 0 0 auto;
+}
+
+.freq-text {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.freq-value div {
+  white-space: nowrap;
+  overflow: visible;
+}
+
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-page {
+  width: 54mm;
+  max-width: 54mm;
+}
+
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table th,
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table td {
+  font-size: 1.25mm;
+  line-height: 1.2;
+}
+
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table th:nth-child(1),
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table td:nth-child(1) {
+  width: 20%;
+}
+
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table th:nth-child(2),
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table td:nth-child(2) {
+  width: 32%;
+}
+
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table th:nth-child(3),
+.page-content[data-page-label="FDD-LTE / TDD-LTE / GPS"] .frequency-table td:nth-child(3) {
+  width: 48%;
+}
+
+.simple-spec-page-card,
+.power-table-page-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.table-card {
+  width: 54mm;
+  max-width: 54mm;
+  border: 0.2mm solid #d7dce3;
+  border-radius: 1.5mm;
+  overflow: hidden;
+  background: #fff;
+}
+
+.table-card table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  table-layout: fixed;
+}
+
+.table-card th,
+.table-card td {
+  border-right: 0.2mm solid #d7dce3;
+  border-bottom: 0.2mm solid #d7dce3;
+  padding: 1mm 1.2mm;
+  font-size: 1.25mm;
+  line-height: 1.2;
+  vertical-align: top;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.table-card th {
+  font-weight: 500;
+  color: #6b7280;
+  text-align: left;
+}
+
+.table-card td:last-child,
+.table-card th:last-child {
+  border-right: 0;
+}
+
+.table-card tr:last-child td {
+  border-bottom: 0;
+}
+
+.table-card-two-col td,
+.table-card-two-col th {
+  font-size: 1.25mm;
+  line-height: 1.2;
+  padding: 1mm 1.2mm;
+}
+
+.table-card-two-col th:nth-child(1),
+.table-card-two-col td:nth-child(1) {
+  width: 48%;
+}
+
+.table-card-two-col th:nth-child(2),
+.table-card-two-col td:nth-child(2) {
+  width: 52%;
+}
+
+.table-card-three-col th:nth-child(1),
+.table-card-three-col td:nth-child(1) {
+  width: 22%;
+}
+
+.table-card-three-col th:nth-child(2),
+.table-card-three-col td:nth-child(2) {
+  width: 38%;
+}
+
+.table-card-three-col th:nth-child(3),
+.table-card-three-col td:nth-child(3) {
+  width: 40%;
+}
+
+.table-group-label {
+  color: #6b7280;
+  font-weight: 500;
+  vertical-align: top;
+}
+
+.table-value-cell {
+  font-weight: 700;
+  color: #4b5563;
+}
+
+.power-value {
+  white-space: nowrap;
+}
+
+.contact-layout {
+  flex: 1;
+  min-height: 100%;
+  display: flex;
+  flex-direction: column;
+}
+
+.page-contact .contact-layout {
+  width: 100%;
+  min-height: 0;
+}
+
+.page-contact .contact-title {
+  font-size: 3.25mm;
+  line-height: 0.95;
+}
+
+.page-contact .contact-subtitle {
+  font-size: 2.02mm;
+  font-weight: 450;
+  line-height: 1.25;
+}
+
+.contact-title {
+  margin: 0;
+  font-size: 4.25mm;
+  line-height: 0.95;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--ink);
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: balance;
+}
+
+.contact-subtitle {
+  margin: 0;
+  max-width: 25mm;
+  font-size: 2.02mm;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--muted);
+  hyphens: none;
+  overflow-wrap: normal;
+  word-break: normal;
+  text-wrap: balance;
+}
+
+.contact-main {
+  flex: 1;
+  display: grid;
+  grid-template-columns: 1fr 0.25mm 1fr;
+  column-gap: 4mm;
+  align-items: center;
+  min-height: 49mm;
+  margin-top: 2mm;
+  margin-bottom: 4mm;
+}
+
+.page-contact .contact-main {
+  width: 100%;
+  flex: 0 0 auto;
+  display: grid;
+  grid-template-columns: 1fr 0.25mm 1fr;
+  column-gap: 4.5mm;
+  align-items: center;
+  margin: 0;
+  min-height: 0;
+}
+
+.page-contact .contact-left {
+  gap: 2mm;
+}
+
+.contact-left,
+.contact-right {
+  min-width: 0;
+}
+
+.contact-left {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  text-align: left;
+  gap: 1mm;
+}
+
+.qr-code-slot {
+  width: 18mm;
+  height: 18mm;
+  background: #ffffff;
+  display: grid;
+  place-items: center;
+}
+
+.qr-code-image {
+  width: 18mm;
+  height: 18mm;
+  display: block;
+  object-fit: contain;
+}
+
+.contact-divider-vertical {
+  width: 0.25mm;
+  height: 44mm;
+  background: var(--line);
+  align-self: center;
+}
+
+.page-contact .contact-divider-vertical {
+  height: 34mm;
+  align-self: center;
+}
+
+.contact-right {
+  display: flex;
+  flex-direction: column;
+  gap: 3mm;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.contact-question {
+  font-size: 2mm;
+  line-height: 1.16;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.contact-phone-label,
+.contact-hours-heading {
+  font-size: 1.85mm;
+  line-height: 1.18;
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.call-label {
+  margin-bottom: -1.8mm;
+}
+
+.contact-phone {
+  margin-top: 0;
+  font-size: 2.45mm;
+  line-height: 1;
+  letter-spacing: -0.02em;
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.page-contact .contact-phone {
+  white-space: nowrap;
+}
+
+.contact-divider {
+  width: 100%;
+  height: 0.25mm;
+  background: var(--line);
+  margin: 0.4mm 0;
+}
+
+.hours-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  row-gap: 1.2mm;
+  width: 100%;
+  color: var(--muted);
+  font-size: 1.5mm;
+  line-height: 1.16;
+}
+
+.contact-hours-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 3mm;
+  align-items: baseline;
+  width: 100%;
+}
+
+.hours-label,
+.hours-value {
+  white-space: nowrap;
+  min-width: 0;
+}
+
+.card-variant-qr .content-paragraph:first-child {
+  font-weight: 700;
+}
+
+.card-variant-qr .content-figure img {
+  max-width: 20mm;
+}
+
+.card-variant-warranty .content-paragraph:first-child {
+  font-weight: 700;
+}
+
+.page-content {
+  font-family: var(--font-family-body);
+}
+
+.card-variant-spec .spec-table {
+  margin-top: 0;
+}
+
+.card-variant-warning h2,
+.card-variant-spec h2,
+.card-variant-warranty h2,
+.card-variant-default h2 {
+  font-size: var(--font-size-heading);
+}
+
+.card-variant-warning .content-paragraph,
+.card-variant-spec .content-paragraph,
+.card-variant-warranty .content-paragraph {
+  font-size: 1.62mm;
+  line-height: 1.12;
+}
+
+.card-variant-warning .content-list li,
+.card-variant-warranty .content-list li {
+  font-size: 1.58mm;
+  line-height: 1.08;
+}
+
+.card-variant-warning .content-flow,
+.card-variant-warranty .content-flow {
+  gap: 0.85mm;
+}
+
+.card-variant-spec .spec-key,
+.card-variant-spec .spec-value {
+  font-size: 1.56mm;
+  line-height: 1.08;
+}
+
+.card-variant-spec .spec-row {
+  padding: 1mm 0;
+}
+
+.card-variant-spec .content-flow {
+  gap: 0.7mm;
+}
+
+.card-variant-spec .content-paragraph {
+  font-size: 1.52mm;
+  line-height: 1.08;
+}
+
+.content-placeholder h2 {
+  margin-bottom: 0;
+}
+
+.lede,
+.cover-subtitle,
+.cover-panel-copy,
+.note-list,
+.step-list,
+.warning-list,
+.spec-key,
+.spec-value,
+.toc-name,
+.toc-page,
+.warranty-field span {
+  overflow-wrap: break-word;
+  word-break: normal;
+}
+
+/* HR localized page-label parity with PL/BG master overrides */
+.page-content[data-page-label="KORAK 4"] .content-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-content[data-page-label="KORAK 4"] .content-flow {
+  max-width: 52mm;
+  margin: 0 auto;
+  padding: 0;
+  gap: 0;
+}
+
+.page-content[data-page-label="KORAK 4"] .content-card > h2 {
+  display: none;
+}
+
+.page-content[data-page-label="KORAK 4"] .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="KORAK 4"] .content-warning-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3mm;
+  align-items: center;
+  background: #eaf2ff;
+  border-radius: 3mm;
+  padding: 3mm;
+  margin: 4mm 0;
+}
+
+.page-content[data-page-label="KORAK 4"] .warning-badge {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="KORAK 4"] .content-warning-box .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 1"] .charging-instruction {
+  text-align: center;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 1"] .charging-step {
+  gap: 0;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 1"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 2"] .charging-step-title,
+.page-content[data-page-label="PUNJENJE — KORAK 3"] .charging-step-wall-title {
+  text-align: center;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 2"] .charging-step-usb,
+.page-content[data-page-label="PUNJENJE — KORAK 3"] .charging-step-wall {
+  gap: 0;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 2"] .charging-step-label,
+.page-content[data-page-label="PUNJENJE — KORAK 3"] .charging-step-wall-label {
+  display: none;
+}
+
+.page-content[data-page-label="PUNJENJE — KORAK 2"] .charging-illustration-frame,
+.page-content[data-page-label="PUNJENJE — KORAK 3"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="UKLJUČIVANJE I ISKLJUČIVANJE"] .power-page {
+  max-width: 52mm;
+  gap: 1.4mm;
+}
+
+.page-content[data-page-label="UKLJUČIVANJE I ISKLJUČIVANJE"] .power-page-intro {
+  font-size: 1.68mm;
+  line-height: 1.28;
+}
+
+.page-content[data-page-label="UKLJUČIVANJE I ISKLJUČIVANJE"] .power-page-visual-frame {
+  height: 26mm;
+}
+
+.page-content[data-page-label="UKLJUČIVANJE I ISKLJUČIVANJE"] .power-page-info-copy p {
+  font-size: 1.68mm;
+  line-height: 1.26;
+}
+
+.page-content[data-page-label="SAVJETI"] .tips-page {
+  max-width: 48mm;
+  gap: 3mm;
+}
+
+.page-content[data-page-label="SAVJETI"] .tip-section {
+  column-gap: 2.8mm;
+}
+
+.page-content[data-page-label="SAVJETI"] .tip-section-copy {
+  max-width: 36mm;
+}
+
+.page-content[data-page-label="SAVJETI"] .tip-section-body {
+  font-size: 1.68mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="SAVJETI"] .tip-section-body + .tip-section-body {
+  margin-top: 0.7mm;
+}
+
+.page-content[data-page-label="USPOSTAVLJANJE POZIVA"] .call-page {
+  align-items: flex-start;
+}
+
+.page-content[data-page-label="USPOSTAVLJANJE POZIVA"] .call-page-title {
+  text-align: left;
+}
+
+.page-content[data-page-label="SIGURNOST UPORABE"] .section-card {
+  padding: 3.5mm;
+}
+
+.page-content[data-page-label="SUKLADNOST CE"] .ce-page {
+  max-width: 63mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .section-card,
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .section-card {
+  padding: 4mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-claims-page {
+  gap: 1.6mm;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .section-card {
+  padding: 3.5mm;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-exclusions-page {
+  gap: 1.1mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-editorial-section,
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-editorial-section {
+  gap: 0.75mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-section-list {
+  gap: 0.5mm;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-section-list {
+  gap: 0.35mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-section-copy,
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-step-copy,
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-step-copy {
+  font-size: 1.5mm;
+  line-height: 1.18;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-section-copy,
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-qr-copy {
+  font-size: 1.42mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-legal-copy {
+  max-width: 100%;
+  font-size: 1.38mm;
+  line-height: 1.12;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-editorial-section-qr {
+  gap: 0.7mm;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-editorial-section-qr {
+  gap: 0.45mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-qr-steps,
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-qr-copy-block {
+  grid-template-columns: 12mm 1fr;
+  column-gap: 1.2mm;
+  align-items: start;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-qr-copy-block {
+  column-gap: 0.9mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-steps-list {
+  gap: 0.8mm;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-editorial-section-legal {
+  gap: 0.4mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-section-dot,
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-section-dot {
+  width: 0.9mm;
+  height: 0.9mm;
+  margin-top: 0.5mm;
+}
+
+.page-content[data-page-label="ISKLJUČENJA I KLAUZULA"] .warranty-section-dot {
+  width: 0.8mm;
+  height: 0.8mm;
+  margin-top: 0.45mm;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-step-number {
+  font-size: 1.58mm;
+  line-height: 1.2;
+}
+
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-section-copy,
+.page-content[data-page-label="OBVEZE I REKLAMACIJA"] .warranty-step-copy {
+  max-width: 100%;
+}
+
+/* RO / MK / SQ / EN parity with master PL spacing */
+.page-content[data-page-label="PASUL 4"] .content-card,
+.page-content[data-page-label="ЧЕКОР 4"] .content-card,
+.page-content[data-page-label="HAPI 4"] .content-card,
+.page-content[data-page-label="STEP 4"] .content-card {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.page-content[data-page-label="PASUL 4"] .content-flow,
+.page-content[data-page-label="ЧЕКОР 4"] .content-flow,
+.page-content[data-page-label="HAPI 4"] .content-flow,
+.page-content[data-page-label="STEP 4"] .content-flow {
+  max-width: 52mm;
+  margin: 0 auto;
+  padding: 0;
+  gap: 0;
+}
+
+.page-content[data-page-label="PASUL 4"] .content-card > h2,
+.page-content[data-page-label="ЧЕКОР 4"] .content-card > h2,
+.page-content[data-page-label="HAPI 4"] .content-card > h2,
+.page-content[data-page-label="STEP 4"] .content-card > h2 {
+  display: none;
+}
+
+.page-content[data-page-label="PASUL 4"] .content-paragraph,
+.page-content[data-page-label="ЧЕКОР 4"] .content-paragraph,
+.page-content[data-page-label="HAPI 4"] .content-paragraph,
+.page-content[data-page-label="STEP 4"] .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+  word-break: normal;
+  overflow-wrap: normal;
+  hyphens: none;
+  text-wrap: pretty;
+}
+
+.page-content[data-page-label="PASUL 4"] .content-warning-box,
+.page-content[data-page-label="ЧЕКОР 4"] .content-warning-box,
+.page-content[data-page-label="HAPI 4"] .content-warning-box,
+.page-content[data-page-label="STEP 4"] .content-warning-box {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  column-gap: 3mm;
+  align-items: center;
+  background: #eaf2ff;
+  border-radius: 3mm;
+  padding: 3mm;
+  margin: 4mm 0;
+}
+
+.page-content[data-page-label="PASUL 4"] .warning-badge,
+.page-content[data-page-label="ЧЕКОР 4"] .warning-badge,
+.page-content[data-page-label="HAPI 4"] .warning-badge,
+.page-content[data-page-label="STEP 4"] .warning-badge {
+  width: 7mm;
+  height: 7mm;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  display: grid;
+  place-items: center;
+  font-weight: 800;
+}
+
+.page-content[data-page-label="PASUL 4"] .content-warning-box .content-paragraph,
+.page-content[data-page-label="ЧЕКОР 4"] .content-warning-box .content-paragraph,
+.page-content[data-page-label="HAPI 4"] .content-warning-box .content-paragraph,
+.page-content[data-page-label="STEP 4"] .content-warning-box .content-paragraph {
+  font-size: 1.8mm;
+  line-height: 1.35;
+  margin: 0;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 1"] .charging-instruction,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 1"] .charging-instruction,
+.page-content[data-page-label="KARIKIMI — HAPI 1"] .charging-instruction,
+.page-content[data-page-label="CHARGING — STEP 1"] .charging-instruction {
+  text-align: center;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 1"] .charging-step,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 1"] .charging-step,
+.page-content[data-page-label="KARIKIMI — HAPI 1"] .charging-step,
+.page-content[data-page-label="CHARGING — STEP 1"] .charging-step {
+  gap: 0;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 1"] .charging-illustration-frame,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 1"] .charging-illustration-frame,
+.page-content[data-page-label="KARIKIMI — HAPI 1"] .charging-illustration-frame,
+.page-content[data-page-label="CHARGING — STEP 1"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 2"] .charging-step-title,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 2"] .charging-step-title,
+.page-content[data-page-label="KARIKIMI — HAPI 2"] .charging-step-title,
+.page-content[data-page-label="CHARGING — STEP 2"] .charging-step-title,
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 3"] .charging-step-wall-title,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 3"] .charging-step-wall-title,
+.page-content[data-page-label="KARIKIMI — HAPI 3"] .charging-step-wall-title,
+.page-content[data-page-label="CHARGING — STEP 3"] .charging-step-wall-title {
+  text-align: center;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 2"] .charging-step-usb,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 2"] .charging-step-usb,
+.page-content[data-page-label="KARIKIMI — HAPI 2"] .charging-step-usb,
+.page-content[data-page-label="CHARGING — STEP 2"] .charging-step-usb,
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 3"] .charging-step-wall,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 3"] .charging-step-wall,
+.page-content[data-page-label="KARIKIMI — HAPI 3"] .charging-step-wall,
+.page-content[data-page-label="CHARGING — STEP 3"] .charging-step-wall {
+  gap: 0;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 2"] .charging-step-label,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 2"] .charging-step-label,
+.page-content[data-page-label="KARIKIMI — HAPI 2"] .charging-step-label,
+.page-content[data-page-label="CHARGING — STEP 2"] .charging-step-label,
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 3"] .charging-step-wall-label,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 3"] .charging-step-wall-label,
+.page-content[data-page-label="KARIKIMI — HAPI 3"] .charging-step-wall-label,
+.page-content[data-page-label="CHARGING — STEP 3"] .charging-step-wall-label {
+  display: none;
+}
+
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 2"] .charging-illustration-frame,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 2"] .charging-illustration-frame,
+.page-content[data-page-label="KARIKIMI — HAPI 2"] .charging-illustration-frame,
+.page-content[data-page-label="CHARGING — STEP 2"] .charging-illustration-frame,
+.page-content[data-page-label="ÎNCĂRCARE — PASUL 3"] .charging-illustration-frame,
+.page-content[data-page-label="ПОЛНЕЊЕ — ЧЕКОР 3"] .charging-illustration-frame,
+.page-content[data-page-label="KARIKIMI — HAPI 3"] .charging-illustration-frame,
+.page-content[data-page-label="CHARGING — STEP 3"] .charging-illustration-frame {
+  height: 25mm;
+}
+
+.page-content[data-page-label="PORNIRE ȘI OPRIRE"] .power-page,
+.page-content[data-page-label="ВКЛУЧУВАЊЕ И ИСКЛУЧУВАЊЕ"] .power-page,
+.page-content[data-page-label="NDEZJA DHE FIKJA"] .power-page,
+.page-content[data-page-label="TURNING ON AND OFF"] .power-page {
+  max-width: 52mm;
+  gap: 1.4mm;
+}
+
+.page-content[data-page-label="PORNIRE ȘI OPRIRE"] .power-page-intro,
+.page-content[data-page-label="ВКЛУЧУВАЊЕ И ИСКЛУЧУВАЊЕ"] .power-page-intro,
+.page-content[data-page-label="NDEZJA DHE FIKJA"] .power-page-intro,
+.page-content[data-page-label="TURNING ON AND OFF"] .power-page-intro {
+  font-size: 1.68mm;
+  line-height: 1.28;
+}
+
+.page-content[data-page-label="PORNIRE ȘI OPRIRE"] .power-page-visual-frame,
+.page-content[data-page-label="ВКЛУЧУВАЊЕ И ИСКЛУЧУВАЊЕ"] .power-page-visual-frame,
+.page-content[data-page-label="NDEZJA DHE FIKJA"] .power-page-visual-frame,
+.page-content[data-page-label="TURNING ON AND OFF"] .power-page-visual-frame {
+  height: 26mm;
+}
+
+.page-content[data-page-label="PORNIRE ȘI OPRIRE"] .power-page-info-copy p,
+.page-content[data-page-label="ВКЛУЧУВАЊЕ И ИСКЛУЧУВАЊЕ"] .power-page-info-copy p,
+.page-content[data-page-label="NDEZJA DHE FIKJA"] .power-page-info-copy p,
+.page-content[data-page-label="TURNING ON AND OFF"] .power-page-info-copy p {
+  font-size: 1.68mm;
+  line-height: 1.26;
+}
+
+.page-content[data-page-label="SFATURI"] .tips-page,
+.page-content[data-page-label="СОВЕТИ"] .tips-page,
+.page-content[data-page-label="KËSHILLA"] .tips-page,
+.page-content[data-page-label="TIPS"] .tips-page {
+  max-width: 48mm;
+  gap: 3mm;
+}
+
+.page-content[data-page-label="SFATURI"] .tip-section,
+.page-content[data-page-label="СОВЕТИ"] .tip-section,
+.page-content[data-page-label="KËSHILLA"] .tip-section,
+.page-content[data-page-label="TIPS"] .tip-section {
+  column-gap: 2.8mm;
+}
+
+.page-content[data-page-label="SFATURI"] .tip-section-copy,
+.page-content[data-page-label="СОВЕТИ"] .tip-section-copy,
+.page-content[data-page-label="KËSHILLA"] .tip-section-copy,
+.page-content[data-page-label="TIPS"] .tip-section-copy {
+  max-width: 36mm;
+}
+
+.page-content[data-page-label="SFATURI"] .tip-section-body,
+.page-content[data-page-label="СОВЕТИ"] .tip-section-body,
+.page-content[data-page-label="KËSHILLA"] .tip-section-body,
+.page-content[data-page-label="TIPS"] .tip-section-body {
+  font-size: 1.68mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="SFATURI"] .tip-section-body + .tip-section-body,
+.page-content[data-page-label="СОВЕТИ"] .tip-section-body + .tip-section-body,
+.page-content[data-page-label="KËSHILLA"] .tip-section-body + .tip-section-body,
+.page-content[data-page-label="TIPS"] .tip-section-body + .tip-section-body {
+  margin-top: 0.7mm;
+}
+
+.page-content[data-page-label="EFECTUAREA APELULUI"] .call-page,
+.page-content[data-page-label="ВОСПОСТАВУВАЊЕ ПОВИК"] .call-page,
+.page-content[data-page-label="KRYERJA E THIRRJES"] .call-page,
+.page-content[data-page-label="MAKING A CALL"] .call-page {
+  align-items: flex-start;
+}
+
+.page-content[data-page-label="EFECTUAREA APELULUI"] .call-page-title,
+.page-content[data-page-label="ВОСПОСТАВУВАЊЕ ПОВИК"] .call-page-title,
+.page-content[data-page-label="KRYERJA E THIRRJES"] .call-page-title,
+.page-content[data-page-label="MAKING A CALL"] .call-page-title {
+  text-align: left;
+}
+
+.page-content[data-page-label="SIGURANȚA UTILIZĂRII"] .section-card,
+.page-content[data-page-label="БЕЗБЕДНОСТ ПРИ УПОТРЕБА"] .section-card,
+.page-content[data-page-label="SIGURIA E PËRDORIMIT"] .section-card,
+.page-content[data-page-label="USAGE SAFETY"] .section-card {
+  padding: 3.5mm;
+}
+
+.page-content[data-page-label="CONFORMITATE CE"] .ce-page,
+.page-content[data-page-label="СООБРАЗНОСТ CE"] .ce-page,
+.page-content[data-page-label="KONFORMITETI CE"] .ce-page,
+.page-content[data-page-label="CE COMPLIANCE"] .ce-page {
+  max-width: 63mm;
+}
+
+.page-content[data-page-label="CONDIȚII DE GARANȚIE"] .section-card,
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .section-card,
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .section-card,
+.page-content[data-page-label="УСЛОВИ НА ГАРАНЦИЈАТА"] .section-card,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .section-card,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .section-card,
+.page-content[data-page-label="KUSHTET E GARANCISË"] .section-card,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .section-card,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .section-card,
+.page-content[data-page-label="WARRANTY CONDITIONS"] .section-card,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .section-card,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .section-card {
+  padding: 4mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-claims-page,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-claims-page,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-claims-page,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-claims-page {
+  gap: 1.6mm;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .section-card,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .section-card,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .section-card,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .section-card {
+  padding: 3.5mm;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-exclusions-page,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-exclusions-page,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-exclusions-page,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-exclusions-page {
+  gap: 1.1mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-editorial-section,
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-editorial-section,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-editorial-section,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-editorial-section,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-editorial-section,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-editorial-section,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-editorial-section,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-editorial-section {
+  gap: 0.75mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-section-list,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-section-list,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-section-list,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-section-list {
+  gap: 0.5mm;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-section-list,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-section-list,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-section-list,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-section-list {
+  gap: 0.35mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-section-copy,
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-step-copy,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-section-copy,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-step-copy,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-section-copy,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-step-copy,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-section-copy,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-step-copy,
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-step-copy,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-step-copy,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-step-copy,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-step-copy {
+  font-size: 1.5mm;
+  line-height: 1.18;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-section-copy,
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-qr-copy,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-section-copy,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-qr-copy,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-section-copy,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-qr-copy,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-section-copy,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-qr-copy {
+  font-size: 1.42mm;
+  line-height: 1.14;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-legal-copy,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-legal-copy,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-legal-copy,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-legal-copy {
+  max-width: 100%;
+  font-size: 1.38mm;
+  line-height: 1.12;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-editorial-section-qr,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-editorial-section-qr,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-editorial-section-qr,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-editorial-section-qr {
+  gap: 0.7mm;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-editorial-section-qr,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-editorial-section-qr,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-editorial-section-qr,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-editorial-section-qr {
+  gap: 0.45mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-qr-steps,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-qr-steps,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-qr-steps,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-qr-steps,
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-qr-copy-block,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-qr-copy-block,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-qr-copy-block,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-qr-copy-block {
+  grid-template-columns: 12mm 1fr;
+  column-gap: 1.2mm;
+  align-items: start;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-qr-copy-block,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-qr-copy-block,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-qr-copy-block,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-qr-copy-block {
+  column-gap: 0.9mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-steps-list,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-steps-list,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-steps-list,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-steps-list {
+  gap: 0.8mm;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-editorial-section-legal,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-editorial-section-legal,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-editorial-section-legal,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-editorial-section-legal {
+  gap: 0.4mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-section-dot,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-section-dot,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-section-dot,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-section-dot {
+  width: 0.9mm;
+  height: 0.9mm;
+  margin-top: 0.5mm;
+}
+
+.page-content[data-page-label="EXCLUDERI ȘI CLAUZĂ"] .warranty-section-dot,
+.page-content[data-page-label="ИСКЛУЧУВАЊА И КЛАУЗУЛА"] .warranty-section-dot,
+.page-content[data-page-label="PËRJASHTIMET DHE KLAUZOLA"] .warranty-section-dot,
+.page-content[data-page-label="EXCLUSIONS AND CLAUSE"] .warranty-section-dot {
+  width: 0.8mm;
+  height: 0.8mm;
+  margin-top: 0.45mm;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-step-number,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-step-number,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-step-number,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-step-number {
+  font-size: 1.58mm;
+  line-height: 1.2;
+}
+
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-section-copy,
+.page-content[data-page-label="OBLIGAȚII ȘI RECLAMAȚIE"] .warranty-step-copy,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-section-copy,
+.page-content[data-page-label="ОБВРСКИ И РЕКЛАМАЦИЈА"] .warranty-step-copy,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-section-copy,
+.page-content[data-page-label="DETYRIMET DHE ANKESA"] .warranty-step-copy,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-section-copy,
+.page-content[data-page-label="OBLIGATIONS AND COMPLAINTS"] .warranty-step-copy {
+  max-width: 100%;
+}

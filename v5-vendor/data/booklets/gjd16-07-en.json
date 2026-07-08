@@ -1,0 +1,1109 @@
+{
+  "meta": {
+    "documentId": "gjd16-07-en",
+    "language": "EN",
+    "languageLabel": "EN",
+    "device": "GJD16",
+    "title": "GJD.16 — Locon Watch Slay AI",
+    "subtitle": "Quick Start Guide & Warranty Card",
+    "pageSizeMm": {
+      "width": 76,
+      "height": 76
+    },
+    "revision": "Imported from XLSX v4 final"
+  },
+  "branding": {
+    "company": "LOCON"
+  },
+  "toc": {
+    "title": "TABLE OF CONTENTS",
+    "items": [
+      {
+        "label": "Quick Start Guide",
+        "pageNumber": 3
+      },
+      {
+        "label": "Warranty Card",
+        "pageNumber": 31
+      }
+    ]
+  },
+  "pages": [
+    {
+      "type": "toc-custom",
+      "title": "TABLE OF CONTENTS",
+      "label": "TABLE OF CONTENTS",
+      "showFooter": false,
+      "items": [
+        {
+          "label": "Quick Start Guide",
+          "pageNumber": 3
+        },
+        {
+          "label": "Warranty Card",
+          "pageNumber": 31
+        }
+      ],
+      "blocks": []
+    },
+    {
+      "type": "content",
+      "label": "COVER",
+      "title": "COVER",
+      "variant": "cover",
+      "displayNumber": 1,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Quick start and warranty card"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Version 003"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "QR + CONTACT",
+      "title": "QR + CONTACT",
+      "variant": "qr",
+      "displayNumber": 2,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Scan the code and open the full user manual"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Have questions?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Write to us: help@locon.pl"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "HOW TO START — STEP 1",
+      "title": "HOW TO START — STEP 1",
+      "variant": "default",
+      "displayNumber": 3,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "How to start?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Download and install the Safe Family application on your phone"
+        },
+        {
+          "kind": "paragraph",
+          "text": "DOWNLOAD FROM"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Scan the code to add the application"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "STEP 2",
+      "title": "STEP 2",
+      "variant": "default",
+      "displayNumber": 4,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Launch the Safe Family application:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Enter your phone number, to which you will receive an SMS with a login code (and phone number confirmation)."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "STEP 3",
+      "title": "STEP 3",
+      "variant": "default",
+      "displayNumber": 5,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Add the device to the application:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Press the \"Select\" button in the \"I want to locate another GPS device\" field."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Scan the QR code from the box or device"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Follow the further instructions in the application"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "STEP 4",
+      "title": "STEP 4",
+      "variant": "warning",
+      "displayNumber": 6,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "If you have a device with a SIM card supplied by Locon, after completing the previous steps your device will be ready to use within a few minutes."
+        },
+        {
+          "kind": "warning",
+          "text": "Warning! Your SIM card must not have a PIN code."
+        },
+        {
+          "kind": "paragraph",
+          "text": "How to install your own SIM card? You will find the full instructions in the User Manual (QR code on page 2) or by contacting the Locon helpline."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "GET TO KNOW YOUR DEVICE",
+      "title": "GET TO KNOW YOUR DEVICE",
+      "variant": "default",
+      "displayNumber": 7,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Get to know your device"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Front"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Camera"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Function Button"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Turning the device on and off"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Return to previous view"
+        },
+        {
+          "kind": "paragraph",
+          "text": "SOS Button"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Sending SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Return to main screen"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Side/back"
+        },
+        {
+          "kind": "paragraph",
+          "text": "SIM card slot"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Charging contacts"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CHARGING — STEP 1",
+      "title": "CHARGING — STEP 1",
+      "variant": "warning",
+      "displayNumber": 8,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Charging the device"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Apply the magnetic end of the cable to the back of the device"
+        },
+        {
+          "kind": "warning",
+          "text": "Please be especially careful and do not connect devices that are wet or damp from sweat for charging. Charging a damp device causes corrosion and damage to the device."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CHARGING — STEP 2",
+      "title": "CHARGING — STEP 2",
+      "variant": "warning",
+      "displayNumber": 9,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Connect the USB cable end to the power adapter"
+        },
+        {
+          "kind": "warning",
+          "text": "The power adapter is not included in the set"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CHARGING — STEP 3",
+      "title": "CHARGING — STEP 3",
+      "variant": "warning",
+      "displayNumber": 10,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Connect the power adapter to the electrical outlet"
+        },
+        {
+          "kind": "warning",
+          "text": "Make sure you have correctly connected the entire set. Incorrect connection of the device may cause its damage."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "TURNING ON AND OFF",
+      "title": "TURNING ON AND OFF",
+      "variant": "default",
+      "displayNumber": 11,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Turning the device on and off"
+        },
+        {
+          "kind": "paragraph",
+          "text": "To turn on the device"
+        },
+        {
+          "kind": "paragraph",
+          "text": "hold the function button for approximately 3 seconds."
+        },
+        {
+          "kind": "paragraph",
+          "text": "To turn off the device, in the watch menu select \"More\", then \"Settings\", \"Turn off\", and then again \"Turn off\"."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SOS ALARM ACTIVATION",
+      "title": "SOS ALARM ACTIVATION",
+      "variant": "default",
+      "displayNumber": 12,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "SOS alarm activation"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Turn on the device"
+        },
+        {
+          "kind": "paragraph",
+          "text": "The device must be turned on to use the SOS button."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Device turned on"
+        },
+        {
+          "kind": "paragraph",
+          "text": "With the device turned on: holding the SOS button sends an SOS alarm to the phone and establishes a connection with the guardian."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "TIPS",
+      "title": "TIPS",
+      "variant": "default",
+      "displayNumber": 13,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Tip"
+        },
+        {
+          "kind": "paragraph",
+          "text": "The phone number used for registration in the application is automatically added to the device as the main alarm number."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Remember to add contact numbers in the Safe Family application. Only contact numbers added in the application will be able to call the watch."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Setting all ten authorized numbers is not mandatory."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Tip"
+        },
+        {
+          "kind": "paragraph",
+          "text": "After pressing the SOS button, the connection with the guardian may take a little longer, e.g. when the phone is in an area with poor signal. In some cases, it is also possible to connect to the guardian's voicemail."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "MAKING A CALL",
+      "title": "MAKING A CALL",
+      "variant": "default",
+      "displayNumber": 14,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Making a phone call"
+        },
+        {
+          "kind": "paragraph",
+          "text": "To make a call"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Select \"Phone\" in the menu. Press on the selected contact name, then select \"Phone\" again."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Contact"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mom"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Phone"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Settings"
+        },
+        {
+          "kind": "paragraph",
+          "text": "WeChat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Video call"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WARNINGS",
+      "title": "WARNINGS",
+      "variant": "default",
+      "displayNumber": 15,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Warnings"
+        },
+        {
+          "kind": "paragraph",
+          "text": "To extend the device lifespan, follow the instructions:"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Do not use or store the device in dusty places.",
+            "Do not expose the device to temperatures outside the recommended range.",
+            "The device should be cleaned with a dry cloth. Do not use chemicals or detergents to clean the device.",
+            "Do not disassemble the device.",
+            "Replacing the built-in battery with a different one will cause malfunction and void the warranty."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "GENERAL SPECIFICATION",
+      "title": "GENERAL SPECIFICATION",
+      "variant": "spec",
+      "displayNumber": 16,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Specifications"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "CPU",
+              "W377"
+            ],
+            [
+              "GPS",
+              "UWS6137"
+            ],
+            [
+              "Display",
+              "1.78''"
+            ],
+            [
+              "Display type",
+              "AMOLED 368x448"
+            ],
+            [
+              "Wi-Fi",
+              "2.4G : 2412 MHz ~ 2472 MHz"
+            ],
+            [
+              "SIM card",
+              "Nano"
+            ],
+            [
+              "Charging port",
+              "Magnetic cable"
+            ],
+            [
+              "Memory",
+              "ROM 8GB RAM 1GB"
+            ],
+            [
+              "Colour",
+              "purple/blue"
+            ],
+            [
+              "Strap and clasp",
+              "silicone + plastic"
+            ],
+            [
+              "Camera",
+              "5 MP"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFICATION — DIMENSIONS AND NETWORKS",
+      "title": "SPECIFICATION — DIMENSIONS AND NETWORKS",
+      "variant": "spec",
+      "displayNumber": 17,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Dimensions",
+              "49 x 40.2 x 13 mm"
+            ],
+            [
+              "Weight",
+              "48 g"
+            ],
+            [
+              "Location technologies",
+              "GPS/WiFi/LBS"
+            ],
+            [
+              "Network 2G",
+              "900/1800"
+            ],
+            [
+              "Network 3G",
+              "Band 1/8"
+            ],
+            [
+              "Network 4G",
+              "FDD Band: B1/B3/B7/B8/B20, TDD Band: 28/38/40"
+            ],
+            [
+              "Water resistance",
+              "IP68"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFICATION — BATTERY",
+      "title": "SPECIFICATION — BATTERY",
+      "variant": "spec",
+      "displayNumber": 18,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Battery"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Type",
+              "Lithium-polymer battery"
+            ],
+            [
+              "Capacity",
+              "700 mAh"
+            ],
+            [
+              "Operating time",
+              "up to 3 days"
+            ],
+            [
+              "Charging current",
+              "350 mA"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FREQUENCIES",
+      "title": "FREQUENCIES",
+      "variant": "spec",
+      "displayNumber": 19,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "GSM / GPRS"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "GSM / GPRS 900 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "GSM / GPRS 900 downlink",
+              "925 MHz ~ 960 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "WCDMA Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "WCDMA Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "WCDMA Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "WCDMA Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE",
+      "title": "FDD-LTE",
+      "variant": "spec",
+      "displayNumber": 20,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "Band 3 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "Band 3 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "Band 7 uplink",
+              "2500 MHz ~ 2570 MHz"
+            ],
+            [
+              "Band 7 downlink",
+              "2620 MHz ~ 2690 MHz"
+            ],
+            [
+              "Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE / TDD-LTE / GPS",
+      "title": "FDD-LTE / TDD-LTE / GPS",
+      "variant": "spec",
+      "displayNumber": 21,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band 20 uplink",
+              "832 MHz ~ 862 MHz"
+            ],
+            [
+              "Band 20 downlink",
+              "791 MHz ~ 821 MHz"
+            ],
+            [
+              "Band 28 uplink",
+              "703 MHz ~ 748 MHz"
+            ],
+            [
+              "Band 28 downlink",
+              "758 MHz ~ 803 MHz"
+            ],
+            [
+              "Band 38 uplink & downlink",
+              "2570 MHz ~ 2620 MHz"
+            ],
+            [
+              "Band 40 uplink & downlink",
+              "2300 MHz ~ 2400 MHz"
+            ],
+            [
+              "GPS receiver",
+              "1.57542 GHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power I",
+      "title": "Transmission Power I",
+      "variant": "spec",
+      "displayNumber": 22,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Wi-Fi 2.4G",
+              "13.42 dBm"
+            ],
+            [
+              "GSM 900",
+              "31.66 dBm"
+            ],
+            [
+              "GSM 1800",
+              "29.46 dBm"
+            ],
+            [
+              "WCDMA Band 1",
+              "21.97 dBm"
+            ],
+            [
+              "WCDMA Band 8",
+              "22.19 dBm"
+            ],
+            [
+              "LTE Band 3",
+              "23.18 dBm"
+            ],
+            [
+              "LTE Band 7",
+              "22.69 dBm"
+            ],
+            [
+              "LTE Band 8",
+              "22.40 dBm"
+            ],
+            [
+              "FDD-LTE Band 1",
+              "22.71 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power II",
+      "title": "Transmission Power II",
+      "variant": "spec",
+      "displayNumber": 23,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "FDD-LTE Band 20",
+              "22.91 dBm"
+            ],
+            [
+              "FDD-LTE Band 28",
+              "24.13 dBm"
+            ],
+            [
+              "TDD-LTE Band 38",
+              "22.61 dBm"
+            ],
+            [
+              "TDD-LTE Band 40",
+              "22.36 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "USAGE SAFETY",
+      "title": "USAGE SAFETY",
+      "variant": "default",
+      "displayNumber": 24,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Usage safety guidelines"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Do not place unnecessary metal objects near the device, as this may cause problems with its operation.",
+            "All safety rules for using electrical devices must be observed, including not inserting metal objects into the device and avoiding any actions that may expose the user to electric shock.",
+            "Do not use the device in dusty, humid, contaminated places or in places where a magnetic field is present.",
+            "The device should be handled gently, dropping or other physical damage may render it unfit for use.",
+            "Do not disassemble the device or any of its parts yourself, and do not make structural changes to the product. Do not modify the device software."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SAR",
+      "title": "SAR",
+      "variant": "default",
+      "displayNumber": 25,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Information on the operation of radio frequency waves and the specific absorption rate (SAR)"
+        },
+        {
+          "kind": "paragraph",
+          "text": "The Locon Watch Slay AI GPS watch has been designed to meet all applicable safety requirements regarding the impact of radio waves on the human body."
+        },
+        {
+          "kind": "paragraph",
+          "text": "These requirements result from scientific recommendations, including permissible levels guaranteeing the safety of all persons, regardless of their age and health condition. In recommendations regarding the impact of radio waves, the term \"specific absorption rate\" (SAR) is used. SAR value tests are conducted using standard methods, when the watch transmits at maximum power in all used frequency bands."
+        },
+        {
+          "kind": "paragraph",
+          "text": "For this watch model Locon Watch Slay AI the highest SAR value measured by Locon is 0.489 W/kg (head) and 2.894 W/kg (body). The regulatory limits are 2 W/kg (head) and 4 W/kg (body)."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WEEE",
+      "title": "WEEE",
+      "variant": "default",
+      "displayNumber": 26,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Proper product disposal"
+        },
+        {
+          "kind": "paragraph",
+          "text": "The marking placed on the product or in texts relating to it indicates that the product, after the expiry of the use period, should not be disposed of with other household waste."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "RECYCLING",
+      "title": "RECYCLING",
+      "variant": "default",
+      "displayNumber": 27,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Proper product recycling"
+        },
+        {
+          "kind": "paragraph",
+          "text": "A product marked with a crossed-out bin symbol indicates that it must not be disposed of together with ordinary municipal waste. For the protection of the environment and human health, it should be responsibly sorted and recycled."
+        },
+        {
+          "kind": "paragraph",
+          "text": "After the end of use, please hand over the device to a selective collection point for electrical and electronic equipment or contact the seller for detailed information on return options and safe disposal of the device in accordance with applicable regulations. Thank you for your responsible attitude towards environmental protection."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CE COMPLIANCE",
+      "title": "CE COMPLIANCE",
+      "variant": "default",
+      "displayNumber": 28,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI MODEL: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON Sp. z o.o. hereby declares that the radio equipment type Smartwatch Locon Watch Slay AI Model GJD.16 complies with Directive 2014/53/EU. The full text of the EU declaration of conformity is available at the following internet address https://locon.pl/gjd16-ce"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WARRANTY CARD — COVER",
+      "title": "WARRANTY CARD — COVER",
+      "variant": "warranty",
+      "displayNumber": 29,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Warranty card"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WARRANTY CONDITIONS",
+      "title": "WARRANTY CONDITIONS",
+      "variant": "warranty",
+      "displayNumber": 30,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Locon sp. z o.o."
+        },
+        {
+          "kind": "paragraph",
+          "text": "WARRANTY TERMS AND CONDITIONS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Guarantor"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Locon Sp. z o.o., 70 Wspólna St., 00-687 Warsaw, Poland, VAT EU PL8521013334"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Subject"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch Locon Watch Slay AI model: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Warranty period"
+        },
+        {
+          "kind": "paragraph",
+          "text": "24 months for the device, 12 months for the battery, 6 months for accessories from the date of sale / delivery of the device"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Coverage"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Territory of the Republic of Poland, the Republic of Bulgaria, the Republic of Croatia, Romania and the Republic of North Macedonia"
+        },
+        {
+          "kind": "warning",
+          "text": "The battery is a consumable element subject to natural wear during use of the device"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "OBLIGATIONS AND COMPLAINTS",
+      "title": "OBLIGATIONS AND COMPLAINTS",
+      "variant": "warranty",
+      "displayNumber": 31,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "1. Guarantor Obligations"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "free removal of defects within 14 days from the report",
+            "coverage of transport costs of the device to the authorized service center"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "2. Customer Rights"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "free repair or replacement of the defective device at the Guarantor's discretion",
+            "remote technical support: help@locon.pl"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "3. How to file a complaint"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "contact the authorized service centre for your country — you will find the current list of service centres in the full warranty card under the QR code (section 5 below).",
+            "in the report, provide a description of the defect, contact details and the serial number / IMEI of the device.",
+            "after the report is accepted, you will receive instructions for shipping the device. Transport costs are covered by the Guarantor."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "EXCLUSIONS AND CLAUSE",
+      "title": "EXCLUSIONS AND CLAUSE",
+      "variant": "warranty",
+      "displayNumber": 32,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "4. Liability exclusions"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "mechanical damage (drops, impact, crushing) occurring after the device has been handed over to the consumer",
+            "flooding or contact with liquid beyond the water resistance class specified in the technical specification",
+            "repairs or modifications carried out outside the Guarantor's authorized service centre",
+            "modification of the device software (installation of unapproved firmware, obtaining administrator privileges)",
+            "natural wear of consumable parts (including reduction of battery capacity after exceeding 500 charging cycles)",
+            "force majeure and power surges in the electrical network",
+            "use of accessories other than those supplied in the set or not approved by the Guarantor"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "5. Full warranty text"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Full document for download: Scan the QR code and open the full version of the warranty card"
+        },
+        {
+          "kind": "paragraph",
+          "text": "6. Statutory clause"
+        },
+        {
+          "kind": "paragraph",
+          "text": "In case of non-conformity of the sold item with the contract, the buyer is entitled by law to legal remedies from and at the expense of the seller, and the warranty does not affect these legal remedies."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "BACK",
+      "title": "BACK",
+      "variant": "warranty",
+      "displayNumber": 33,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "loconsafefamily.com"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Learn more!"
+        }
+      ]
+    }
+  ]
+}

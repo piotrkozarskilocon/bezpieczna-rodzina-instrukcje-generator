@@ -1,0 +1,1109 @@
+{
+  "meta": {
+    "documentId": "gjd16-04-ro",
+    "language": "RO",
+    "languageLabel": "RO",
+    "device": "GJD16",
+    "title": "GJD.16 — Locon Watch Slay AI",
+    "subtitle": "Ghid rapid și certificat de garanție",
+    "pageSizeMm": {
+      "width": 76,
+      "height": 76
+    },
+    "revision": "Imported from XLSX v4 final"
+  },
+  "branding": {
+    "company": "LOCON"
+  },
+  "toc": {
+    "title": "CUPRINS",
+    "items": [
+      {
+        "label": "Ghid rapid",
+        "pageNumber": 3
+      },
+      {
+        "label": "Certificat de garanție",
+        "pageNumber": 31
+      }
+    ]
+  },
+  "pages": [
+    {
+      "type": "toc-custom",
+      "title": "CUPRINS",
+      "label": "CUPRINS",
+      "showFooter": false,
+      "items": [
+        {
+          "label": "Ghid rapid",
+          "pageNumber": 3
+        },
+        {
+          "label": "Certificat de garanție",
+          "pageNumber": 31
+        }
+      ],
+      "blocks": []
+    },
+    {
+      "type": "content",
+      "label": "COPERTĂ",
+      "title": "COPERTĂ",
+      "variant": "cover",
+      "displayNumber": 1,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Start rapid și certificat de garanție"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ceas inteligent"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Versiune 003"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "QR + CONTACT",
+      "title": "QR + CONTACT",
+      "variant": "qr",
+      "displayNumber": 2,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Scanați codul și deschideți instrucțiunile complete de utilizare"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aveți întrebări?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Scrieți-ne: help@locon.pl"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CUM SĂ ÎNCEPEȚI — PASUL 1",
+      "title": "CUM SĂ ÎNCEPEȚI — PASUL 1",
+      "variant": "default",
+      "displayNumber": 3,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Cum să începeți?"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Descărcați și instalați aplicația Safe Family pe telefonul dumneavoastră"
+        },
+        {
+          "kind": "paragraph",
+          "text": "DESCARCĂ DIN"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Scanați codul pentru a adăuga aplicația"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PASUL 2",
+      "title": "PASUL 2",
+      "variant": "default",
+      "displayNumber": 4,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Porniți aplicația Safe Family:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Introduceți numărul dumneavoastră de telefon, pe care veți primi un SMS cu codul de autentificare (și confirmarea numărului de telefon)."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PASUL 3",
+      "title": "PASUL 3",
+      "variant": "default",
+      "displayNumber": 5,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Adăugați dispozitivul în aplicație:"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Apăsați butonul „Alege“ în câmpul „Vreau să localizez alt dispozitiv GPS“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Scanați codul QR de pe cutie sau dispozitiv"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Urmați instrucțiunile ulterioare din aplicație"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PASUL 4",
+      "title": "PASUL 4",
+      "variant": "warning",
+      "displayNumber": 6,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Dacă dețineți dispozitivul împreună cu cartela SIM livrată de Locon, după efectuarea pașilor anteriori dispozitivul dumneavoastră va fi gata de utilizare în câteva minute."
+        },
+        {
+          "kind": "warning",
+          "text": "Atenție! Cartela dumneavoastră SIM nu trebuie să aibă cod PIN."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Cum să instalați propria cartelă SIM? Instrucțiunile complete le veți găsi în Manualul de utilizare (codul QR de pe pagina 2) sau contactând linia de asistență Locon."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CUNOAȘTEȚI DISPOZITIVUL",
+      "title": "CUNOAȘTEȚI DISPOZITIVUL",
+      "variant": "default",
+      "displayNumber": 7,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Cunoașteți dispozitivul dumneavoastră"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Partea din față"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Camera"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Butonul Funcțional"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pornirea și oprirea dispozitivului"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Revenire la vizualizarea anterioară"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Butonul SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Trimiterea SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Revenire la ecranul principal"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Partea laterală/spate"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Slot pentru cartela SIM"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Contacte de încărcare"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ÎNCĂRCARE — PASUL 1",
+      "title": "ÎNCĂRCARE — PASUL 1",
+      "variant": "warning",
+      "displayNumber": 8,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Încărcarea dispozitivului"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aplicați din partea din spate a dispozitivului capătul magnetic al cablului"
+        },
+        {
+          "kind": "warning",
+          "text": "Vă rugăm să fiți deosebit de atenți și să nu conectați la încărcare dispozitive care sunt ude sau umede de transpirație. Încărcarea unui dispozitiv umed cauzează coroziune și deteriorarea dispozitivului."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ÎNCĂRCARE — PASUL 2",
+      "title": "ÎNCĂRCARE — PASUL 2",
+      "variant": "warning",
+      "displayNumber": 9,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Conectați la adaptorul de alimentare capătul cablului USB"
+        },
+        {
+          "kind": "warning",
+          "text": "Adaptorul de alimentare nu este inclus în set"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ÎNCĂRCARE — PASUL 3",
+      "title": "ÎNCĂRCARE — PASUL 3",
+      "variant": "warning",
+      "displayNumber": 10,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Conectați adaptorul de alimentare la priza electrică"
+        },
+        {
+          "kind": "warning",
+          "text": "Asigurați-vă că ați conectat corect întregul set. Conectarea incorectă a dispozitivului poate cauza deteriorarea acestuia."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "PORNIRE ȘI OPRIRE",
+      "title": "PORNIRE ȘI OPRIRE",
+      "variant": "default",
+      "displayNumber": 11,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Pornirea și oprirea dispozitivului"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pentru a porni dispozitivul"
+        },
+        {
+          "kind": "paragraph",
+          "text": "trebuie să țineți apăsat butonul funcțional aproximativ 3 secunde."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pentru a opri dispozitivul, în meniul ceasului selectați „Mai mult“, apoi „Setări“, „Oprește“, apoi din nou „Oprește“."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "ACTIVAREA ALARMEI SOS",
+      "title": "ACTIVAREA ALARMEI SOS",
+      "variant": "default",
+      "displayNumber": 12,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Activarea alarmei SOS"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Porniți dispozitivul"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Dispozitivul trebuie să fie pornit pentru a utiliza butonul SOS."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Dispozitivul pornit"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Cu dispozitivul pornit: menținerea butonului SOS cauzează trimiterea alarmei SOS pe telefon și stabilirea legăturii cu tutorele."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SFATURI",
+      "title": "SFATURI",
+      "variant": "default",
+      "displayNumber": 13,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Sfat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Numărul de telefon utilizat pentru înregistrarea în aplicație este adăugat automat dispozitivului ca număr principal de alarmă."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Nu uitați să adăugați numerele de contact în aplicația Safe Family. Doar numerele de contact adăugate în aplicație vor putea suna ceasul."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Setarea tuturor celor zece numere autorizate nu este obligatorie."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Sfat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "După apăsarea butonului SOS, stabilirea legăturii cu tutorele poate dura puțin mai mult, de ex. când telefonul se află într-un loc cu semnal slab. În unele cazuri este posibilă și conectarea la mesageria vocală a tutorelui."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "EFECTUAREA APELULUI",
+      "title": "EFECTUAREA APELULUI",
+      "variant": "default",
+      "displayNumber": 14,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Efectuarea apelului telefonic"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pentru a efectua un apel"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Selectați în meniu „Telefon“. Apăsați pe numele contactului ales, apoi selectați din nou „Telefon“."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Contact"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Mama"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Telefon"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Setări"
+        },
+        {
+          "kind": "paragraph",
+          "text": "WeChat"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Apel video"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "AVERTISMENTE",
+      "title": "AVERTISMENTE",
+      "variant": "default",
+      "displayNumber": 15,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Avertismente"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Pentru a prelungi durata de viață a dispozitivului, urmați instrucțiunile:"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Nu utilizați și nu depozitați dispozitivul în locuri cu praf.",
+            "Nu puneți dispozitivul la temperatură mai mare sau mai mică decât cea recomandată.",
+            "Dispozitivul trebuie curățat cu o cârpă uscată. Nu curățați dispozitivul cu substanțe chimice sau detergenți.",
+            "Nu dezasamblați și nu reasamblați dispozitivul.",
+            "Utilizarea altor baterii decât cele încorporate în dispozitiv va cauza efecte nedorite și pierderea garanției."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFICAȚII GENERALE",
+      "title": "SPECIFICAȚII GENERALE",
+      "variant": "spec",
+      "displayNumber": 16,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Specificații"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "CPU",
+              "W377"
+            ],
+            [
+              "GPS",
+              "UWS6137"
+            ],
+            [
+              "Ecran",
+              "1,78''"
+            ],
+            [
+              "Tip ecran",
+              "AMOLED 368x448"
+            ],
+            [
+              "Wi-Fi",
+              "2,4G : 2412 MHz ~ 2472 MHz"
+            ],
+            [
+              "Cartelă SIM",
+              "Nano"
+            ],
+            [
+              "Port de încărcare",
+              "Cablu magnetic"
+            ],
+            [
+              "Memorie",
+              "ROM 8GB RAM 1GB"
+            ],
+            [
+              "Culoare",
+              "violet/albastru"
+            ],
+            [
+              "Curea și închizătoare",
+              "silicon + plastic"
+            ],
+            [
+              "Camera",
+              "5 MP"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFICAȚII — DIMENSIUNI ȘI REȚELE",
+      "title": "SPECIFICAȚII — DIMENSIUNI ȘI REȚELE",
+      "variant": "spec",
+      "displayNumber": 17,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Dimensiuni",
+              "49 x 40,2 x 13mm"
+            ],
+            [
+              "Greutate",
+              "48g"
+            ],
+            [
+              "Tehnologii de localizare",
+              "GPS/WiFi/LBS"
+            ],
+            [
+              "Rețea 2G",
+              "900/1800"
+            ],
+            [
+              "Rețea 3G",
+              "Band 1/8"
+            ],
+            [
+              "Rețea 4G",
+              "FDD Band: B1/B3/B7/B8/B20, TDD Band: 28/38/40"
+            ],
+            [
+              "Rezistență la apă",
+              "IP68"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPECIFICAȚII — BATERIE",
+      "title": "SPECIFICAȚII — BATERIE",
+      "variant": "spec",
+      "displayNumber": 18,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Baterie"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Tip",
+              "Baterie litiu-polimer"
+            ],
+            [
+              "Capacitate",
+              "700 mAh"
+            ],
+            [
+              "Autonomie",
+              "până la 3 zile"
+            ],
+            [
+              "Curent de încărcare",
+              "350mA"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FRECVENȚE",
+      "title": "FRECVENȚE",
+      "variant": "spec",
+      "displayNumber": 19,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "GSM / GPRS"
+        },
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "GSM / GPRS 900 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "GSM / GPRS 900 downlink",
+              "925 MHz ~ 960 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "GSM / GPRS 1800 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "WCDMA Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "WCDMA Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "WCDMA Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "WCDMA Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE",
+      "title": "FDD-LTE",
+      "variant": "spec",
+      "displayNumber": 20,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band",
+              "Frequency range"
+            ],
+            [
+              "Band 1 uplink",
+              "1920 MHz ~ 1980 MHz"
+            ],
+            [
+              "Band 1 downlink",
+              "2110 MHz ~ 2170 MHz"
+            ],
+            [
+              "Band 3 uplink",
+              "1710 MHz ~ 1785 MHz"
+            ],
+            [
+              "Band 3 downlink",
+              "1805 MHz ~ 1880 MHz"
+            ],
+            [
+              "Band 7 uplink",
+              "2500 MHz ~ 2570 MHz"
+            ],
+            [
+              "Band 7 downlink",
+              "2620 MHz ~ 2690 MHz"
+            ],
+            [
+              "Band 8 uplink",
+              "880 MHz ~ 915 MHz"
+            ],
+            [
+              "Band 8 downlink",
+              "925 MHz ~ 960 MHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "FDD-LTE / TDD-LTE / GPS",
+      "title": "FDD-LTE / TDD-LTE / GPS",
+      "variant": "spec",
+      "displayNumber": 21,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Band 20 uplink",
+              "832 MHz ~ 862 MHz"
+            ],
+            [
+              "Band 20 downlink",
+              "791 MHz ~ 821 MHz"
+            ],
+            [
+              "Band 28 uplink",
+              "703 MHz ~ 748 MHz"
+            ],
+            [
+              "Band 28 downlink",
+              "758 MHz ~ 803 MHz"
+            ],
+            [
+              "Band 38 uplink & downlink",
+              "2570 MHz ~ 2620 MHz"
+            ],
+            [
+              "Band 40 uplink & downlink",
+              "2300 MHz ~ 2400 MHz"
+            ],
+            [
+              "GPS receiver",
+              "1.57542 GHz"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power I",
+      "title": "Transmission Power I",
+      "variant": "spec",
+      "displayNumber": 22,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "Wi-Fi 2.4G",
+              "13.42 dBm"
+            ],
+            [
+              "GSM 900",
+              "31.66 dBm"
+            ],
+            [
+              "GSM 1800",
+              "29.46 dBm"
+            ],
+            [
+              "WCDMA Band 1",
+              "21.97 dBm"
+            ],
+            [
+              "WCDMA Band 8",
+              "22.19 dBm"
+            ],
+            [
+              "LTE Band 3",
+              "23.18 dBm"
+            ],
+            [
+              "LTE Band 7",
+              "22.69 dBm"
+            ],
+            [
+              "LTE Band 8",
+              "22.40 dBm"
+            ],
+            [
+              "FDD-LTE Band 1",
+              "22.71 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "Transmission Power II",
+      "title": "Transmission Power II",
+      "variant": "spec",
+      "displayNumber": 23,
+      "blocks": [
+        {
+          "kind": "table",
+          "rows": [
+            [
+              "FDD-LTE Band 20",
+              "22.91 dBm"
+            ],
+            [
+              "FDD-LTE Band 28",
+              "24.13 dBm"
+            ],
+            [
+              "TDD-LTE Band 38",
+              "22.61 dBm"
+            ],
+            [
+              "TDD-LTE Band 40",
+              "22.36 dBm"
+            ]
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SIGURANȚA UTILIZĂRII",
+      "title": "SIGURANȚA UTILIZĂRII",
+      "variant": "default",
+      "displayNumber": 24,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Indicații privind siguranța utilizării"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "Nu plasați în apropierea dispozitivului elemente metalice inutile, acest lucru poate cauza probleme cu funcționarea sa.",
+            "Trebuie respectate toate regulile de siguranță privind utilizarea echipamentelor electrice, inclusiv neintroducerea obiectelor metalice în dispozitiv și neefectuarea altor acțiuni care expun utilizatorul la acțiunea curentului electric.",
+            "Nu utilizați dispozitivul în locuri cu praf, umede, poluate sau în locuri unde există câmp magnetic.",
+            "Dispozitivul trebuie manevrat cu grijă, căderea sau altă deteriorare fizică îl poate face inutilizabil.",
+            "Nu dezasamblați singuri dispozitivul sau vreo parte a acestuia, de asemenea nu faceți modificări constructive ale produsului sau ale oricărei părți a acestuia. Nu modificați software-ul dispozitivului."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SAR",
+      "title": "SAR",
+      "variant": "default",
+      "displayNumber": 25,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Informații privind acțiunea undelor de frecvență radio și nivelul de absorbție specifică (SAR)"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Modelul de ceas GPS Locon Watch Slay AI a fost proiectat astfel încât să îndeplinească toate cerințele de siguranță aplicabile privind influența undelor radio asupra organismului uman."
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aceste cerințe rezultă din recomandările științifice, inclusiv nivelurile admisibile care garantează siguranța tuturor persoanelor, indiferent de vârstă și starea de sănătate. În recomandările privind influența undelor radio se folosește termenul „absorbție specifică“ (SAR). Testele valorii SAR se efectuează cu metode standard, când ceasul emite la putere maximă în toate benzile de frecvență utilizate."
+        },
+        {
+          "kind": "paragraph",
+          "text": "În cazul acestui model de ceas Locon Watch Slay AI, cea mai mare valoare SAR măsurată de Locon este de 0,489 W/kg (la față) și 2,894 W/kg (la corp). Valoarea maximă admisibilă permite emisia de radiații cu puterea de 2W/kg la față și 4W/kg la corp."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "WEEE",
+      "title": "WEEE",
+      "variant": "default",
+      "displayNumber": 26,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Eliminarea corectă a produsului"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Marca aplicată pe produs sau în textele referitoare la acesta indică faptul că produsul, după expirarea perioadei de utilizare, nu trebuie eliminat împreună cu alte deșeuri menajere."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "RECICLARE",
+      "title": "RECICLARE",
+      "variant": "default",
+      "displayNumber": 27,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Reciclarea corectă a produsului"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Produsul marcat cu simbolul coșului de gunoi tăiat indică faptul că nu trebuie eliminat împreună cu deșeurile comunale obișnuite. Pentru protecția mediului și a sănătății oamenilor trebuie sortat responsabil și reciclat."
+        },
+        {
+          "kind": "paragraph",
+          "text": "La sfârșitul utilizării, vă rugăm să predați dispozitivul la un punct de colectare selectivă a echipamentelor electrice și electronice sau să contactați vânzătorul pentru informații detaliate privind posibilitățile de returnare și reciclare sigură a dispozitivului conform legislației în vigoare. Vă mulțumim pentru atitudinea responsabilă față de protecția mediului."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CONFORMITATE CE",
+      "title": "CONFORMITATE CE",
+      "variant": "default",
+      "displayNumber": 28,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Ceas inteligent"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI MODEL: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON Sp. z o.o. declară prin prezenta că tipul de echipament radio Smartwatch Locon Watch Slay AI Model GJD.16 este conform cu Directiva 2014/53/UE. Textul integral al declarației de conformitate UE este disponibil la adresa de internet https://locon.pl/gjd16-ce"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CERTIFICAT DE GARANȚIE — COPERTĂ",
+      "title": "CERTIFICAT DE GARANȚIE — COPERTĂ",
+      "variant": "warranty",
+      "displayNumber": 29,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Certificat de garanție"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Ceas inteligent"
+        },
+        {
+          "kind": "paragraph",
+          "text": "LOCON WATCH SLAY AI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "MODEL GJD.16"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "CONDIȚII DE GARANȚIE",
+      "title": "CONDIȚII DE GARANȚIE",
+      "variant": "warranty",
+      "displayNumber": 30,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "Locon sp. z o.o."
+        },
+        {
+          "kind": "paragraph",
+          "text": "CONDIȚII ȘI REGULI DE ACORDARE A GARANȚIEI"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Garant"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Locon Sp. z o.o., str. Wspólna 70, 00-687 Varșovia, Polonia, VAT EU PL8521013334"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Obiect"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Smartwatch Locon Watch Slay AI model: GJD.16"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Perioada de garanție"
+        },
+        {
+          "kind": "paragraph",
+          "text": "24 luni pentru dispozitiv, 12 luni pentru baterie, 6 luni pentru accesorii de la data vânzării / livrării dispozitivului"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Acoperire"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Teritoriul Republicii Polone, Republicii Bulgaria, Republicii Croația, României și Republicii Macedonia de Nord"
+        },
+        {
+          "kind": "warning",
+          "text": "Bateria este un element consumabil supus uzurii naturale în timpul utilizării dispozitivului"
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "OBLIGAȚII ȘI RECLAMAȚIE",
+      "title": "OBLIGAȚII ȘI RECLAMAȚIE",
+      "variant": "warranty",
+      "displayNumber": 31,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "1. Obligațiile Garantului"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "eliminarea gratuită a defectelor în termen de până la 14 zile de la sesizare",
+            "acoperirea costurilor de transport al dispozitivului la service-ul autorizat"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "2. Drepturile Clientului"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "reparare gratuită sau înlocuire a dispozitivului defect conform deciziei Garantului",
+            "asistență tehnică la distanță: help@locon.pl"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "3. Cum să depuneți o reclamație"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "contactați service-ul autorizat corespunzător țării dumneavoastră — lista actualizată a service-urilor o veți găsi în certificatul de garanție complet sub codul QR (secțiunea 5 de mai jos).",
+            "în sesizare indicați descrierea defectului, datele de contact, precum și numărul de serie / IMEI al dispozitivului.",
+            "după acceptarea sesizării veți primi instrucțiunile de expediere a dispozitivului. Costurile de transport sunt suportate de Garant."
+          ]
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "EXCLUDERI ȘI CLAUZĂ",
+      "title": "EXCLUDERI ȘI CLAUZĂ",
+      "variant": "warranty",
+      "displayNumber": 32,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "4. Excluderi de răspundere"
+        },
+        {
+          "kind": "list",
+          "items": [
+            "deteriorări mecanice (cădere, lovire, strivire) apărute după predarea dispozitivului către consumator",
+            "inundare sau contact cu lichide în afara clasei de etanșeitate specificate în specificațiile tehnice",
+            "reparații sau modificări efectuate în afara service-ului autorizat al Garantului",
+            "modificarea software-ului dispozitivului (instalarea de firmware neautorizat, obținerea de drepturi de administrator)",
+            "uzura naturală a elementelor consumabile (printre altele, scăderea capacității bateriei după depășirea a 500 de cicluri de încărcare)",
+            "acțiunea forței majore, precum și supratensiuni în rețeaua electrică",
+            "utilizarea altor accesorii decât cele furnizate în set sau neaprobate de Garant"
+          ]
+        },
+        {
+          "kind": "paragraph",
+          "text": "5. Textul integral al garanției"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Document complet pentru descărcare: Scanați codul QR și deschideți versiunea completă a certificatului de garanție"
+        },
+        {
+          "kind": "paragraph",
+          "text": "6. Clauza legală"
+        },
+        {
+          "kind": "paragraph",
+          "text": "În cazul neconformității bunului vândut cu contractul, cumpărătorului îi revin de drept mijloace de protecție juridică din partea și pe cheltuiala vânzătorului, iar garanția nu afectează aceste mijloace de protecție juridică."
+        }
+      ]
+    },
+    {
+      "type": "content",
+      "label": "SPATE",
+      "title": "SPATE",
+      "variant": "warranty",
+      "displayNumber": 33,
+      "blocks": [
+        {
+          "kind": "paragraph",
+          "text": "loconsafefamily.com"
+        },
+        {
+          "kind": "paragraph",
+          "text": "Aflați mai mult!"
+        }
+      ]
+    }
+  ]
+}
